@@ -1,12 +1,12 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { HashRouter, Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
-import { UserRole, AppNotification, User, TableStatus } from './types';
-import { useRestaurantStore } from './store';
-import CustomerMenu from './views/CustomerMenu';
-import StaffView from './views/StaffView';
-import KitchenView from './views/KitchenView';
-import AdminView from './views/AdminView';
+import { UserRole, AppNotification, User, TableStatus } from './types.ts';
+import { useRestaurantStore } from './store.ts';
+import CustomerMenu from './views/CustomerMenu.tsx';
+import StaffView from './views/StaffView.tsx';
+import KitchenView from './views/KitchenView.tsx';
+import AdminView from './views/AdminView.tsx';
 
 export const ConfirmModal: React.FC<{
   isOpen: boolean; title: string; message: string; onConfirm: () => void; onCancel: () => void;
@@ -184,7 +184,7 @@ const AppContent: React.FC = () => {
   const isAtTable = location.pathname.startsWith('/table/');
 
   return (
-    <div className="min-h-screen h-screen flex flex-col bg-slate-50 overflow-hidden">
+    <div className="min-h-screen h-[100dvh] flex flex-col bg-slate-50 overflow-hidden">
         {activeToast && <NotificationToast notif={activeToast} onClose={() => setActiveToast(null)} />}
         <header className="bg-white/80 backdrop-blur-md border-b border-slate-200 sticky top-0 z-40 px-6 py-4 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
@@ -218,8 +218,8 @@ const AppContent: React.FC = () => {
             </Routes>
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto w-full p-4 md:p-6 no-scrollbar">
-           <div className="max-w-7xl mx-auto h-full">
+        <main className="flex-1 overflow-y-auto w-full no-scrollbar relative">
+           <div className="max-w-7xl mx-auto h-full px-4 py-4 md:px-6 md:py-6">
             <Routes>
                 <Route path="/" element={<CustomerMenu store={store} currentRole={UserRole.CUSTOMER} />} />
                 <Route path="/table/:tableId" element={<CustomerMenu store={store} currentRole={UserRole.CUSTOMER} />} />
