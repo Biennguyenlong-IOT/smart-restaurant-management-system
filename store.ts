@@ -30,13 +30,30 @@ export const useRestaurantStore = () => {
   const [latency, setLatency] = useState<number>(0);
   const [errorDetail, setErrorDetail] = useState<string>('');
 
-  const stateRef = useRef({ tables, menu, history, notifications, users, bankConfig, lastUpdated: 0 });
+  // Sử dụng Ref để lưu trữ trạng thái mới nhất cho các hàm callback và so sánh
+  const stateRef = useRef({ 
+    tables, 
+    menu, 
+    history, 
+    notifications, 
+    users, 
+    bankConfig, 
+    lastUpdated: 0,
+    isPushing: false 
+  });
 
   useEffect(() => {
-    stateRef.current = { tables, menu, history, notifications, users, bankConfig, lastUpdated: stateRef.current.lastUpdated };
+    stateRef.current = { 
+      ...stateRef.current,
+      tables, 
+      menu, 
+      history, 
+      notifications, 
+      users, 
+      bankConfig 
+    };
   }, [tables, menu, history, notifications, users, bankConfig]);
 
-  const syncLock = useRef(false);
   const lastCloudDataHash = useRef<string>('');
   const isInitialPull = useRef(true);
 
@@ -56,11 +73,14 @@ export const useRestaurantStore = () => {
     setErrorDetail('');
     setSyncStatus('IDLE');
     isInitialPull.current = true;
+    stateRef.current.lastUpdated = 0;
   }, []);
 
   const saveAndPush = useCallback(async (t: Table[], m: MenuItem[], h: HistoryEntry[], n: AppNotification[], u: User[], b: BankConfig, forceTimestamp?: number) => {
+    // Tăng timestamp để đánh dấu phiên bản dữ liệu mới
     const timestamp = forceTimestamp || Date.now();
     
+    // Cập nhật UI ngay lập tức (Optimistic UI)
     setTables(t);
     setMenu(m);
     setHistory(h);
@@ -69,12 +89,26 @@ export const useRestaurantStore = () => {
     setBankConfig(b);
     
     stateRef.current.lastUpdated = timestamp;
-    const dataToSave = { tables: t, menu: m, history: h, notifications: n, users: u, bankConfig: b, lastUpdated: timestamp };
+    stateRef.current.isPushing = true; // Khóa pull trong khi đang push
+
+    const dataToSave = { 
+      tables: t, 
+      menu: m, 
+      history: h, 
+      notifications: n, 
+      users: u, 
+      bankConfig: b, 
+      lastUpdated: timestamp 
+    };
+    
     const dataStr = JSON.stringify(dataToSave);
     localStorage.setItem(STORAGE_KEY, dataStr);
     lastCloudDataHash.current = dataStr;
 
-    if (!cloudUrl || syncLock.current) return;
+    if (!cloudUrl) {
+      stateRef.current.isPushing = false;
+      return;
+    }
 
     try {
       setSyncStatus('SYNCING');
@@ -84,37 +118,50 @@ export const useRestaurantStore = () => {
         headers: { 'Content-Type': 'application/json' },
         body: dataStr
       });
+      
       if (response.ok) {
         setSyncStatus('SUCCESS');
         setLastSynced(Date.now());
+      } else {
+        throw new Error("Push failed");
       }
     } catch (e) {
+      console.error("Sync Error:", e);
       setSyncStatus('ERROR');
+    } finally {
+      // Đợi một khoảng ngắn sau khi push xong để đảm bảo server đã cập nhật ổn định trước khi pull lại
+      setTimeout(() => {
+        stateRef.current.isPushing = false;
+      }, 500);
     }
   }, [cloudUrl]);
 
   const pullFromCloud = useCallback(async (isManual = false) => {
-    if (!cloudUrl || syncLock.current) return;
-    syncLock.current = true;
+    // Không pull nếu đang trong quá trình push dữ liệu lên
+    if (!cloudUrl || stateRef.current.isPushing) return;
+    
     const startTime = Date.now();
     if (isManual) setSyncStatus('SYNCING');
 
     try {
-      const response = await fetch(`${cloudUrl}?t=${Date.now()}`, {
+      // Thêm timestamp để tránh cache trình duyệt
+      const response = await fetch(`${cloudUrl}?nocache=${Date.now()}`, {
         headers: { 'Accept': 'application/json', 'Cache-Control': 'no-cache' }
       });
+      
       if (!response.ok) throw new Error("Network error");
       
       const cloudData = await response.json();
-      if (!cloudData) {
-        syncLock.current = false;
-        return;
-      }
+      if (!cloudData) return;
 
       const cloudDataStr = JSON.stringify(cloudData);
+      
+      // Kiểm tra xem dữ liệu có thực sự khác biệt không
       if (cloudDataStr !== lastCloudDataHash.current) {
         const cloudTimestamp = cloudData.lastUpdated || 0;
         
+        // Chỉ cập nhật nếu dữ liệu từ cloud "mới hơn" dữ liệu hiện tại
+        // hoặc là lần đầu tiên load ứng dụng
         if (cloudTimestamp > stateRef.current.lastUpdated || isInitialPull.current) {
           setTables(cloudData.tables || []);
           setMenu(cloudData.menu || INITIAL_MENU);
@@ -127,6 +174,9 @@ export const useRestaurantStore = () => {
           lastCloudDataHash.current = cloudDataStr;
           localStorage.setItem(STORAGE_KEY, cloudDataStr);
           isInitialPull.current = false;
+        } else {
+          // Nếu dữ liệu cloud cũ hơn hoặc bằng, vẫn cập nhật hash để tránh so sánh lại
+          lastCloudDataHash.current = cloudDataStr;
         }
       }
       
@@ -134,9 +184,8 @@ export const useRestaurantStore = () => {
       setSyncStatus('SUCCESS');
       setLastSynced(Date.now());
     } catch (error) {
-      setSyncStatus('ERROR');
-    } finally {
-      syncLock.current = false;
+      console.warn("Pull error:", error);
+      if (isManual) setSyncStatus('ERROR');
     }
   }, [cloudUrl]);
 
@@ -145,7 +194,7 @@ export const useRestaurantStore = () => {
     const updatedUsers = stateRef.current.users.map(u => 
       u.id === userId ? { ...u, lastActive: now } : u
     );
-    // Silent push for heartbeat to avoid excessive UI updates if possible
+    // Heartbeat chỉ đẩy dữ liệu, không cập nhật timestamp chính để tránh kích hoạt pull diện rộng
     saveAndPush(
       stateRef.current.tables,
       stateRef.current.menu,
@@ -153,7 +202,7 @@ export const useRestaurantStore = () => {
       stateRef.current.notifications,
       updatedUsers,
       stateRef.current.bankConfig,
-      stateRef.current.lastUpdated // Keep same timestamp to not trigger heavy logic on others
+      stateRef.current.lastUpdated
     );
   }, [saveAndPush]);
 
@@ -177,10 +226,12 @@ export const useRestaurantStore = () => {
   useEffect(() => {
     if (!cloudUrl) return;
     pullFromCloud(true);
-    const interval = setInterval(pullFromCloud, 2000); 
+    // Tần suất đồng bộ hợp lý (2.5 giây) để tránh quá tải và feedback loop
+    const interval = setInterval(() => pullFromCloud(false), 2500); 
     return () => clearInterval(interval);
   }, [cloudUrl, pullFromCloud]);
 
+  // Các hàm nghiệp vụ giữ nguyên logic nhưng bọc trong store logic chuẩn
   const requestTableQr = useCallback((tableId: number) => {
     const newTables = stateRef.current.tables.map(t => t.id === tableId ? { ...t, qrRequested: true } : t);
     const newNotif: AppNotification = {
