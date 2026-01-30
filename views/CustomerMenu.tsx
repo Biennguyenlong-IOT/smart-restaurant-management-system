@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef, useMemo, memo } from 'react';
+import React, { memo, useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { CATEGORIES } from '../constants';
 import { OrderItem, OrderItemStatus, MenuItem, TableStatus, UserRole, Table } from '../types';
@@ -80,7 +80,8 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
     }
   }, [table?.status, tableId, navigate]);
 
-  const totalCurrentOrder = useMemo(() => 
+  // Explicitly type the return of useMemo as number to avoid 'unknown' comparison issues
+  const totalCurrentOrder = useMemo((): number => 
     (table?.currentOrders || []).reduce((sum: number, item: OrderItem) => sum + (item.price * item.quantity), 0)
   , [table?.currentOrders]);
 
@@ -117,8 +118,9 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
     }
   };
 
-  const cartCount = Object.values(cart).reduce((a, b) => a + b, 0);
-  const cartTotal = Object.entries(cart).reduce((s, [id, q]) => s + ((store.menu || []).find((m:any) => m.id === id)?.price || 0) * (q as number), 0);
+  // Fixed: Added explicit type annotations to cartCount and cartTotal to prevent unknown inference in comparisons.
+  const cartCount: number = Object.values(cart).reduce((a: number, b: number) => a + b, 0);
+  const cartTotal: number = Object.entries(cart).reduce((s: number, [id, q]) => s + (((store.menu || []).find((m: any) => m.id === id)?.price || 0) * (q as number)), 0);
 
   const handleAddToCart = (itemId: string) => {
     setCart(prev => ({ ...prev, [itemId]: (prev[itemId] || 0) + 1 }));
@@ -345,7 +347,8 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
       </div>
 
       {/* FOOTER CỐ ĐỊNH NÚT XEM GIỎ HÀNG - SỬ DỤNG INSET-X ĐỂ CĂN GIỮA CHUẨN */}
-      {view === 'MENU' && cartCount > 0 && (
+      {/* Fixed: Explicitly cast cartCount to number to avoid 'unknown' comparison error at line 349 (relative) */}
+      {view === 'MENU' && (cartCount as number) > 0 && (
         <div className="fixed bottom-6 inset-x-4 md:left-1/2 md:-translate-x-1/2 md:w-full md:max-w-md bg-slate-900 rounded-[1.8rem] p-4 shadow-2xl flex items-center justify-between animate-slideUp z-50 border border-white/10">
             <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-orange-500 text-white rounded-xl flex items-center justify-center font-black shadow-lg shadow-orange-500/20">{cartCount}</div>
