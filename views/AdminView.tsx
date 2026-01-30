@@ -31,6 +31,7 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
   const tableGroups = useMemo(() => {
     const tables: Table[] = store.tables || [];
     const groups = {
+      qrRequests: tables.filter(t => t.qrRequested),
       pendingStaff: [] as number[],
       pendingKitchen: [] as number[],
       cooking: [] as number[],
@@ -157,6 +158,21 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
 
       {activeAdminTab === 'MONITOR' && (
         <div className="space-y-8">
+            {/* Mục phê duyệt QR nhanh */}
+            {tableGroups.qrRequests.length > 0 && (
+                <div className="bg-orange-100 border border-orange-200 p-8 rounded-[3rem] animate-slideDown">
+                    <h2 className="text-[10px] font-black text-orange-600 uppercase tracking-widest mb-6">🔔 Yêu cầu cấp mã QR mới</h2>
+                    <div className="flex flex-wrap gap-4">
+                        {tableGroups.qrRequests.map(t => (
+                            <div key={t.id} className="bg-white p-6 rounded-[2rem] flex items-center gap-6 shadow-sm">
+                                <span className="font-black text-slate-800">Bàn {t.id}</span>
+                                <button onClick={() => store.approveTableQr(t.id)} className="bg-orange-500 text-white px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-orange-200">Cấp QR ngay</button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
             <div className="bg-slate-900 text-white p-10 rounded-[4rem] shadow-2xl relative overflow-hidden">
                 <div className="relative z-10">
                     <div className="flex justify-between items-center mb-10">
@@ -296,16 +312,19 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
       {activeAdminTab === 'QR' && (
         <div className="space-y-8 animate-fadeIn">
             <div className="bg-white p-12 rounded-[4rem] border border-slate-100 shadow-sm">
-                <h3 className="text-2xl font-black text-slate-800 mb-2">QR Code Từng Bàn</h3>
-                <p className="text-slate-400 text-sm mb-12">In các mã này dán tại bàn để khách hàng quét gọi món nhanh.</p>
+                <h3 className="text-2xl font-black text-slate-800 mb-2">Quản lý mã QR</h3>
+                <p className="text-slate-400 text-sm mb-12">Lưu ý: Mã QR phiên hiện tại chỉ khả dụng khi bàn đã được cấp Token.</p>
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-8">
                     {store.tables.map((t: Table) => (
                         <div key={t.id} className="flex flex-col items-center bg-slate-50 p-6 rounded-[2.5rem] border border-slate-100 group hover:border-orange-500 transition-all">
-                            <div className="w-full aspect-square bg-white rounded-2xl p-4 mb-4 shadow-sm">
-                                <img src={getTableQrUrl(t.id)} alt={`QR Bàn ${t.id}`} className="w-full h-full object-contain" />
+                            <div className="w-full aspect-square bg-white rounded-2xl p-4 mb-4 shadow-sm flex items-center justify-center">
+                                {t.sessionToken ? (
+                                    <img src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(window.location.origin + window.location.pathname + '#/table/' + t.id + '?token=' + t.sessionToken)}`} alt={`QR Bàn ${t.id}`} className="w-full h-full object-contain" />
+                                ) : (
+                                    <span className="text-[8px] text-slate-300 font-black uppercase text-center">Bàn trống / Chưa cấp QR</span>
+                                )}
                             </div>
                             <span className="font-black text-slate-800">BÀN {t.id}</span>
-                            <button onClick={() => window.open(getTableQrUrl(t.id), '_blank')} className="mt-3 text-[9px] font-black text-blue-500 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-all">Tải QR</button>
                         </div>
                     ))}
                 </div>
