@@ -94,9 +94,18 @@ const LoginOverlay: React.FC<{
   );
 };
 
-const ProtectedRoute: React.FC<{ role: UserRole, users: User[], children: React.ReactNode }> = ({ role, users, children }) => {
+const ProtectedRoute: React.FC<{ role: UserRole, users: User[], heartbeat: (id: string) => void, children: React.ReactNode }> = ({ role, users, heartbeat, children }) => {
     const [user, setUser] = useState<User | null>(null);
     const navigate = useNavigate();
+
+    useEffect(() => {
+        if (user) {
+            heartbeat(user.id);
+            const interval = setInterval(() => heartbeat(user.id), 15000);
+            return () => clearInterval(interval);
+        }
+    }, [user, heartbeat]);
+
     if (!user) {
         return <LoginOverlay role={role} users={users} onSuccess={setUser} onCancel={() => navigate('/')} />;
     }
@@ -139,7 +148,6 @@ const AppContent: React.FC = () => {
         localStorage.removeItem('locked_table_id');
       } 
       else if (path === '/' && table && table.status !== TableStatus.AVAILABLE) {
-        // Cố gắng lấy lại token nếu có thể, hoặc ít nhất là id
         navigate(`/table/${lockedTableId}`, { replace: true });
       }
     }
@@ -176,9 +184,9 @@ const AppContent: React.FC = () => {
   const isAtTable = location.pathname.startsWith('/table/');
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50">
+    <div className="min-h-screen h-screen flex flex-col bg-slate-50 overflow-hidden">
         {activeToast && <NotificationToast notif={activeToast} onClose={() => setActiveToast(null)} />}
-        <header className="bg-white/80 backdrop-blur-md border-b border-slate-200 sticky top-0 z-40 px-6 py-4 flex items-center justify-between">
+        <header className="bg-white/80 backdrop-blur-md border-b border-slate-200 sticky top-0 z-40 px-6 py-4 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
             {isAtTable ? (
                <div className="flex items-center gap-3 cursor-default">
@@ -210,16 +218,18 @@ const AppContent: React.FC = () => {
             </Routes>
           </div>
         </header>
-        <main className="flex-1 max-w-7xl mx-auto w-full p-4 md:p-6 pb-24">
-           <Routes>
-              <Route path="/" element={<CustomerMenu store={store} currentRole={UserRole.CUSTOMER} />} />
-              <Route path="/table/:tableId" element={<CustomerMenu store={store} currentRole={UserRole.CUSTOMER} />} />
-              <Route path="/table/:tableId/:token" element={<CustomerMenu store={store} currentRole={UserRole.CUSTOMER} />} />
-              <Route path="/staff" element={<ProtectedRoute role={UserRole.STAFF} users={store.users}><StaffView store={store} /></ProtectedRoute>} />
-              <Route path="/kitchen" element={<ProtectedRoute role={UserRole.KITCHEN} users={store.users}><KitchenView store={store} /></ProtectedRoute>} />
-              <Route path="/admin" element={<ProtectedRoute role={UserRole.ADMIN} users={store.users}><AdminView store={store} /></ProtectedRoute>} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-           </Routes>
+        <main className="flex-1 overflow-y-auto w-full p-4 md:p-6 no-scrollbar">
+           <div className="max-w-7xl mx-auto h-full">
+            <Routes>
+                <Route path="/" element={<CustomerMenu store={store} currentRole={UserRole.CUSTOMER} />} />
+                <Route path="/table/:tableId" element={<CustomerMenu store={store} currentRole={UserRole.CUSTOMER} />} />
+                <Route path="/table/:tableId/:token" element={<CustomerMenu store={store} currentRole={UserRole.CUSTOMER} />} />
+                <Route path="/staff" element={<ProtectedRoute role={UserRole.STAFF} users={store.users} heartbeat={store.userHeartbeat}><StaffView store={store} /></ProtectedRoute>} />
+                <Route path="/kitchen" element={<ProtectedRoute role={UserRole.KITCHEN} users={store.users} heartbeat={store.userHeartbeat}><KitchenView store={store} /></ProtectedRoute>} />
+                <Route path="/admin" element={<ProtectedRoute role={UserRole.ADMIN} users={store.users} heartbeat={store.userHeartbeat}><AdminView store={store} /></ProtectedRoute>} />
+                <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+           </div>
         </main>
     </div>
   );
