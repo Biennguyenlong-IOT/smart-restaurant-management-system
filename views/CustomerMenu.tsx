@@ -204,10 +204,11 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
   const cartTotal = Object.entries(cart).reduce((s, [id, q]) => s + ((store.menu || []).find((m:any) => m.id === id)?.price || 0) * (q as number), 0);
 
   return (
-    <div className="flex flex-col h-full max-w-md mx-auto">
+    <div className="flex flex-col h-full max-w-md mx-auto w-full relative overflow-hidden">
       <ConfirmModal isOpen={showPaymentConfirm} title="Thanh toán" message={`Xác nhận yêu cầu thanh toán ${totalCurrentOrder.toLocaleString()}đ?`} onConfirm={() => store.requestPayment(idNum)} onCancel={() => setShowPaymentConfirm(false)} />
 
-      <div className="bg-white rounded-[1.5rem] p-3 mb-4 shadow-sm border border-slate-100 flex justify-between items-center shrink-0">
+      {/* Header Bàn */}
+      <div className="bg-white rounded-[1.5rem] p-3 mb-4 shadow-sm border border-slate-100 flex justify-between items-center shrink-0 mx-1">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-orange-500 text-white rounded-lg flex items-center justify-center font-black shadow-md text-sm italic">B{idNum}</div>
           <h2 className="text-slate-800 font-black text-sm">Bàn {idNum}</h2>
@@ -218,15 +219,16 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto no-scrollbar pb-24">
+      {/* Vùng nội dung cuộn */}
+      <div className="flex-1 overflow-y-auto no-scrollbar pb-32 px-1">
         {view === 'MENU' && (
             <>
-                <div className="flex gap-1.5 overflow-x-auto pb-3 no-scrollbar sticky top-0 bg-slate-50 z-10 pt-1">
+                <div className="flex gap-1.5 overflow-x-auto pb-3 no-scrollbar sticky top-0 bg-slate-50/90 backdrop-blur-sm z-10 pt-1">
                     {CATEGORIES.map(cat => (
-                    <button key={cat} onClick={() => setActiveTab(cat)} className={`px-4 py-2 rounded-xl text-[9px] font-black transition-all uppercase whitespace-nowrap ${activeTab === cat ? 'bg-slate-900 text-white' : 'bg-white text-slate-400 border border-slate-100'}`}>{cat}</button>
+                    <button key={cat} onClick={() => setActiveTab(cat)} className={`px-4 py-2 rounded-xl text-[9px] font-black transition-all uppercase whitespace-nowrap ${activeTab === cat ? 'bg-slate-900 text-white shadow-md' : 'bg-white text-slate-400 border border-slate-100'}`}>{cat}</button>
                     ))}
                 </div>
-                <div className="grid grid-cols-1 gap-3 px-1">
+                <div className="grid grid-cols-1 gap-3">
                     {filteredMenu.map((item: MenuItem) => (
                         <MenuCard 
                             key={item.id} 
@@ -241,42 +243,52 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
         )}
 
         {view === 'CART' && (
-            <div className="animate-fadeIn space-y-4 px-1">
+            <div className="animate-fadeIn space-y-4">
                 <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-100">
                     <h3 className="font-black text-slate-800 text-lg mb-6">Giỏ hàng của bạn</h3>
                     <div className="space-y-4">
-                        {Object.entries(cart).map(([itemId, qty]) => {
-                            const item = (store.menu || []).find((m: any) => m.id === itemId);
-                            return (
-                                <div key={itemId} className="flex items-center justify-between border-b border-slate-50 pb-3 last:border-0">
-                                    <div className="flex items-center gap-3">
-                                        <img src={item?.image} className="w-10 h-10 rounded-xl object-cover" />
-                                        <div>
-                                            <h4 className="font-black text-slate-800 text-[11px] leading-none">{item?.name}</h4>
-                                            <p className="text-[9px] text-orange-600 font-bold mt-1">{item?.price.toLocaleString()}đ</p>
+                        {Object.keys(cart).length === 0 ? (
+                            <div className="py-10 text-center text-slate-300 font-bold uppercase text-[10px]">Giỏ hàng trống</div>
+                        ) : (
+                            Object.entries(cart).map(([itemId, qty]) => {
+                                const item = (store.menu || []).find((m: any) => m.id === itemId);
+                                return (
+                                    <div key={itemId} className="flex items-center justify-between border-b border-slate-50 pb-3 last:border-0">
+                                        <div className="flex items-center gap-3">
+                                            <img src={item?.image} className="w-10 h-10 rounded-xl object-cover shrink-0" />
+                                            <div className="min-w-0">
+                                                <h4 className="font-black text-slate-800 text-[11px] leading-none truncate">{item?.name}</h4>
+                                                <p className="text-[9px] text-orange-600 font-bold mt-1">{item?.price.toLocaleString()}đ</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-3 shrink-0">
+                                            <button onClick={() => handleRemoveFromCart(itemId)} className="w-6 h-6 bg-slate-100 rounded-lg font-black text-xs active:bg-slate-200">-</button>
+                                            <span className="font-black text-xs w-4 text-center">{qty}</span>
+                                            <button onClick={() => handleAddToCart(itemId)} className="w-6 h-6 bg-orange-500 text-white rounded-lg font-black text-xs active:bg-orange-600 shadow-md shadow-orange-200">+</button>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-3">
-                                        <button onClick={() => handleRemoveFromCart(itemId)} className="w-6 h-6 bg-slate-100 rounded-lg font-black text-xs">-</button>
-                                        <span className="font-black text-xs">{qty}</span>
-                                        <button onClick={() => handleAddToCart(itemId)} className="w-6 h-6 bg-orange-500 text-white rounded-lg font-black text-xs">+</button>
-                                    </div>
-                                </div>
-                            )
-                        })}
+                                )
+                            })
+                        )}
                     </div>
-                    <div className="mt-8 pt-6 border-t border-slate-100 flex justify-between items-center">
-                        <span className="text-[10px] font-black text-slate-400 uppercase">Tổng cộng</span>
-                        <span className="text-lg font-black text-slate-900">{cartTotal.toLocaleString()}đ</span>
-                    </div>
+                    {Object.keys(cart).length > 0 && (
+                        <div className="mt-8 pt-6 border-t border-slate-100 flex justify-between items-center">
+                            <span className="text-[10px] font-black text-slate-400 uppercase">Tổng cộng giỏ</span>
+                            <span className="text-lg font-black text-slate-900">{cartTotal.toLocaleString()}đ</span>
+                        </div>
+                    )}
                 </div>
-                <button onClick={handlePlaceOrder} className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black uppercase text-xs shadow-xl active:scale-95 transition-transform">Xác nhận gọi món</button>
-                <button onClick={() => setView('MENU')} className="w-full text-slate-400 font-black text-[9px] uppercase py-2">Chọn thêm món</button>
+                {Object.keys(cart).length > 0 && (
+                    <button onClick={() => setView('MENU')} className="w-full text-slate-400 font-black text-[9px] uppercase py-3 border-2 border-dashed border-slate-200 rounded-2xl">Tiếp tục chọn thêm món</button>
+                )}
+                {Object.keys(cart).length === 0 && (
+                    <button onClick={() => setView('MENU')} className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black uppercase text-[10px]">Về trang Menu</button>
+                )}
             </div>
         )}
 
         {view === 'HISTORY' && (
-            <div className="animate-fadeIn space-y-4 px-1">
+            <div className="animate-fadeIn space-y-4">
                 <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-100 min-h-[300px]">
                     <h3 className="font-black text-slate-800 text-lg mb-6">Món đã đặt</h3>
                     <div className="space-y-3">
@@ -313,13 +325,13 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
                             disabled={!allServed} 
                             onClick={() => setShowPaymentConfirm(true)} 
                             className={`w-full py-5 rounded-2xl font-black uppercase text-xs transition-all ${
-                                allServed ? 'bg-orange-500 text-white active:scale-95 shadow-lg' : 'bg-white/10 text-white/20 cursor-not-allowed'
+                                allServed ? 'bg-orange-500 text-white active:scale-95 shadow-lg shadow-orange-500/20' : 'bg-white/10 text-white/20 cursor-not-allowed'
                             }`}
                         >
-                            {allServed ? 'Thanh toán' : 'Vui lòng chờ phục vụ'}
+                            {allServed ? 'Gửi yêu cầu thanh toán' : 'Chờ phục vụ hết món'}
                         </button>
                         {!allServed && (
-                            <p className="mt-4 text-[8px] text-orange-400/60 font-bold uppercase">Món cuối cùng đang trên đường tới...</p>
+                            <p className="mt-4 text-[8px] text-orange-400/60 font-bold uppercase">Nhân viên đang chuẩn bị món ăn...</p>
                         )}
                     </div>
                 )}
@@ -327,16 +339,32 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
         )}
       </div>
 
+      {/* FOOTER CỐ ĐỊNH - Giải quyết vấn đề tràn màn hình */}
       {view === 'MENU' && cartCount > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-md bg-slate-900 rounded-2xl p-4 shadow-2xl flex items-center justify-between animate-slideUp z-30">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-1rem)] max-w-md bg-slate-900 rounded-2xl p-4 shadow-2xl flex items-center justify-between animate-slideUp z-30 mx-auto">
             <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-orange-500 text-white rounded-xl flex items-center justify-center font-black shadow-lg shadow-orange-500/20">{cartCount}</div>
                 <div>
-                    <p className="text-white/40 text-[8px] font-black uppercase">Tạm tính</p>
+                    <p className="text-white/40 text-[8px] font-black uppercase">Giỏ hàng</p>
                     <p className="text-sm font-black text-white">{cartTotal.toLocaleString()}đ</p>
                 </div>
             </div>
-            <button onClick={() => setView('CART')} className="bg-orange-500 text-white px-8 py-3.5 rounded-xl font-black text-[10px] uppercase shadow-lg shadow-orange-500/30 active:scale-95 transition-transform">Đặt ngay</button>
+            <button onClick={() => setView('CART')} className="bg-orange-500 text-white px-8 py-3.5 rounded-xl font-black text-[10px] uppercase shadow-lg shadow-orange-500/30 active:scale-95 transition-transform">Xem giỏ hàng</button>
+        </div>
+      )}
+
+      {view === 'CART' && Object.keys(cart).length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-1rem)] max-w-md bg-white rounded-2xl p-4 shadow-2xl border border-slate-100 flex flex-col gap-3 animate-slideUp z-30 mx-auto">
+            <div className="flex justify-between items-center px-1">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tổng tiền gọi thêm:</span>
+                <span className="text-lg font-black text-orange-600">{cartTotal.toLocaleString()}đ</span>
+            </div>
+            <button 
+                onClick={handlePlaceOrder} 
+                className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-[0.1em] shadow-xl active:scale-95 transition-transform"
+            >
+                Xác nhận gọi món ngay
+            </button>
         </div>
       )}
     </div>
