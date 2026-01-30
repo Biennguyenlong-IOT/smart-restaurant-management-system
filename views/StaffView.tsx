@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
-import { OrderItem, OrderItemStatus, TableStatus, UserRole, AppNotification, Table } from '../types';
-import { ConfirmModal } from '../App';
+import { OrderItem, OrderItemStatus, TableStatus, UserRole, AppNotification, Table } from '../types.ts';
+import { ConfirmModal } from '../App.tsx';
 
 interface StaffViewProps {
   store: any;
@@ -31,7 +31,6 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
   ), [store.tables]);
 
   const getFullQrUrl = (id: number, token: string) => {
-    // Sử dụng đường dẫn Path thay vì Query string cho sự ổn định trên iOS
     const baseUrl = window.location.origin + window.location.pathname;
     const tableUrl = `${baseUrl}#/table/${id}/${token}`;
     return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(tableUrl)}`;
