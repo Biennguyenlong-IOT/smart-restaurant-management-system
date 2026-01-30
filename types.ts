@@ -45,8 +45,8 @@ export interface Table {
   status: TableStatus;
   currentOrders: OrderItem[];
   needsCleaning?: boolean;
-  sessionToken?: string; // Token duy nhất cho mỗi lượt khách
-  qrRequested?: boolean; // Đánh dấu đang chờ Admin cấp QR
+  sessionToken?: string;
+  qrRequested?: boolean;
 }
 
 export interface HistoryEntry {
@@ -73,6 +73,7 @@ export interface User {
   password: string;
   role: UserRole;
   fullName: string;
+  lastActive?: number; // Timestamp of last activity
 }
 
 export interface BankConfig {
