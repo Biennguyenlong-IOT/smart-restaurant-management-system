@@ -45,6 +45,8 @@ export interface Table {
   status: TableStatus;
   currentOrders: OrderItem[];
   needsCleaning?: boolean;
+  sessionToken?: string; // Token duy nhất cho mỗi lượt khách
+  qrRequested?: boolean; // Đánh dấu đang chờ Admin cấp QR
 }
 
 export interface HistoryEntry {
@@ -62,7 +64,7 @@ export interface AppNotification {
   message: string;
   timestamp: number;
   read: boolean;
-  type: 'order' | 'kitchen' | 'payment' | 'system';
+  type: 'order' | 'kitchen' | 'payment' | 'system' | 'qr_request';
 }
 
 export interface User {
