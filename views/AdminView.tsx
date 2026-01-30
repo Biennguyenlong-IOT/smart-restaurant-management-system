@@ -10,7 +10,7 @@ interface AdminViewProps {
 }
 
 const AdminView: React.FC<AdminViewProps> = ({ store }) => {
-  const [activeAdminTab, setActiveAdminTab] = useState<'MONITOR' | 'REPORTS' | 'PAYMENTS' | 'MENU' | 'CLOUD' | 'USERS' | 'QR'>('MONITOR');
+  const [activeAdminTab, setActiveAdminTab] = useState<'MONITOR' | 'REPORTS' | 'PAYMENTS' | 'MENU' | 'CLOUD' | 'USERS'>('MONITOR');
   const [confirmTableId, setConfirmTableId] = useState<number | null>(null);
   const [tempUrl, setTempUrl] = useState(store.cloudUrl);
   const [showClearHistoryConfirm, setShowClearHistoryConfirm] = useState(false);
@@ -86,12 +86,6 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
     alert('Đã cập nhật cấu hình VietQR!');
   };
 
-  const getTableQrUrl = (id: number, token?: string) => {
-    const baseUrl = window.location.origin + window.location.pathname;
-    const tableUrl = token ? `${baseUrl}#/table/${id}/${token}` : `${baseUrl}#/table/${id}`;
-    return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(tableUrl)}`;
-  };
-
   const handleSaveMenuItem = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMenuItem.name || !newMenuItem.price || !newMenuItem.category) return;
@@ -141,7 +135,6 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
           { id: 'MONITOR', label: 'Điều hành', icon: '📡' },
           { id: 'REPORTS', label: 'Báo cáo', icon: '📊' },
           { id: 'PAYMENTS', label: 'Thu ngân', count: (store.tables || []).filter((t: Table) => t.status === TableStatus.PAYING).length, icon: '💰' },
-          { id: 'QR', label: 'Mã QR Bàn', icon: '📱' },
           { id: 'MENU', label: 'Món ăn', icon: '🍽️' },
           { id: 'USERS', label: 'Nhân sự', icon: '👥' },
           { id: 'CLOUD', label: 'Cấu hình', icon: '⚙️' }
@@ -268,7 +261,6 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
         {/* Other tabs follow current pattern but wrapped in flex-1 overflow as needed */}
         {activeAdminTab === 'REPORTS' && <div className="animate-fadeIn pb-20"><ReportView reportData={reportData} history={store.history} clearHistory={() => setShowClearHistoryConfirm(true)} /></div>}
         {activeAdminTab === 'PAYMENTS' && <div className="animate-fadeIn pb-20"><PaymentMonitoring tables={store.tables} onConfirm={setConfirmTableId} /></div>}
-        {activeAdminTab === 'QR' && <div className="animate-fadeIn pb-20"><QRManagement tables={store.tables} getTableQrUrl={getTableQrUrl} /></div>}
         {activeAdminTab === 'MENU' && <div className="animate-fadeIn pb-20"><MenuManagement menu={store.menu} categories={CATEGORIES} onSave={store.saveAndPush} tables={store.tables} history={store.history} notifications={store.notifications} users={store.users} bankConfig={store.bankConfig} /></div>}
         {activeAdminTab === 'CLOUD' && <div className="animate-fadeIn pb-20"><CloudSettings cloudUrl={store.cloudUrl} updateCloudUrl={store.updateCloudUrl} bankConfig={store.bankConfig} updateBankConfig={store.updateBankConfig} /></div>}
       </div>
@@ -330,22 +322,6 @@ const PaymentMonitoring = ({ tables, onConfirm }: any) => (
         {tables.filter((t:any) => t.status === TableStatus.PAYING).length === 0 && (
             <div className="col-span-full py-20 text-center text-slate-300 font-bold uppercase italic border-2 border-dashed border-slate-100 rounded-[3rem] text-[10px]">Chưa có yêu cầu thanh toán</div>
         )}
-    </div>
-);
-
-const QRManagement = ({ tables, getTableQrUrl }: any) => (
-    <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm">
-        <h3 className="text-xl font-black text-slate-800 mb-8">Mã QR các bàn</h3>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
-            {tables.map((t: any) => (
-                <div key={t.id} className="flex flex-col items-center bg-slate-50 p-4 rounded-[2rem] border border-white hover:border-slate-200 transition-all">
-                    <div className="bg-white p-2 rounded-xl mb-3 shadow-sm aspect-square flex items-center justify-center">
-                        <img src={getTableQrUrl(t.id, t.sessionToken)} alt={`QR Bàn ${t.id}`} className="w-full h-full object-contain mix-blend-multiply opacity-80" />
-                    </div>
-                    <span className="font-black text-slate-800 text-xs italic">Bàn {t.id}</span>
-                </div>
-            ))}
-        </div>
     </div>
 );
 
