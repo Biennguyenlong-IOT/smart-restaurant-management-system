@@ -128,9 +128,6 @@ const AppContent: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Cơ chế bảo vệ KHÁCH HÀNG:
-  // Nếu là khách (không vào các link /staff, /kitchen, /admin) 
-  // và đang có 'locked_table_id' thì ép quay lại bàn đó.
   useEffect(() => {
     const lockedTableId = localStorage.getItem('locked_table_id');
     const path = location.pathname;
@@ -138,13 +135,11 @@ const AppContent: React.FC = () => {
 
     if (lockedTableId && !isStaffRoute) {
       const table = store.tables.find(t => t.id === parseInt(lockedTableId));
-      
-      // Nếu bàn đã trống thì mở khóa
       if (table && table.status === TableStatus.AVAILABLE) {
         localStorage.removeItem('locked_table_id');
       } 
-      // Nếu khách đang ở trang chủ (/) nhưng bàn vẫn đang dùng/thanh toán -> ép quay lại
       else if (path === '/' && table && table.status !== TableStatus.AVAILABLE) {
+        // Cố gắng lấy lại token nếu có thể, hoặc ít nhất là id
         navigate(`/table/${lockedTableId}`, { replace: true });
       }
     }
@@ -185,7 +180,6 @@ const AppContent: React.FC = () => {
         {activeToast && <NotificationToast notif={activeToast} onClose={() => setActiveToast(null)} />}
         <header className="bg-white/80 backdrop-blur-md border-b border-slate-200 sticky top-0 z-40 px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            {/* Nếu đang ở bàn, logo chỉ là text, không cho bấm để về trang chủ thoát bàn */}
             {isAtTable ? (
                <div className="flex items-center gap-3 cursor-default">
                   <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center text-white font-black text-xl italic shadow-lg">S</div>
@@ -220,6 +214,7 @@ const AppContent: React.FC = () => {
            <Routes>
               <Route path="/" element={<CustomerMenu store={store} currentRole={UserRole.CUSTOMER} />} />
               <Route path="/table/:tableId" element={<CustomerMenu store={store} currentRole={UserRole.CUSTOMER} />} />
+              <Route path="/table/:tableId/:token" element={<CustomerMenu store={store} currentRole={UserRole.CUSTOMER} />} />
               <Route path="/staff" element={<ProtectedRoute role={UserRole.STAFF} users={store.users}><StaffView store={store} /></ProtectedRoute>} />
               <Route path="/kitchen" element={<ProtectedRoute role={UserRole.KITCHEN} users={store.users}><KitchenView store={store} /></ProtectedRoute>} />
               <Route path="/admin" element={<ProtectedRoute role={UserRole.ADMIN} users={store.users}><AdminView store={store} /></ProtectedRoute>} />
