@@ -1,25 +1,22 @@
 
 import React, { useMemo } from 'react';
-import { OrderItem, OrderItemStatus, AppNotification, UserRole } from '../types';
+import { OrderItem, OrderItemStatus, AppNotification, UserRole } from '../types.ts';
 
 interface KitchenViewProps {
   store: any;
 }
 
 const KitchenView: React.FC<KitchenViewProps> = ({ store }) => {
-  // Lọc thông báo dành riêng cho KITCHEN
   const kitchenCommands = useMemo(() => 
     (store.notifications || []).filter((n: AppNotification) => n.targetRole === UserRole.KITCHEN && n.type === 'system')
   , [store.notifications]);
 
-  // Món chờ làm
   const incoming = (store.tables || []).flatMap((t: any) => 
     (t.currentOrders || [])
       .filter((o: OrderItem) => o.status === OrderItemStatus.CONFIRMED)
       .map((o: OrderItem) => ({ ...o, tableId: t.id }))
   );
 
-  // Món đang làm
   const inProgress = (store.tables || []).flatMap((t: any) => 
     (t.currentOrders || [])
       .filter((o: OrderItem) => o.status === OrderItemStatus.COOKING)
@@ -28,7 +25,6 @@ const KitchenView: React.FC<KitchenViewProps> = ({ store }) => {
 
   return (
     <div className="space-y-10 animate-fadeIn">
-      {/* Chỉ thị từ Quản lý cho Bếp */}
       {kitchenCommands.length > 0 && (
         <div className="bg-slate-900 text-white p-8 rounded-[2.5rem] shadow-2xl relative overflow-hidden">
             <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full -mr-16 -mt-16"></div>
