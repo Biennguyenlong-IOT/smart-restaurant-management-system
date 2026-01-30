@@ -12,7 +12,6 @@ interface AdminViewProps {
 const AdminView: React.FC<AdminViewProps> = ({ store }) => {
   const [activeAdminTab, setActiveAdminTab] = useState<'MONITOR' | 'REPORTS' | 'PAYMENTS' | 'MENU' | 'CLOUD' | 'USERS'>('MONITOR');
   const [confirmTableId, setConfirmTableId] = useState<number | null>(null);
-  const [tempUrl, setTempUrl] = useState(store.cloudUrl);
   const [showClearHistoryConfirm, setShowClearHistoryConfirm] = useState(false);
   
   const [editingBank, setEditingBank] = useState<BankConfig>({ ...store.bankConfig });
@@ -81,44 +80,6 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
     return { totalRevenue, totalOrders, avgOrderValue, categoryStats, sortedItems, totalItemsSold };
   }, [store.history, store.menu]);
 
-  const handleSaveBank = () => {
-    store.updateBankConfig(editingBank);
-    alert('Đã cập nhật cấu hình VietQR!');
-  };
-
-  const handleSaveMenuItem = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newMenuItem.name || !newMenuItem.price || !newMenuItem.category) return;
-
-    const menuItem: MenuItem = {
-      id: editingMenuItemId || `m-${Date.now()}`,
-      name: newMenuItem.name!,
-      price: Number(newMenuItem.price),
-      category: newMenuItem.category!,
-      image: newMenuItem.image || 'https://picsum.photos/seed/food/400/300',
-      description: newMenuItem.description || ''
-    };
-
-    const updatedMenu = editingMenuItemId
-      ? store.menu.map((m: MenuItem) => m.id === editingMenuItemId ? menuItem : m)
-      : [...store.menu, menuItem];
-
-    store.saveAndPush(
-      store.tables,
-      updatedMenu,
-      store.history,
-      store.notifications,
-      store.users,
-      store.bankConfig
-    );
-
-    setNewMenuItem({
-      category: CATEGORIES[1] || 'Bò',
-      image: 'https://picsum.photos/seed/food/400/300'
-    });
-    setEditingMenuItemId(null);
-  };
-
   return (
     <div className="animate-fadeIn h-full flex flex-col">
       <ConfirmModal 
@@ -128,6 +89,16 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
         onConfirm={() => { if(confirmTableId) store.confirmPayment(confirmTableId); setConfirmTableId(null); }}
         onCancel={() => setConfirmTableId(null)}
         type="success"
+      />
+
+      <ConfirmModal 
+        isOpen={showClearHistoryConfirm}
+        title="Xóa lịch sử giao dịch"
+        message="Bạn có chắc chắn muốn xóa toàn bộ lịch sử? Hành động này không thể hoàn tác."
+        confirmText="Xóa tất cả"
+        onConfirm={() => { store.clearHistory(); setShowClearHistoryConfirm(false); }}
+        onCancel={() => setShowClearHistoryConfirm(false)}
+        type="danger"
       />
 
       <div className="flex bg-white p-2 rounded-[1.8rem] mb-6 w-fit overflow-x-auto no-scrollbar max-w-full border border-slate-100 shadow-sm sticky top-0 z-30 shrink-0">
@@ -258,7 +229,6 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
             </div>
         )}
 
-        {/* Other tabs follow current pattern but wrapped in flex-1 overflow as needed */}
         {activeAdminTab === 'REPORTS' && <div className="animate-fadeIn pb-20"><ReportView reportData={reportData} history={store.history} clearHistory={() => setShowClearHistoryConfirm(true)} /></div>}
         {activeAdminTab === 'PAYMENTS' && <div className="animate-fadeIn pb-20"><PaymentMonitoring tables={store.tables} onConfirm={setConfirmTableId} /></div>}
         {activeAdminTab === 'MENU' && <div className="animate-fadeIn pb-20"><MenuManagement menu={store.menu} categories={CATEGORIES} onSave={store.saveAndPush} tables={store.tables} history={store.history} notifications={store.notifications} users={store.users} bankConfig={store.bankConfig} /></div>}
@@ -288,18 +258,22 @@ const ReportView = ({ reportData, history, clearHistory }: any) => (
         <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
             <div className="flex justify-between items-center mb-6">
                 <h3 className="text-lg font-black">Nhật ký giao dịch</h3>
-                <button onClick={clearHistory} className="text-[9px] font-black text-red-500 uppercase tracking-widest">Xóa lịch sử</button>
+                <button onClick={clearHistory} className="text-[11px] font-black text-red-500 uppercase tracking-widest px-4 py-2 bg-red-50 rounded-xl active:scale-95 transition-transform">Xóa toàn bộ lịch sử</button>
             </div>
             <div className="space-y-3">
-                {history.slice(0, 8).map((h: any) => (
-                    <div key={h.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-white">
-                        <div>
-                            <span className="text-[10px] font-black text-slate-800 mr-2">Bàn {h.tableId}</span>
-                            <span className="text-[9px] text-slate-400">{h.date}</span>
+                {history.length === 0 ? (
+                    <div className="py-20 text-center text-slate-300 font-bold uppercase italic text-[10px]">Lịch sử trống</div>
+                ) : (
+                    history.slice(0, 50).map((h: any) => (
+                        <div key={h.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-white">
+                            <div>
+                                <span className="text-[10px] font-black text-slate-800 mr-2 uppercase tracking-tight">Bàn {h.tableId}</span>
+                                <span className="text-[9px] text-slate-400 font-medium">{h.date}</span>
+                            </div>
+                            <span className="font-black text-slate-900 text-sm">{h.total.toLocaleString()}đ</span>
                         </div>
-                        <span className="font-black text-slate-900 text-sm">{h.total.toLocaleString()}đ</span>
-                    </div>
-                ))}
+                    ))
+                )}
             </div>
         </div>
     </div>
