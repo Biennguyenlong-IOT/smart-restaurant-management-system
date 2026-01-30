@@ -117,6 +117,40 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
     }
   };
 
+  const cartCount = Object.values(cart).reduce((a, b) => a + b, 0);
+  const cartTotal = Object.entries(cart).reduce((s, [id, q]) => s + ((store.menu || []).find((m:any) => m.id === id)?.price || 0) * (q as number), 0);
+
+  const handleAddToCart = (itemId: string) => {
+    setCart(prev => ({ ...prev, [itemId]: (prev[itemId] || 0) + 1 }));
+  };
+
+  const handleRemoveFromCart = (itemId: string) => {
+    setCart(prev => {
+        const next = { ...prev };
+        if (next[itemId] > 1) next[itemId]--;
+        else delete next[itemId];
+        return next;
+    });
+  };
+
+  const handlePlaceOrder = () => {
+    const newOrders: OrderItem[] = Object.entries(cart).map(([itemId, qty]) => {
+      const menuItem = (store.menu || []).find((m: MenuItem) => m.id === itemId);
+      return { 
+        id: `ORDER-${Date.now()}-${itemId}`, 
+        menuItemId: itemId, 
+        name: menuItem?.name || '', 
+        price: menuItem?.price || 0, 
+        quantity: qty as number, 
+        status: OrderItemStatus.PENDING, 
+        timestamp: Date.now() 
+      };
+    });
+    store.placeOrder(idNum, newOrders);
+    setCart({});
+    setView('HISTORY'); 
+  };
+
   if (!tableId) {
     return (
         <div className="flex flex-col items-center justify-center h-full px-6 text-center animate-fadeIn">
@@ -168,47 +202,13 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
   }
 
   const filteredMenu = (store.menu || []).filter((item: MenuItem) => activeTab === 'Tất cả' ? true : item.category === activeTab);
-  
-  const handleAddToCart = (itemId: string) => {
-    setCart(prev => ({ ...prev, [itemId]: (prev[itemId] || 0) + 1 }));
-  };
-
-  const handleRemoveFromCart = (itemId: string) => {
-    setCart(prev => {
-        const next = { ...prev };
-        if (next[itemId] > 1) next[itemId]--;
-        else delete next[itemId];
-        return next;
-    });
-  };
-
-  const handlePlaceOrder = () => {
-    const newOrders: OrderItem[] = Object.entries(cart).map(([itemId, qty]) => {
-      const menuItem = (store.menu || []).find((m: MenuItem) => m.id === itemId);
-      return { 
-        id: `ORDER-${Date.now()}-${itemId}`, 
-        menuItemId: itemId, 
-        name: menuItem?.name || '', 
-        price: menuItem?.price || 0, 
-        quantity: qty as number, 
-        status: OrderItemStatus.PENDING, 
-        timestamp: Date.now() 
-      };
-    });
-    store.placeOrder(idNum, newOrders);
-    setCart({});
-    setView('HISTORY'); 
-  };
-
-  const cartCount = Object.values(cart).reduce((a, b) => a + b, 0);
-  const cartTotal = Object.entries(cart).reduce((s, [id, q]) => s + ((store.menu || []).find((m:any) => m.id === id)?.price || 0) * (q as number), 0);
 
   return (
     <div className="flex flex-col h-full max-w-md mx-auto w-full relative overflow-hidden">
       <ConfirmModal isOpen={showPaymentConfirm} title="Thanh toán" message={`Xác nhận yêu cầu thanh toán ${totalCurrentOrder.toLocaleString()}đ?`} onConfirm={() => store.requestPayment(idNum)} onCancel={() => setShowPaymentConfirm(false)} />
 
       {/* Header Bàn */}
-      <div className="bg-white rounded-[1.5rem] p-3 mb-4 shadow-sm border border-slate-100 flex justify-between items-center shrink-0 mx-1">
+      <div className="bg-white rounded-[1.5rem] p-3 mb-4 shadow-sm border border-slate-100 flex justify-between items-center shrink-0 mx-1 mt-1">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-orange-500 text-white rounded-lg flex items-center justify-center font-black shadow-md text-sm italic">B{idNum}</div>
           <h2 className="text-slate-800 font-black text-sm">Bàn {idNum}</h2>
@@ -243,9 +243,12 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
         )}
 
         {view === 'CART' && (
-            <div className="animate-fadeIn space-y-4">
+            <div className="animate-fadeIn space-y-4 pb-20">
                 <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-100">
-                    <h3 className="font-black text-slate-800 text-lg mb-6">Giỏ hàng của bạn</h3>
+                    <div className="flex justify-between items-center mb-6">
+                        <h3 className="font-black text-slate-800 text-lg">Giỏ hàng của bạn</h3>
+                        <button onClick={() => setView('MENU')} className="text-[10px] font-black text-orange-500 uppercase">Thêm món</button>
+                    </div>
                     <div className="space-y-4">
                         {Object.keys(cart).length === 0 ? (
                             <div className="py-10 text-center text-slate-300 font-bold uppercase text-[10px]">Giỏ hàng trống</div>
@@ -272,15 +275,21 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
                         )}
                     </div>
                     {Object.keys(cart).length > 0 && (
-                        <div className="mt-8 pt-6 border-t border-slate-100 flex justify-between items-center">
-                            <span className="text-[10px] font-black text-slate-400 uppercase">Tổng cộng giỏ</span>
-                            <span className="text-lg font-black text-slate-900">{cartTotal.toLocaleString()}đ</span>
+                        <div className="mt-8 pt-6 border-t border-slate-100 space-y-4">
+                            <div className="flex justify-between items-center">
+                                <span className="text-[10px] font-black text-slate-400 uppercase">Tạm tính:</span>
+                                <span className="text-xl font-black text-slate-900">{cartTotal.toLocaleString()}đ</span>
+                            </div>
+                            {/* Trả lại nút xác nhận gọi món như trước đó bên trong container */}
+                            <button 
+                                onClick={handlePlaceOrder} 
+                                className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl active:scale-95 transition-transform"
+                            >
+                                Xác nhận gọi món ngay
+                            </button>
                         </div>
                     )}
                 </div>
-                {Object.keys(cart).length > 0 && (
-                    <button onClick={() => setView('MENU')} className="w-full text-slate-400 font-black text-[9px] uppercase py-3 border-2 border-dashed border-slate-200 rounded-2xl">Tiếp tục chọn thêm món</button>
-                )}
                 {Object.keys(cart).length === 0 && (
                     <button onClick={() => setView('MENU')} className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black uppercase text-[10px]">Về trang Menu</button>
                 )}
@@ -330,41 +339,23 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
                         >
                             {allServed ? 'Gửi yêu cầu thanh toán' : 'Chờ phục vụ hết món'}
                         </button>
-                        {!allServed && (
-                            <p className="mt-4 text-[8px] text-orange-400/60 font-bold uppercase">Nhân viên đang chuẩn bị món ăn...</p>
-                        )}
                     </div>
                 )}
             </div>
         )}
       </div>
 
-      {/* FOOTER CỐ ĐỊNH - Giải quyết vấn đề tràn màn hình */}
+      {/* FOOTER CỐ ĐỊNH NÚT XEM GIỎ HÀNG - CĂN GIỮA VÀ KHÔNG TRÀN MÉP */}
       {view === 'MENU' && cartCount > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-1rem)] max-w-md bg-slate-900 rounded-2xl p-4 shadow-2xl flex items-center justify-between animate-slideUp z-30 mx-auto">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[92%] max-w-md bg-slate-900 rounded-[1.8rem] p-4 shadow-2xl flex items-center justify-between animate-slideUp z-30 mx-auto border border-white/10">
             <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-orange-500 text-white rounded-xl flex items-center justify-center font-black shadow-lg shadow-orange-500/20">{cartCount}</div>
                 <div>
-                    <p className="text-white/40 text-[8px] font-black uppercase">Giỏ hàng</p>
+                    <p className="text-white/40 text-[8px] font-black uppercase">Tạm tính</p>
                     <p className="text-sm font-black text-white">{cartTotal.toLocaleString()}đ</p>
                 </div>
             </div>
             <button onClick={() => setView('CART')} className="bg-orange-500 text-white px-8 py-3.5 rounded-xl font-black text-[10px] uppercase shadow-lg shadow-orange-500/30 active:scale-95 transition-transform">Xem giỏ hàng</button>
-        </div>
-      )}
-
-      {view === 'CART' && Object.keys(cart).length > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-1rem)] max-w-md bg-white rounded-2xl p-4 shadow-2xl border border-slate-100 flex flex-col gap-3 animate-slideUp z-30 mx-auto">
-            <div className="flex justify-between items-center px-1">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tổng tiền gọi thêm:</span>
-                <span className="text-lg font-black text-orange-600">{cartTotal.toLocaleString()}đ</span>
-            </div>
-            <button 
-                onClick={handlePlaceOrder} 
-                className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-[0.1em] shadow-xl active:scale-95 transition-transform"
-            >
-                Xác nhận gọi món ngay
-            </button>
         </div>
       )}
     </div>
