@@ -1,0 +1,5 @@
+{
+  "name": "Smart Restaurant Management System",
+  "description": "A comprehensive restaurant platform including customer menu, staff workflow, kitchen management, and admin dashboard with role-based access control.",
+  "requestFramePermissions": []
+}
