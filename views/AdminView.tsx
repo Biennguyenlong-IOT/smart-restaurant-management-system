@@ -27,7 +27,6 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
   const [customTask, setCustomTask] = useState('');
   const [taskTarget, setTaskTarget] = useState<UserRole>(UserRole.STAFF);
 
-  // Nhóm bàn giám sát
   const tableGroups = useMemo(() => {
     const tables: Table[] = store.tables || [];
     const groups = {
@@ -49,7 +48,6 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
     return groups;
   }, [store.tables]);
 
-  // BÁO CÁO DOANH THU CHI TIẾT
   const reportData = useMemo(() => {
     const history: HistoryEntry[] = store.history || [];
     const totalRevenue = history.reduce((sum, entry) => sum + entry.total, 0);
@@ -88,9 +86,9 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
     alert('Đã cập nhật cấu hình VietQR!');
   };
 
-  const getTableQrUrl = (id: number) => {
+  const getTableQrUrl = (id: number, token?: string) => {
     const baseUrl = window.location.origin + window.location.pathname;
-    const tableUrl = `${baseUrl}#/table/${id}`;
+    const tableUrl = token ? `${baseUrl}#/table/${id}/${token}` : `${baseUrl}#/table/${id}`;
     return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(tableUrl)}`;
   };
 
@@ -158,7 +156,6 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
 
       {activeAdminTab === 'MONITOR' && (
         <div className="space-y-8">
-            {/* Mục phê duyệt QR nhanh */}
             {tableGroups.qrRequests.length > 0 && (
                 <div className="bg-orange-100 border border-orange-200 p-8 rounded-[3rem] animate-slideDown">
                     <h2 className="text-[10px] font-black text-orange-600 uppercase tracking-widest mb-6">🔔 Yêu cầu cấp mã QR mới</h2>
@@ -313,15 +310,20 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
         <div className="space-y-8 animate-fadeIn">
             <div className="bg-white p-12 rounded-[4rem] border border-slate-100 shadow-sm">
                 <h3 className="text-2xl font-black text-slate-800 mb-2">Quản lý mã QR</h3>
-                <p className="text-slate-400 text-sm mb-12">Lưu ý: Mã QR phiên hiện tại chỉ khả dụng khi bàn đã được cấp Token.</p>
+                <p className="text-slate-400 text-sm mb-12">Lưu ý: Sử dụng định dạng URL tương thích với mọi thiết bị (iOS/Android).</p>
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-8">
                     {store.tables.map((t: Table) => (
                         <div key={t.id} className="flex flex-col items-center bg-slate-50 p-6 rounded-[2.5rem] border border-slate-100 group hover:border-orange-500 transition-all">
-                            <div className="w-full aspect-square bg-white rounded-2xl p-4 mb-4 shadow-sm flex items-center justify-center">
+                            <div className="w-full aspect-square bg-white rounded-2xl p-4 mb-4 shadow-sm flex items-center justify-center overflow-hidden">
                                 {t.sessionToken ? (
-                                    <img src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(window.location.origin + window.location.pathname + '#/table/' + t.id + '?token=' + t.sessionToken)}`} alt={`QR Bàn ${t.id}`} className="w-full h-full object-contain" />
+                                    <img src={getTableQrUrl(t.id, t.sessionToken)} alt={`QR Bàn ${t.id}`} className="w-full h-full object-contain" />
                                 ) : (
-                                    <span className="text-[8px] text-slate-300 font-black uppercase text-center">Bàn trống / Chưa cấp QR</span>
+                                    <div className="flex flex-col items-center gap-2">
+                                        <div className="w-full aspect-square opacity-20 filter grayscale">
+                                            <img src={getTableQrUrl(t.id)} className="w-full h-full object-contain" />
+                                        </div>
+                                        <span className="text-[8px] text-slate-300 font-black uppercase text-center">Bàn trống</span>
+                                    </div>
                                 )}
                             </div>
                             <span className="font-black text-slate-800">BÀN {t.id}</span>
@@ -452,7 +454,6 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
                         <input type="text" value={editingBank.accountNo} onChange={e => setEditingBank({...editingBank, accountNo: e.target.value})} className="w-full px-8 py-6 bg-slate-50 rounded-[2rem] outline-none font-bold text-xs" />
                     </div>
                 </div>
-                {/* New Account Name Input */}
                 <div className="space-y-3 mb-8">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-6">Tên chủ tài khoản (Không dấu)</label>
                     <input type="text" value={editingBank.accountName} onChange={e => setEditingBank({...editingBank, accountName: e.target.value.toUpperCase()})} placeholder="NGUYEN VAN A" className="w-full px-8 py-6 bg-slate-50 rounded-[2rem] outline-none font-bold text-xs" />
