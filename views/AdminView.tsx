@@ -93,7 +93,6 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
     return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(tableUrl)}`;
   };
 
-  // Fix: Added handleSaveMenuItem to handle adding/updating menu items
   const handleSaveMenuItem = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMenuItem.name || !newMenuItem.price || !newMenuItem.category) return;
@@ -433,6 +432,11 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-6">Số tài khoản</label>
                         <input type="text" value={editingBank.accountNo} onChange={e => setEditingBank({...editingBank, accountNo: e.target.value})} className="w-full px-8 py-6 bg-slate-50 rounded-[2rem] outline-none font-bold text-xs" />
                     </div>
+                </div>
+                {/* New Account Name Input */}
+                <div className="space-y-3 mb-8">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-6">Tên chủ tài khoản (Không dấu)</label>
+                    <input type="text" value={editingBank.accountName} onChange={e => setEditingBank({...editingBank, accountName: e.target.value.toUpperCase()})} placeholder="NGUYEN VAN A" className="w-full px-8 py-6 bg-slate-50 rounded-[2rem] outline-none font-bold text-xs" />
                 </div>
                 <button onClick={handleSaveBank} className="w-full bg-orange-500 text-white py-6 rounded-[2rem] font-black text-[11px] uppercase shadow-xl hover:bg-orange-600 transition-all">Lưu thông tin VietQR</button>
             </div>
