@@ -11,13 +11,14 @@ interface CustomerMenuProps {
 }
 
 const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
-  const { tableId } = useParams<{ tableId: string }>();
+  const { tableId, token: tokenFromPath } = useParams<{ tableId: string; token?: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const idNum = parseInt(tableId || '0');
   
   const table = (store.tables || []).find((t: Table) => t.id === idNum);
-  const tokenFromUrl = searchParams.get('token');
+  // Ưu tiên token từ đường dẫn (Path), sau đó mới tới Query Params
+  const tokenFromUrl = tokenFromPath || searchParams.get('token');
   
   const [activeTab, setActiveTab] = useState('Tất cả');
   const [cart, setCart] = useState<Record<string, number>>({});
