@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { CATEGORIES } from '../constants';
 import { OrderItem, OrderItemStatus, MenuItem, TableStatus, UserRole, Table } from '../types';
 import { ConfirmModal } from '../App';
@@ -12,9 +12,12 @@ interface CustomerMenuProps {
 
 const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
   const { tableId } = useParams<{ tableId: string }>();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const idNum = parseInt(tableId || '0');
   const table = (store.tables || []).find((t: Table) => t.id === idNum);
+  
+  const tokenFromUrl = searchParams.get('token');
   
   const [activeTab, setActiveTab] = useState('Tất cả');
   const [cart, setCart] = useState<Record<string, number>>({});
@@ -56,6 +59,9 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
     }
   }, [table?.status, tableId, navigate]);
 
+  // 4. KIỂM TRA TOKEN: Mã QR phải chứa token hợp lệ
+  const isTokenValid = tableId && table && table.sessionToken && table.sessionToken === tokenFromUrl;
+
   const totalCurrentOrder = (table?.currentOrders || []).reduce((sum: number, item: OrderItem) => sum + ((item.price || 0) * (item.quantity || 0)), 0) || 0;
   const allServed = (table?.currentOrders || []).length > 0 && (table?.currentOrders || []).every((item: OrderItem) => item.status === OrderItemStatus.SERVED);
 
@@ -72,38 +78,9 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
         <div className="max-w-md mx-auto py-12 text-center animate-fadeIn px-6">
             <div className="w-32 h-32 bg-orange-100 rounded-[2.5rem] flex items-center justify-center mx-auto mb-8 text-5xl">🍴</div>
             <h2 className="text-3xl font-black text-slate-800 mb-2 tracking-tight uppercase">Smart Restaurant</h2>
-            <p className="text-slate-500 mb-10 text-sm font-medium">Vui lòng chọn bàn hoặc quét QR tại bàn</p>
+            <p className="text-slate-500 mb-10 text-sm font-medium">Vui lòng quét QR tại bàn để gọi món</p>
             
-            <div className="grid grid-cols-2 gap-4 mb-20">
-                {(store.tables || []).map((t: Table) => {
-                    const isAvailable = t.status === TableStatus.AVAILABLE;
-                    const isOccupied = t.status === TableStatus.OCCUPIED;
-                    const isPaying = t.status === TableStatus.PAYING || t.status === TableStatus.BILLING;
-
-                    return (
-                        <Link 
-                            key={t.id} 
-                            to={isPaying ? '#' : `/table/${t.id}`}
-                            className={`relative overflow-hidden p-6 rounded-[2rem] border-2 transition-all flex flex-col items-center justify-center gap-2 ${
-                                isAvailable 
-                                    ? 'border-dashed border-slate-200 bg-white hover:border-orange-500 hover:bg-orange-50' 
-                                    : isOccupied 
-                                        ? 'border-blue-100 bg-blue-50 text-blue-700'
-                                        : 'border-amber-100 bg-amber-50 text-amber-600 opacity-80 cursor-not-allowed'
-                            }`}
-                        >
-                            <span className="text-2xl font-black">Bàn {t.id}</span>
-                            <span className={`text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full ${
-                                isAvailable ? 'bg-slate-100 text-slate-400' : isOccupied ? 'bg-blue-600 text-white' : 'bg-amber-500 text-white'
-                            }`}>
-                                {isAvailable ? 'Trống' : isOccupied ? 'Đang dùng' : 'Đang tính tiền'}
-                            </span>
-                        </Link>
-                    );
-                })}
-            </div>
-
-            <div className="space-y-3">
+            <div className="space-y-3 mt-20">
                 <div className="grid grid-cols-2 gap-3">
                     <Link to="/staff" className="flex items-center justify-center py-4 bg-white border border-slate-100 rounded-2xl shadow-sm text-[10px] font-black uppercase text-slate-600">Phục vụ</Link>
                     <Link to="/kitchen" className="flex items-center justify-center py-4 bg-white border border-slate-100 rounded-2xl shadow-sm text-[10px] font-black uppercase text-slate-600">Nhà bếp</Link>
@@ -111,6 +88,18 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
                 <Link to="/admin" className="flex items-center justify-center py-4 bg-slate-900 rounded-2xl shadow-xl text-[10px] font-black uppercase text-white tracking-widest">Admin</Link>
             </div>
         </div>
+    );
+  }
+
+  // TRƯỜNG HỢP MÃ QR HẾT HẠN HOẶC KHÔNG HỢP LỆ
+  if (!isTokenValid) {
+    return (
+      <div className="max-w-md mx-auto py-24 px-6 text-center animate-fadeIn">
+        <div className="w-32 h-32 rounded-[3rem] bg-red-50 text-red-500 border-2 border-red-100 flex items-center justify-center mx-auto mb-10 shadow-xl text-6xl">🚫</div>
+        <h2 className="text-3xl font-black text-slate-800 mb-4 uppercase tracking-tighter">Mã QR hết hạn</h2>
+        <p className="text-slate-500 text-sm leading-relaxed mb-12">Mã QR này không còn hiệu lực hoặc phiên làm việc đã kết thúc. Vui lòng liên hệ nhân viên để nhận mã QR mới cho bàn {idNum}.</p>
+        <Link to="/" className="inline-block px-10 py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl">Quay về Trang chủ</Link>
+      </div>
     );
   }
 
