@@ -204,11 +204,11 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
   const filteredMenu = (store.menu || []).filter((item: MenuItem) => activeTab === 'Tất cả' ? true : item.category === activeTab);
 
   return (
-    <div className="flex flex-col h-full max-w-md mx-auto w-full relative overflow-hidden">
+    <div className="flex flex-col h-full max-w-md mx-auto w-full relative">
       <ConfirmModal isOpen={showPaymentConfirm} title="Thanh toán" message={`Xác nhận yêu cầu thanh toán ${totalCurrentOrder.toLocaleString()}đ?`} onConfirm={() => store.requestPayment(idNum)} onCancel={() => setShowPaymentConfirm(false)} />
 
       {/* Header Bàn */}
-      <div className="bg-white rounded-[1.5rem] p-3 mb-4 shadow-sm border border-slate-100 flex justify-between items-center shrink-0 mx-1 mt-1">
+      <div className="bg-white rounded-[1.5rem] p-3 mb-4 shadow-sm border border-slate-100 flex justify-between items-center shrink-0 mt-1">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-orange-500 text-white rounded-lg flex items-center justify-center font-black shadow-md text-sm italic">B{idNum}</div>
           <h2 className="text-slate-800 font-black text-sm">Bàn {idNum}</h2>
@@ -220,7 +220,7 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
       </div>
 
       {/* Vùng nội dung cuộn */}
-      <div className="flex-1 overflow-y-auto no-scrollbar pb-32 px-1">
+      <div className="flex-1 overflow-y-auto no-scrollbar pb-32">
         {view === 'MENU' && (
             <>
                 <div className="flex gap-1.5 overflow-x-auto pb-3 no-scrollbar sticky top-0 bg-slate-50/90 backdrop-blur-sm z-10 pt-1">
@@ -280,7 +280,6 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
                                 <span className="text-[10px] font-black text-slate-400 uppercase">Tạm tính:</span>
                                 <span className="text-xl font-black text-slate-900">{cartTotal.toLocaleString()}đ</span>
                             </div>
-                            {/* Trả lại nút xác nhận gọi món như trước đó bên trong container */}
                             <button 
                                 onClick={handlePlaceOrder} 
                                 className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl active:scale-95 transition-transform"
@@ -345,17 +344,17 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
         )}
       </div>
 
-      {/* FOOTER CỐ ĐỊNH NÚT XEM GIỎ HÀNG - CĂN GIỮA VÀ KHÔNG TRÀN MÉP */}
+      {/* FOOTER CỐ ĐỊNH NÚT XEM GIỎ HÀNG - SỬ DỤNG INSET-X ĐỂ CĂN GIỮA CHUẨN */}
       {view === 'MENU' && cartCount > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[92%] max-w-md bg-slate-900 rounded-[1.8rem] p-4 shadow-2xl flex items-center justify-between animate-slideUp z-30 mx-auto border border-white/10">
+        <div className="fixed bottom-6 inset-x-4 md:left-1/2 md:-translate-x-1/2 md:w-full md:max-w-md bg-slate-900 rounded-[1.8rem] p-4 shadow-2xl flex items-center justify-between animate-slideUp z-50 border border-white/10">
             <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-orange-500 text-white rounded-xl flex items-center justify-center font-black shadow-lg shadow-orange-500/20">{cartCount}</div>
-                <div>
+                <div className="min-w-0">
                     <p className="text-white/40 text-[8px] font-black uppercase">Tạm tính</p>
-                    <p className="text-sm font-black text-white">{cartTotal.toLocaleString()}đ</p>
+                    <p className="text-sm font-black text-white truncate">{cartTotal.toLocaleString()}đ</p>
                 </div>
             </div>
-            <button onClick={() => setView('CART')} className="bg-orange-500 text-white px-8 py-3.5 rounded-xl font-black text-[10px] uppercase shadow-lg shadow-orange-500/30 active:scale-95 transition-transform">Xem giỏ hàng</button>
+            <button onClick={() => setView('CART')} className="bg-orange-500 text-white px-6 py-3.5 rounded-xl font-black text-[10px] uppercase shadow-lg shadow-orange-500/30 active:scale-95 transition-transform whitespace-nowrap">Xem giỏ hàng</button>
         </div>
       )}
     </div>
