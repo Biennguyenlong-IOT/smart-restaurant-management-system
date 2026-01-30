@@ -11,32 +11,29 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
   const [confirmTableId, setConfirmTableId] = useState<number | null>(null);
   const [showQrModalId, setShowQrModalId] = useState<number | null>(null);
 
-  // Thông báo từ hệ thống/admin
   const systemTasks = useMemo(() => 
     (store.notifications || [])
       .filter((n: AppNotification) => (n.targetRole === UserRole.STAFF || n.targetRole === UserRole.ADMIN) && n.type === 'system')
   , [store.notifications]);
 
-  // Món chờ phục vụ
   const readyItems = useMemo(() => (store.tables || []).flatMap((t: Table) => 
     (t.currentOrders || [])
       .filter((o: OrderItem) => o.status === OrderItemStatus.READY)
       .map((o: OrderItem) => ({ ...o, tableId: t.id }))
   ), [store.tables]);
 
-  // Món chờ xác nhận
   const pendingOrders = useMemo(() => (store.tables || []).filter((t: Table) => 
     (t.currentOrders || []).some((o: OrderItem) => o.status === OrderItemStatus.PENDING)
   ), [store.tables]);
 
-  // Bàn cần dọn dẹp hoặc chờ thanh toán
   const tablesActionNeeded = useMemo(() => (store.tables || []).filter((t: Table) => 
     t.status === TableStatus.PAYING || t.status === TableStatus.BILLING || t.needsCleaning
   ), [store.tables]);
 
   const getFullQrUrl = (id: number, token: string) => {
+    // Sử dụng đường dẫn Path thay vì Query string cho sự ổn định trên iOS
     const baseUrl = window.location.origin + window.location.pathname;
-    const tableUrl = `${baseUrl}#/table/${id}?token=${token}`;
+    const tableUrl = `${baseUrl}#/table/${id}/${token}`;
     return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(tableUrl)}`;
   };
 
@@ -61,7 +58,6 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
         onCancel={() => setConfirmTableId(null)}
       />
 
-      {/* QR Code Modal */}
       {showQrModalId && (
         <div className="fixed inset-0 z-[150] bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4">
             <div className="bg-white rounded-[3rem] p-10 max-w-sm w-full text-center shadow-2xl animate-scaleIn">
@@ -75,7 +71,6 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
         </div>
       )}
 
-      {/* Thông báo từ Quản lý */}
       {systemTasks.length > 0 && (
         <div className="bg-orange-500 text-white p-6 rounded-[2rem] shadow-xl animate-slideDown">
             <h3 className="text-[10px] font-black uppercase tracking-[0.2em] mb-4 text-orange-200">Yêu cầu từ Quản lý</h3>
@@ -98,7 +93,6 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
         </div>
       )}
 
-      {/* Quản lý Trạng thái Bàn - NHÂN VIÊN */}
       <section className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm">
         <h2 className="text-lg font-black mb-8 flex items-center gap-3">🛋️ Quản lý Sảnh Bàn</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
@@ -125,7 +119,6 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
         </div>
       </section>
 
-      {/* Các bàn cần tác động (Thanh toán) */}
       {tablesActionNeeded.filter(t => t.status === TableStatus.PAYING).length > 0 && (
         <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {tablesActionNeeded.filter(t => t.status === TableStatus.PAYING).map((t: Table) => (
