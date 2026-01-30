@@ -15,8 +15,9 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const idNum = parseInt(tableId || '0');
-  const table = (store.tables || []).find((t: Table) => t.id === idNum);
   
+  // Tìm bàn dựa trên ID
+  const table = (store.tables || []).find((t: Table) => t.id === idNum);
   const tokenFromUrl = searchParams.get('token');
   
   const [activeTab, setActiveTab] = useState('Tất cả');
@@ -30,25 +31,27 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
   useEffect(() => {
     if (!tableId) {
       const lockedId = localStorage.getItem('locked_table_id');
-      if (lockedId) {
+      if (lockedId && store.tables.length > 0) {
         const lockedTable = store.tables.find((t: any) => t.id === parseInt(lockedId));
         if (lockedTable && lockedTable.status !== TableStatus.AVAILABLE) {
+          // Lưu ý: Nếu quay lại bàn cũ, cần phải có token. 
+          // Nếu mất token trong URL gốc, hệ thống sẽ báo hết hạn sau khi redirect.
           navigate(`/table/${lockedId}`, { replace: true });
-        } else {
+        } else if (lockedTable && lockedTable.status === TableStatus.AVAILABLE) {
           localStorage.removeItem('locked_table_id');
         }
       }
     }
   }, [tableId, store.tables, navigate]);
 
-  // 2. KHÓA BÀN: Khi khách đã vào bàn và bắt đầu hoạt động (hoặc bàn đang bị chiếm)
+  // 2. KHÓA BÀN: Khi khách đã vào bàn và bắt đầu hoạt động
   useEffect(() => {
     if (tableId && table && table.status !== TableStatus.AVAILABLE) {
       localStorage.setItem('locked_table_id', tableId);
     }
   }, [tableId, table?.status]);
 
-  // 3. GIẢI PHÓNG: Chỉ khi bàn về trạng thái Trống (AVAILABLE) mới cho khách thoát
+  // 3. GIẢI PHÓNG: Khi bàn về trạng thái Trống mới cho khách thoát
   useEffect(() => {
     if (tableId && table) {
       if (prevStatusRef.current !== TableStatus.AVAILABLE && table.status === TableStatus.AVAILABLE) {
@@ -58,6 +61,18 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
       prevStatusRef.current = table.status;
     }
   }, [table?.status, tableId, navigate]);
+
+  // TRẠNG THÁI ĐANG ĐỒNG BỘ (Tránh nhảy về trang chủ khi mới quét QR)
+  // Nếu có tableId trong URL nhưng danh sách bàn chưa tải xong hoặc chưa tìm thấy bàn
+  if (tableId && (store.tables.length === 0 || !table)) {
+    return (
+      <div className="max-w-md mx-auto py-24 px-6 text-center animate-fadeIn">
+        <div className="w-20 h-20 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-8"></div>
+        <h2 className="text-xl font-black text-slate-800 uppercase">Đang kết nối bàn {tableId}...</h2>
+        <p className="text-slate-400 text-xs mt-4">Vui lòng đợi trong giây lát</p>
+      </div>
+    );
+  }
 
   // 4. KIỂM TRA TOKEN: Mã QR phải chứa token hợp lệ
   const isTokenValid = tableId && table && table.sessionToken && table.sessionToken === tokenFromUrl;
@@ -72,7 +87,7 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
     return `https://img.vietqr.io/image/${bankId}-${accountNo}-compact2.png?amount=${amount}&addInfo=${encodeURIComponent(info)}&accountName=${encodeURIComponent(accountName)}`;
   };
 
-  // TRANG CHỌN BÀN (Dành cho khách vãng lai hoặc sau khi thanh toán xong)
+  // TRANG CHỌN BÀN (Landing Page) - Chỉ hiện khi không có tableId
   if (!tableId) {
     return (
         <div className="max-w-md mx-auto py-12 text-center animate-fadeIn px-6">
@@ -91,14 +106,14 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
     );
   }
 
-  // TRƯỜNG HỢP MÃ QR HẾT HẠN HOẶC KHÔNG HỢP LỆ
+  // TRƯỜNG HỢP MÃ QR HẾT HẠN HOẶC KHÔNG HỢP LỆ (Token không khớp)
   if (!isTokenValid) {
     return (
       <div className="max-w-md mx-auto py-24 px-6 text-center animate-fadeIn">
         <div className="w-32 h-32 rounded-[3rem] bg-red-50 text-red-500 border-2 border-red-100 flex items-center justify-center mx-auto mb-10 shadow-xl text-6xl">🚫</div>
-        <h2 className="text-3xl font-black text-slate-800 mb-4 uppercase tracking-tighter">Mã QR hết hạn</h2>
-        <p className="text-slate-500 text-sm leading-relaxed mb-12">Mã QR này không còn hiệu lực hoặc phiên làm việc đã kết thúc. Vui lòng liên hệ nhân viên để nhận mã QR mới cho bàn {idNum}.</p>
-        <Link to="/" className="inline-block px-10 py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl">Quay về Trang chủ</Link>
+        <h2 className="text-3xl font-black text-slate-800 mb-4 uppercase tracking-tighter">Mã QR không hợp lệ</h2>
+        <p className="text-slate-500 text-sm leading-relaxed mb-12 px-4">Bàn {idNum} chưa được mở hoặc mã QR này đã hết hạn sau khi thanh toán. Vui lòng yêu cầu nhân viên cấp mã mới.</p>
+        <Link to="/" className="inline-block px-10 py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl">Về trang chủ</Link>
       </div>
     );
   }
@@ -116,7 +131,9 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
         {getQrUrl(totalCurrentOrder) && (
             <div className="bg-white p-8 rounded-[3rem] shadow-xl border border-slate-100 animate-scaleIn">
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Quét để chuyển khoản nhanh</p>
-                <img src={getQrUrl(totalCurrentOrder)!} alt="QR" className="w-full h-auto rounded-2xl mb-6" />
+                <div className="bg-slate-50 p-4 rounded-2xl mb-6">
+                   <img src={getQrUrl(totalCurrentOrder)!} alt="QR" className="w-full h-auto rounded-xl" />
+                </div>
                 <div className="text-sm font-black text-slate-800">{store.bankConfig.accountName}</div>
                 <div className="mt-4 text-2xl font-black text-orange-600">{totalCurrentOrder.toLocaleString()}đ</div>
                 <p className="mt-4 text-[9px] text-slate-300 uppercase font-bold">Nội dung: THANH TOAN BAN {idNum}</p>
