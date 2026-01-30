@@ -16,7 +16,6 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
   const navigate = useNavigate();
   const idNum = parseInt(tableId || '0');
   
-  // Tìm bàn dựa trên ID
   const table = (store.tables || []).find((t: Table) => t.id === idNum);
   const tokenFromUrl = searchParams.get('token');
   
@@ -27,15 +26,12 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
   
   const prevStatusRef = useRef<TableStatus | undefined>(table?.status);
 
-  // 1. Tự động redirect nếu khách đang ở trang chủ nhưng có bàn 'locked'
   useEffect(() => {
     if (!tableId) {
       const lockedId = localStorage.getItem('locked_table_id');
       if (lockedId && store.tables.length > 0) {
         const lockedTable = store.tables.find((t: any) => t.id === parseInt(lockedId));
         if (lockedTable && lockedTable.status !== TableStatus.AVAILABLE) {
-          // Lưu ý: Nếu quay lại bàn cũ, cần phải có token. 
-          // Nếu mất token trong URL gốc, hệ thống sẽ báo hết hạn sau khi redirect.
           navigate(`/table/${lockedId}`, { replace: true });
         } else if (lockedTable && lockedTable.status === TableStatus.AVAILABLE) {
           localStorage.removeItem('locked_table_id');
@@ -44,14 +40,12 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
     }
   }, [tableId, store.tables, navigate]);
 
-  // 2. KHÓA BÀN: Khi khách đã vào bàn và bắt đầu hoạt động
   useEffect(() => {
     if (tableId && table && table.status !== TableStatus.AVAILABLE) {
       localStorage.setItem('locked_table_id', tableId);
     }
   }, [tableId, table?.status]);
 
-  // 3. GIẢI PHÓNG: Khi bàn về trạng thái Trống mới cho khách thoát
   useEffect(() => {
     if (tableId && table) {
       if (prevStatusRef.current !== TableStatus.AVAILABLE && table.status === TableStatus.AVAILABLE) {
@@ -62,8 +56,6 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
     }
   }, [table?.status, tableId, navigate]);
 
-  // TRẠNG THÁI ĐANG ĐỒNG BỘ (Tránh nhảy về trang chủ khi mới quét QR)
-  // Nếu có tableId trong URL nhưng danh sách bàn chưa tải xong hoặc chưa tìm thấy bàn
   if (tableId && (store.tables.length === 0 || !table)) {
     return (
       <div className="max-w-md mx-auto py-24 px-6 text-center animate-fadeIn">
@@ -74,9 +66,7 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
     );
   }
 
-  // 4. KIỂM TRA TOKEN: Mã QR phải chứa token hợp lệ
   const isTokenValid = tableId && table && table.sessionToken && table.sessionToken === tokenFromUrl;
-
   const totalCurrentOrder = (table?.currentOrders || []).reduce((sum: number, item: OrderItem) => sum + ((item.price || 0) * (item.quantity || 0)), 0) || 0;
   const allServed = (table?.currentOrders || []).length > 0 && (table?.currentOrders || []).every((item: OrderItem) => item.status === OrderItemStatus.SERVED);
 
@@ -87,14 +77,23 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
     return `https://img.vietqr.io/image/${bankId}-${accountNo}-compact2.png?amount=${amount}&addInfo=${encodeURIComponent(info)}&accountName=${encodeURIComponent(accountName)}`;
   };
 
-  // TRANG CHỌN BÀN (Landing Page) - Chỉ hiện khi không có tableId
+  const getStatusLabel = (status: OrderItemStatus) => {
+    switch (status) {
+      case OrderItemStatus.PENDING: return { label: 'Chờ xác nhận', color: 'bg-slate-100 text-slate-500' };
+      case OrderItemStatus.CONFIRMED: return { label: 'Đã nhận đơn', color: 'bg-blue-100 text-blue-600' };
+      case OrderItemStatus.COOKING: return { label: 'Đang chế biến', color: 'bg-orange-100 text-orange-600' };
+      case OrderItemStatus.READY: return { label: 'Chờ bưng món', color: 'bg-amber-100 text-amber-600' };
+      case OrderItemStatus.SERVED: return { label: 'Đã phục vụ', color: 'bg-green-100 text-green-600' };
+      default: return { label: status, color: 'bg-slate-100' };
+    }
+  };
+
   if (!tableId) {
     return (
         <div className="max-w-md mx-auto py-12 text-center animate-fadeIn px-6">
             <div className="w-32 h-32 bg-orange-100 rounded-[2.5rem] flex items-center justify-center mx-auto mb-8 text-5xl">🍴</div>
             <h2 className="text-3xl font-black text-slate-800 mb-2 tracking-tight uppercase">Smart Restaurant</h2>
             <p className="text-slate-500 mb-10 text-sm font-medium">Vui lòng quét QR tại bàn để gọi món</p>
-            
             <div className="space-y-3 mt-20">
                 <div className="grid grid-cols-2 gap-3">
                     <Link to="/staff" className="flex items-center justify-center py-4 bg-white border border-slate-100 rounded-2xl shadow-sm text-[10px] font-black uppercase text-slate-600">Phục vụ</Link>
@@ -106,7 +105,6 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
     );
   }
 
-  // TRƯỜNG HỢP MÃ QR HẾT HẠN HOẶC KHÔNG HỢP LỆ (Token không khớp)
   if (!isTokenValid) {
     return (
       <div className="max-w-md mx-auto py-24 px-6 text-center animate-fadeIn">
@@ -118,7 +116,6 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
     );
   }
 
-  // TRẠNG THÁI ĐANG THANH TOÁN / CHỜ HÓA ĐƠN
   if (table?.status === TableStatus.PAYING || table?.status === TableStatus.BILLING) {
     return (
       <div className="max-w-md mx-auto py-12 px-6 text-center animate-fadeIn">
@@ -128,22 +125,26 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
         </h2>
         <p className="text-slate-400 text-sm mb-10 italic">Hệ thống đã khóa Menu. Quý khách vui lòng chờ nhân viên xác nhận thanh toán để kết thúc.</p>
 
-        {getQrUrl(totalCurrentOrder) && (
+        {getQrUrl(totalCurrentOrder) ? (
             <div className="bg-white p-8 rounded-[3rem] shadow-xl border border-slate-100 animate-scaleIn">
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Quét để chuyển khoản nhanh</p>
-                <div className="bg-slate-50 p-4 rounded-2xl mb-6">
-                   <img src={getQrUrl(totalCurrentOrder)!} alt="QR" className="w-full h-auto rounded-xl" />
+                <div className="bg-slate-50 p-4 rounded-2xl mb-6 flex items-center justify-center">
+                   <img src={getQrUrl(totalCurrentOrder)!} alt="QR" className="w-full h-auto rounded-xl max-w-[240px]" />
                 </div>
-                <div className="text-sm font-black text-slate-800">{store.bankConfig.accountName}</div>
-                <div className="mt-4 text-2xl font-black text-orange-600">{totalCurrentOrder.toLocaleString()}đ</div>
+                <div className="text-sm font-black text-slate-800 mb-1">{store.bankConfig.accountName}</div>
+                <div className="text-[10px] font-bold text-slate-400 mb-4">{store.bankConfig.accountNo}</div>
+                <div className="mt-2 text-3xl font-black text-orange-600">{totalCurrentOrder.toLocaleString()}đ</div>
                 <p className="mt-4 text-[9px] text-slate-300 uppercase font-bold">Nội dung: THANH TOAN BAN {idNum}</p>
             </div>
+        ) : (
+          <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-slate-100 italic text-slate-300 text-sm">
+            Quán chưa thiết lập QR Code ngân hàng. Vui lòng thanh toán trực tiếp tại quầy.
+          </div>
         )}
       </div>
     );
   }
 
-  // TRANG THỰC ĐƠN & GỌI MÓN
   const filteredMenu = (store.menu || []).filter((item: MenuItem) => activeTab === 'Tất cả' ? true : item.category === activeTab);
   
   const handleOrder = () => {
@@ -235,31 +236,32 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
       {view === 'HISTORY' && (
         <div className="animate-fadeIn px-4">
           <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100 mb-6">
-            <h3 className="font-black text-slate-800 text-xl mb-6">Món đang yêu cầu</h3>
+            <h3 className="font-black text-slate-800 text-xl mb-6">Theo dõi món đã gọi</h3>
             <div className="space-y-4">
                 {(!table?.currentOrders || table.currentOrders.length === 0) ? (
                     <div className="text-center py-20 text-slate-300 font-bold text-xs uppercase italic tracking-widest">Bàn chưa gọi món</div>
                 ) : (
-                    table.currentOrders.map((item: OrderItem) => (
-                        <div key={item.id} className="p-4 bg-slate-50 rounded-2xl flex items-center justify-between border border-slate-100">
-                            <div>
-                                <h4 className="font-black text-slate-800 text-xs">{item.name} <span className="text-orange-500 ml-1">x{item.quantity}</span></h4>
-                                <span className={`text-[8px] font-black px-2 py-0.5 rounded-full mt-2 inline-block uppercase ${
-                                   item.status === OrderItemStatus.SERVED ? 'bg-green-100 text-green-600' : 
-                                   item.status === OrderItemStatus.PENDING ? 'bg-slate-200 text-slate-500' : 'bg-blue-100 text-blue-600'
-                                }`}>
-                                   {item.status === OrderItemStatus.PENDING ? 'Chờ xác nhận' : item.status}
-                                </span>
+                    table.currentOrders.map((item: OrderItem) => {
+                        const statusInfo = getStatusLabel(item.status);
+                        return (
+                            <div key={item.id} className="p-4 bg-slate-50 rounded-2xl flex items-center justify-between border border-slate-100">
+                                <div className="flex-1">
+                                    <h4 className="font-black text-slate-800 text-xs">{item.name} <span className="text-orange-500 ml-1">x{item.quantity}</span></h4>
+                                    <span className={`text-[8px] font-black px-2 py-1 rounded-full mt-2 inline-block uppercase tracking-wider ${statusInfo.color}`}>
+                                       {statusInfo.label}
+                                    </span>
+                                </div>
+                                <span className="font-black text-slate-800 text-xs">{(item.price * item.quantity).toLocaleString()}đ</span>
                             </div>
-                            <span className="font-black text-slate-800 text-xs">{(item.price * item.quantity).toLocaleString()}đ</span>
-                        </div>
-                    ))
+                        );
+                    })
                 )}
             </div>
           </div>
           {totalCurrentOrder > 0 && (
-            <div className="bg-slate-900 rounded-[3rem] p-8 text-white text-center shadow-2xl">
-                <p className="text-white/40 text-[10px] mb-2 font-black uppercase tracking-widest">Tổng hóa đơn</p>
+            <div className="bg-slate-900 rounded-[3rem] p-8 text-white text-center shadow-2xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/10 rounded-full -mr-16 -mt-16"></div>
+                <p className="text-white/40 text-[10px] mb-2 font-black uppercase tracking-widest">Tạm tính hóa đơn</p>
                 <h3 className="text-4xl font-black mb-10">{totalCurrentOrder.toLocaleString()}đ</h3>
                 <button 
                    disabled={!allServed} 
@@ -270,6 +272,9 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
                 >
                     {allServed ? 'Yêu cầu thanh toán' : 'Chờ bưng hết món'}
                 </button>
+                {!allServed && totalCurrentOrder > 0 && (
+                   <p className="mt-4 text-[9px] text-orange-400 font-bold uppercase tracking-tight">Vui lòng chờ phục vụ xong các món trước khi thanh toán</p>
+                )}
             </div>
           )}
         </div>
