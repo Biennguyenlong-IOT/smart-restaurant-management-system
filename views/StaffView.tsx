@@ -13,7 +13,13 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
   const [showQrModalId, setShowQrModalId] = useState<number | null>(null);
   const [moveModal, setMoveModal] = useState<{ fromId: number; type: 'SWAP' | 'MERGE' } | null>(null);
   
-  const currentUser = JSON.parse(localStorage.getItem('current_user') || '{}');
+  // Sửa lỗi: Đọc từ sessionStorage thay vì localStorage
+  const currentUser = useMemo(() => {
+    try {
+      const saved = sessionStorage.getItem('current_user');
+      return saved ? JSON.parse(saved) : {};
+    } catch { return {}; }
+  }, []);
 
   const myTables = useMemo(() => 
     (store.tables || []).filter((t: Table) => t.claimedBy === currentUser.id)
@@ -30,7 +36,6 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
   ), [myTables]);
 
   const getFullQrUrl = (id: number, token: string) => {
-    // Tự động đính kèm URL Database vào mã QR cho khách
     const baseUrl = window.location.origin + window.location.pathname;
     const configParam = btoa(store.cloudUrl);
     const tableUrl = `${baseUrl}#/table/${id}/${token}?config=${configParam}`;
