@@ -202,7 +202,7 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
             <h2 className="text-2xl font-black text-slate-800 mb-2 tracking-tight uppercase">Smart Restaurant</h2>
             <p className="text-slate-500 mb-10 text-sm font-medium">Vui lòng quét QR tại bàn để gọi món</p>
             <div className="w-full max-w-xs space-y-3">
-                <Link to="/staff" className="flex items-center justify-center py-4 bg-slate-900 rounded-2xl shadow-xl text-[10px] font-black uppercase text-white tracking-widest active:scale-95 transition-transform">Vào Hệ Thống (Nhân Viên)</Link>
+                <Link to="/login" className="flex items-center justify-center py-4 bg-slate-900 rounded-2xl shadow-xl text-[10px] font-black uppercase text-white tracking-widest active:scale-95 transition-transform">Vào Hệ Thống</Link>
             </div>
         </div>
     );
