@@ -7,7 +7,7 @@ import {
   Trash2, X, Edit3, Database, Cloud, LayoutDashboard, TrendingUp, 
   ShoppingBag, DollarSign, Calendar, QrCode, Share2, Copy, PowerOff, 
   Search, Image as ImageIcon, Save, CreditCard, Banknote, CheckCircle2,
-  FileText, Clock
+  FileText, Clock, LayoutGrid
 } from 'lucide-react';
 
 interface AdminViewProps { store: any; }
@@ -15,6 +15,7 @@ interface AdminViewProps { store: any; }
 const AdminView: React.FC<AdminViewProps> = ({ store }) => {
   const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'MONITOR' | 'MENU' | 'USERS' | 'REQUESTS' | 'BANK' | 'CLOUD'>('DASHBOARD');
   const [tempCloudUrl, setTempCloudUrl] = useState(store.cloudUrl);
+  const [tempTableCount, setTempTableCount] = useState(store.tables.length);
   const [showShareModal, setShowShareModal] = useState(false);
   
   const [menuForm, setMenuForm] = useState<Partial<MenuItem> | null>(null);
@@ -56,6 +57,15 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
     if (!tempCloudUrl.startsWith('http')) return alert("URL không hợp lệ!");
     store.updateCloudUrl(tempCloudUrl);
     alert("Cập nhật Database thành công.");
+  };
+
+  const handleUpdateTableCount = () => {
+    if (tempTableCount < 1) return alert("Số bàn không hợp lệ!");
+    if (tempTableCount < store.tables.length) {
+      if (!window.confirm("Giảm số bàn có thể làm mất dữ liệu các bàn đang hoạt động. Tiếp tục?")) return;
+    }
+    store.updateTableCount(tempTableCount);
+    alert("Cập nhật số bàn thành công!");
   };
 
   const getSetupLink = () => {
@@ -308,6 +318,27 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
           <div className="max-w-xl mx-auto space-y-6">
             <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm">
               <div className="flex items-center gap-3 mb-8">
+                <div className="w-12 h-12 bg-slate-900 text-white rounded-2xl flex items-center justify-center"><LayoutGrid size={24}/></div>
+                <div>
+                  <h4 className="font-black text-slate-800 uppercase italic">Số lượng bàn</h4>
+                  <p className="text-[10px] font-bold text-slate-400">Thiết lập quy mô quán ăn</p>
+                </div>
+              </div>
+              <div className="space-y-4">
+                <div className="flex items-center gap-4">
+                  <input 
+                    type="number" 
+                    value={tempTableCount} 
+                    onChange={e => setTempTableCount(parseInt(e.target.value))} 
+                    className="flex-1 px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl font-black text-lg" 
+                  />
+                  <button onClick={handleUpdateTableCount} className="px-8 py-4 bg-orange-500 text-white rounded-2xl font-black uppercase text-xs shadow-lg active:scale-95 transition-all">Lưu số bàn</button>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm">
+              <div className="flex items-center gap-3 mb-8">
                 <div className="w-12 h-12 bg-slate-900 text-white rounded-2xl flex items-center justify-center"><Database size={24}/></div>
                 <div>
                   <h4 className="font-black text-slate-800 uppercase italic">Database</h4>
@@ -393,7 +424,7 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
       {/* Form Modals */}
       {menuForm && (
         <div className="fixed inset-0 z-[250] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl animate-scaleIn">
+          <div className="bg-white w-full max-md rounded-[2.5rem] p-8 shadow-2xl animate-scaleIn">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-xl font-black text-slate-800 uppercase italic">{menuForm.id ? 'Sửa món' : 'Thêm món'}</h3>
               <button onClick={() => setMenuForm(null)} className="p-2 bg-slate-50 rounded-full text-slate-400"><X size={20}/></button>
@@ -412,7 +443,7 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
 
       {userForm && (
         <div className="fixed inset-0 z-[250] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl animate-scaleIn">
+          <div className="bg-white w-full max-sm rounded-[2.5rem] p-8 shadow-2xl animate-scaleIn">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-xl font-black text-slate-800 uppercase italic">{userForm.id ? 'Sửa NV' : 'Thêm NV'}</h3>
               <button onClick={() => setUserForm(null)} className="p-2 bg-slate-50 rounded-full text-slate-400"><X size={20}/></button>
