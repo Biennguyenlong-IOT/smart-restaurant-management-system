@@ -34,7 +34,6 @@ export const useRestaurantStore = () => {
   const [syncStatus, setSyncStatus] = useState<'IDLE' | 'SYNCING' | 'ERROR' | 'SUCCESS' | 'NEED_CONFIG'>('IDLE');
   
   const [cloudUrl, setCloudUrl] = useState<string>(() => {
-    // 1. Kiểm tra URL parameter 'config' (Ưu tiên cao nhất để setup nhanh)
     const params = new URLSearchParams(window.location.search);
     const configParam = params.get('config');
     if (configParam) {
@@ -42,15 +41,11 @@ export const useRestaurantStore = () => {
         const decodedUrl = atob(configParam);
         if (decodedUrl.startsWith('http')) {
           localStorage.setItem(CLOUD_CONFIG_KEY, decodedUrl);
-          // Xóa param trên URL để trông sạch sẽ hơn
           window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
           return decodedUrl;
         }
       } catch (e) { console.error("Invalid config param"); }
     }
-
-    // 2. Kiểm tra LocalStorage
-    // 3. Kiểm tra biến môi trường
     return localStorage.getItem(CLOUD_CONFIG_KEY) || process.env.VITE_FIREBASE_DB_URL || '';
   });
 
@@ -148,7 +143,15 @@ export const useRestaurantStore = () => {
     },
 
     cancelOrderItem: (tid: number, oid: string) => {
-      const nt = tables.map(t => t.id === tid ? { ...t, currentOrders: t.currentOrders.map(o => (o.id === oid && o.status === OrderItemStatus.PENDING) ? { ...o, status: OrderItemStatus.CANCELLED } : o) } : t);
+      // Cho phép hủy nếu món vẫn đang chờ hoặc mới xác nhận (chưa nấu)
+      const nt = tables.map(t => t.id === tid ? { 
+        ...t, 
+        currentOrders: t.currentOrders.map(o => 
+          (o.id === oid && (o.status === OrderItemStatus.PENDING || o.status === OrderItemStatus.CONFIRMED)) 
+          ? { ...o, status: OrderItemStatus.CANCELLED } 
+          : o
+        ) 
+      } : t);
       pushToCloud({ tables: nt });
     },
 
