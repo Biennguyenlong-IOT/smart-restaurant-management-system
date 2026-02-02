@@ -7,11 +7,11 @@ import { INITIAL_MENU } from './constants';
 
 const CLOUD_CONFIG_KEY = 'resto_v5_url_v2';
 
-// Cung cấp các tài khoản mặc định để dễ dàng kiểm tra hệ thống
+// Cung cấp các tài khoản mặc định
 const DEFAULT_USERS: User[] = [
   { id: 'u-admin', username: 'admin', password: '123', role: UserRole.ADMIN, fullName: 'Quản lý Tổng' },
-  { id: 'u-staff', username: 'staff', password: '123', role: UserRole.STAFF, fullName: 'Nhân viên Phục vụ' },
-  { id: 'u-kitchen', username: 'kitchen', password: '123', role: UserRole.KITCHEN, fullName: 'Đầu bếp Chính' }
+  { id: 'u-staff', username: 'staff', password: '123', role: UserRole.STAFF, fullName: 'Phục vụ' },
+  { id: 'u-kitchen', username: 'kitchen', password: '123', role: UserRole.KITCHEN, fullName: 'Bếp trưởng' }
 ];
 
 const DEFAULT_BANK: BankConfig = { bankId: 'ICB', accountNo: '', accountName: '' };
@@ -135,8 +135,8 @@ export const useRestaurantStore = () => {
       const nnotif: AppNotification = { 
         id: `O-${Date.now()}`, 
         targetRole: UserRole.STAFF, 
-        title: 'Món mới chờ duyệt', 
-        message: `Bàn ${tid} vừa gọi thêm ${items.length} món`, 
+        title: 'Món mới', 
+        message: `Bàn số ${tid} vừa gọi thêm món mới.`, 
         timestamp: Date.now(), 
         read: false, 
         type: 'order',
@@ -150,8 +150,8 @@ export const useRestaurantStore = () => {
       const kitchenNotif: AppNotification = {
         id: `K-${Date.now()}`,
         targetRole: UserRole.KITCHEN,
-        title: 'Có món mới cần nấu',
-        message: `Bàn ${tid} đã được duyệt món`,
+        title: 'Bếp ơi có đơn',
+        message: `Bàn số ${tid} đã duyệt món. Nhà bếp vui lòng chế biến.`,
         timestamp: Date.now(),
         read: false,
         type: 'order'
@@ -167,7 +167,7 @@ export const useRestaurantStore = () => {
             id: `R-${Date.now()}`,
             targetRole: UserRole.STAFF,
             title: 'Món đã xong',
-            message: `Bàn ${tid}: ${item?.name} đã nấu xong`,
+            message: `Bàn số ${tid}, món ${item?.name} đã nấu xong.`,
             timestamp: Date.now(),
             read: false,
             type: 'kitchen'
@@ -195,8 +195,8 @@ export const useRestaurantStore = () => {
       const nnotif: AppNotification = { 
         id: `C-${Date.now()}`, 
         targetRole: UserRole.STAFF, 
-        title: 'Khách huỷ món', 
-        message: `Bàn ${tid} huỷ món: ${item.name}`, 
+        title: 'Huỷ món', 
+        message: `Bàn số ${tid} vừa huỷ món ${item.name}.`, 
         timestamp: Date.now(), 
         read: false, 
         type: 'system' 
@@ -209,8 +209,8 @@ export const useRestaurantStore = () => {
       const nnotif: AppNotification = { 
         id: `QR-REQ-${Date.now()}`, 
         targetRole: UserRole.ADMIN, 
-        title: 'Yêu cầu mở bàn', 
-        message: `NV ${sid} yêu cầu mở bàn ${tid}`, 
+        title: 'Mở bàn', 
+        message: `Nhân viên yêu cầu mở bàn số ${tid}.`, 
         timestamp: Date.now(), 
         read: false, 
         type: 'qr_request',
@@ -228,8 +228,8 @@ export const useRestaurantStore = () => {
       const staffNotif: AppNotification = {
         id: `QR-OK-${Date.now()}`,
         targetRole: UserRole.STAFF,
-        title: 'Bàn đã mở',
-        message: `Admin đã cấp QR cho bàn ${tableId}`,
+        title: 'Cấp mã thành công',
+        message: `Quản lý đã cấp mã QR cho bàn số ${tableId}.`,
         timestamp: Date.now(),
         read: false,
         type: 'system'
@@ -242,8 +242,8 @@ export const useRestaurantStore = () => {
       const nnotif: AppNotification = { 
         id: `PAY-${Date.now()}`, 
         targetRole: UserRole.STAFF, 
-        title: 'Yêu cầu thanh toán', 
-        message: `Bàn ${tid} yêu cầu tính tiền`, 
+        title: 'Tính tiền', 
+        message: `Bàn số ${tid} yêu cầu thanh toán hóa đơn.`, 
         timestamp: Date.now(), 
         read: false, 
         type: 'payment' 
