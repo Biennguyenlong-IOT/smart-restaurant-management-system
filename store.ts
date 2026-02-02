@@ -6,6 +6,7 @@ import { Table, TableStatus, MenuItem, OrderItem, OrderItemStatus, HistoryEntry,
 import { INITIAL_MENU } from './constants';
 
 const CLOUD_CONFIG_KEY = 'resto_v5_url_v2';
+const DEFAULT_CLOUD_URL = 'https://smart-resto-e3a59-default-rtdb.asia-southeast1.firebasedatabase.app/';
 
 const DEFAULT_USERS: User[] = [
   { id: 'u-admin', username: 'admin', password: '123', role: UserRole.ADMIN, fullName: 'Quản lý Tổng' },
@@ -49,7 +50,7 @@ export const useRestaurantStore = () => {
         }
       } catch (e) { console.error("URL Config error"); }
     }
-    return localStorage.getItem(CLOUD_CONFIG_KEY) || '';
+    return localStorage.getItem(CLOUD_CONFIG_KEY) || DEFAULT_CLOUD_URL;
   });
 
   const dbRef = useRef<Database | null>(null);
@@ -225,95 +226,4 @@ export const useRestaurantStore = () => {
         type: 'qr_request',
         payload: { tableId: tid, staffId: sid }
       };
-      await pushToCloud({ tables: nt, notifications: [nnotif, ...notifications] });
-    },
-
-    approveTableQr: async (nid: string) => {
-      const notif = notifications.find(n => n.id === nid);
-      if (!notif?.payload) return;
-      const { tableId, staffId } = notif.payload;
-      const token = Math.random().toString(36).substring(2, 9).toUpperCase();
-      const nt = tables.map(t => t.id === tableId ? { ...t, qrRequested: false, status: TableStatus.OCCUPIED, sessionToken: token, claimedBy: staffId } : t);
-      const staffNotif: AppNotification = {
-        id: `QR-OK-${Date.now()}`,
-        targetRole: UserRole.STAFF,
-        title: 'Đã mở bàn',
-        message: `Mã QR Bàn ${tableId} đã sẵn sàng.`,
-        timestamp: Date.now(),
-        read: false,
-        type: 'system'
-      };
-      await pushToCloud({ tables: nt, notifications: [staffNotif, ...notifications.filter(n => n.id !== nid)] });
-    },
-
-    requestPayment: async (tid: number) => {
-      const nt = tables.map(t => t.id === tid ? { ...t, status: TableStatus.PAYING } : t);
-      const nnotif: AppNotification = { 
-        id: `PAY-${Date.now()}`, 
-        targetRole: UserRole.STAFF, 
-        title: 'Khách thanh toán', 
-        message: `Bàn ${tid} yêu cầu tính tiền.`, 
-        timestamp: Date.now(), 
-        read: false, 
-        type: 'payment' 
-      };
-      await pushToCloud({ tables: nt, notifications: [nnotif, ...notifications] });
-    },
-
-    confirmPayment: async (tid: number) => {
-      const table = tables.find(t => t.id === tid);
-      if (!table) return;
-      const h: HistoryEntry = { 
-        id: `H-${Date.now()}`, 
-        tableId: tid, 
-        total: table.currentOrders.filter(o => o.status !== OrderItemStatus.CANCELLED).reduce((s, o) => s + (o.price * o.quantity), 0), 
-        items: table.currentOrders, 
-        date: new Date().toLocaleString() 
-      };
-      // Sau khi thanh toán, chuyển sang trạng thái BILLING (Chờ dọn dẹp)
-      const nt = tables.map(t => t.id === tid ? { ...t, status: TableStatus.BILLING } : t);
-      const staffNotif: AppNotification = {
-        id: `CLEAN-${Date.now()}`,
-        targetRole: UserRole.STAFF,
-        title: 'Dọn dẹp bàn',
-        message: `Bàn ${tid} đã thanh toán, hãy dọn dẹp.`,
-        timestamp: Date.now(),
-        read: false,
-        type: 'system'
-      };
-      await pushToCloud({ tables: nt, history: [h, ...history], notifications: [staffNotif, ...notifications] });
-    },
-
-    adminForceClose: async (tid: number) => {
-      const nt = tables.map(t => t.id === tid ? { ...t, status: TableStatus.AVAILABLE, currentOrders: [], claimedBy: null, sessionToken: null, qrRequested: false } : t);
-      await pushToCloud({ tables: nt });
-    },
-
-    upsertMenuItem: async (item: MenuItem) => {
-      const nm = menu.find(m => m.id === item.id) ? menu.map(m => m.id === item.id ? item : m) : [...menu, item];
-      await pushToCloud({ menu: nm });
-    },
-
-    deleteMenuItem: async (id: string) => {
-      const nm = menu.filter(m => m.id !== id);
-      await pushToCloud({ menu: nm });
-    },
-
-    upsertUser: async (u: User) => {
-      const nu = users.find(x => x.id === u.id) ? users.map(x => x.id === u.id ? u : x) : [...users, u];
-      await pushToCloud({ users: nu });
-    },
-
-    deleteUser: async (id: string) => {
-      const nu = users.filter(u => u.id !== id);
-      await pushToCloud({ users: nu });
-    },
-
-    deleteNotification: async (id: string) => await pushToCloud({ notifications: notifications.filter(n => n.id !== id) }),
-    
-    setTableEmpty: async (tid: number) => {
-      const nt = tables.map(t => t.id === tid ? { ...t, status: TableStatus.AVAILABLE, currentOrders: [], claimedBy: null, sessionToken: null, qrRequested: false } : t);
-      await pushToCloud({ tables: nt });
-    }
-  };
-};
+      await pushToCloud
