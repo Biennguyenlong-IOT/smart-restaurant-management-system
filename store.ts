@@ -247,6 +247,48 @@ export const useRestaurantStore = () => {
       await pushToCloud({ tables: nt, notifications: [staffNotif, ...notifications.filter(n => n.id !== nid)] });
     },
 
+    requestMoveTable: async (fromId: number, toId: number, type: 'SWAP' | 'MERGE', staffId: string) => {
+      const nnotif: AppNotification = { 
+        id: `MOVE-REQ-${Date.now()}`, 
+        targetRole: UserRole.ADMIN, 
+        title: type === 'SWAP' ? 'Yêu cầu đổi bàn' : 'Yêu cầu gộp bàn', 
+        message: `NV ${staffId} yêu cầu ${type === 'SWAP' ? 'đổi' : 'gộp'} bàn ${fromId} sang ${toId}.`, 
+        timestamp: Date.now(), 
+        read: false, 
+        type: 'move_request',
+        payload: { fromId, toId, type, staffId }
+      };
+      await pushToCloud({ notifications: [nnotif, ...notifications] });
+    },
+
+    approveMoveTable: async (nid: string) => {
+      const notif = notifications.find(n => n.id === nid);
+      if (!notif?.payload) return;
+      const { fromId, toId, type } = notif.payload;
+      
+      const tableFrom = tables.find(t => t.id === fromId);
+      const tableTo = tables.find(t => t.id === toId);
+      
+      if (!tableFrom || !tableTo) return;
+
+      let nt = [...tables];
+      if (type === 'SWAP') {
+        nt = tables.map(t => {
+          if (t.id === fromId) return { ...t, status: TableStatus.AVAILABLE, currentOrders: [], sessionToken: null, claimedBy: null };
+          if (t.id === toId) return { ...t, status: tableFrom.status, currentOrders: tableFrom.currentOrders, sessionToken: tableFrom.sessionToken, claimedBy: tableFrom.claimedBy };
+          return t;
+        });
+      } else { // MERGE
+        nt = tables.map(t => {
+          if (t.id === fromId) return { ...t, status: TableStatus.AVAILABLE, currentOrders: [], sessionToken: null, claimedBy: null };
+          if (t.id === toId) return { ...t, currentOrders: [...tableTo.currentOrders, ...tableFrom.currentOrders], status: TableStatus.OCCUPIED };
+          return t;
+        });
+      }
+      
+      await pushToCloud({ tables: nt, notifications: notifications.filter(n => n.id !== nid) });
+    },
+
     requestPayment: async (tid: number) => {
       const nt = tables.map(t => t.id === tid ? { ...t, status: TableStatus.PAYING } : t);
       const nnotif: AppNotification = { 
