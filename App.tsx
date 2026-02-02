@@ -129,33 +129,41 @@ const AppContent: React.FC = () => {
   const lastNotifIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!currentUser || !isAudioEnabled) return;
+    // CHỈ PHÁT THÔNG BÁO CHO NHÂN VIÊN/ADMIN ĐÃ ĐĂNG NHẬP VÀ BẬT LOA
+    // Customer (khách hàng) sẽ không bao giờ nhận thông báo âm thanh/rung
+    if (!currentUser || !isAudioEnabled || currentUser.role === UserRole.CUSTOMER) return;
 
-    // Chỉ lọc các thông báo mà user hiện tại có quyền nhận
-    const relevantNotifs = store.notifications.filter(n => 
-      !n.read && (n.targetRole === currentUser.role || currentUser.role === UserRole.ADMIN)
-    );
+    // Lọc thông báo phù hợp cho user đang đăng nhập
+    const relevantNotifs = store.notifications.filter(n => {
+      if (n.read) return false;
+      // Nếu là Admin, nhận hầu hết các thông báo quan trọng hệ thống
+      if (currentUser.role === UserRole.ADMIN) {
+        return n.type === 'qr_request' || n.type === 'move_request' || n.type === 'payment' || n.type === 'order';
+      }
+      // Nhân viên chỉ nhận thông báo nhắm trực tiếp đến role của họ
+      return n.targetRole === currentUser.role;
+    });
 
     if (relevantNotifs.length > 0) {
       const latest = relevantNotifs[0];
       if (latest.id !== lastNotifIdRef.current) {
         lastNotifIdRef.current = latest.id;
         
-        // Phát loa thông báo tiếng Việt
-        const speech = new SpeechSynthesisUtterance(latest.message);
-        speech.lang = 'vi-VN';
-        speech.rate = 1.1;
-        window.speechSynthesis.speak(speech);
+        // 1. Rung (Mobile)
+        if ('vibrate' in navigator) {
+          navigator.vibrate([200, 100, 200]);
+        }
 
-        // Phát âm thanh ping
+        // 2. Phát âm thanh thông báo
         const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
         audio.volume = 0.5;
         audio.play().catch(() => {});
 
-        // Rung thiết bị (nếu trình duyệt hỗ trợ)
-        if ('vibrate' in navigator) {
-          navigator.vibrate([200, 100, 200]);
-        }
+        // 3. Đọc nội dung thông báo bằng giọng nói (Tiếng Việt)
+        const speech = new SpeechSynthesisUtterance(latest.message);
+        speech.lang = 'vi-VN';
+        speech.rate = 1.0;
+        window.speechSynthesis.speak(speech);
       }
     }
   }, [store.notifications, currentUser, isAudioEnabled]);
@@ -165,7 +173,6 @@ const AppContent: React.FC = () => {
     setCurrentUser(user);
     setIsAudioEnabled(true);
     
-    // Tự động điều hướng dựa trên vai trò
     if (user.role === UserRole.ADMIN) navigate('/admin');
     else if (user.role === UserRole.STAFF) navigate('/staff');
     else if (user.role === UserRole.KITCHEN) navigate('/kitchen');
@@ -182,9 +189,7 @@ const AppContent: React.FC = () => {
     if (!currentUser) {
       return <LoginOverlay users={store.users} onSuccess={handleLoginSuccess} onCancel={() => navigate('/')} />;
     }
-    // Admin có quyền truy cập tất cả các trang
     if (currentUser.role === UserRole.ADMIN) return <>{element}</>;
-    // Các vai trò khác chỉ vào đúng trang của mình
     if (currentUser.role !== role) {
       return <Navigate to="/" replace />;
     }
@@ -206,8 +211,12 @@ const AppContent: React.FC = () => {
           <div className="flex items-center gap-4">
             {currentUser && currentUser.role !== UserRole.CUSTOMER && (
               <button 
-                onClick={() => setIsAudioEnabled(!isAudioEnabled)}
+                onClick={() => {
+                  setIsAudioEnabled(!isAudioEnabled);
+                  if (!isAudioEnabled && 'vibrate' in navigator) navigator.vibrate(100);
+                }}
                 className={`p-2 rounded-xl transition-all ${isAudioEnabled ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-400'}`}
+                title={isAudioEnabled ? "Tắt loa thông báo" : "Bật loa thông báo"}
               >
                 {isAudioEnabled ? <Volume2 size={20} /> : <VolumeX size={20} />}
               </button>
@@ -215,7 +224,7 @@ const AppContent: React.FC = () => {
             <div title={store.syncStatus} className={`w-2 h-2 rounded-full ${store.syncStatus === 'SUCCESS' ? 'bg-green-500' : 'bg-red-400 animate-pulse'}`}></div>
             {currentUser && (
               <div className="flex items-center gap-3">
-                <span className="text-[10px] font-black text-slate-400 uppercase hidden md:inline">{currentUser.fullName} ({currentUser.role})</span>
+                <span className="text-[10px] font-black text-slate-400 uppercase hidden md:inline">{currentUser.fullName}</span>
                 <button onClick={handleLogout} className="text-[10px] font-black text-red-500 px-4 py-2 bg-red-50 rounded-xl uppercase hover:bg-red-100 transition-colors">Thoát</button>
               </div>
             )}
