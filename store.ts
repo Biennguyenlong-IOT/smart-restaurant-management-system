@@ -34,6 +34,7 @@ export const useRestaurantStore = () => {
   const [syncStatus, setSyncStatus] = useState<'IDLE' | 'SYNCING' | 'ERROR' | 'SUCCESS' | 'NEED_CONFIG'>('IDLE');
   
   const [cloudUrl, setCloudUrl] = useState<string>(() => {
+    // Ưu tiên 1: Cấu hình từ URL param (config=...)
     const params = new URLSearchParams(window.location.search);
     const configParam = params.get('config');
     if (configParam) {
@@ -41,11 +42,12 @@ export const useRestaurantStore = () => {
         const decodedUrl = atob(configParam);
         if (decodedUrl.startsWith('http')) {
           localStorage.setItem(CLOUD_CONFIG_KEY, decodedUrl);
-          window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
+          // Không xóa ngay để effect bên dưới nhận diện được sự thay đổi
           return decodedUrl;
         }
       } catch (e) { console.error("Invalid config param"); }
     }
+    // Ưu tiên 2: LocalStorage
     return localStorage.getItem(CLOUD_CONFIG_KEY) || process.env.VITE_FIREBASE_DB_URL || '';
   });
 
@@ -156,17 +158,8 @@ export const useRestaurantStore = () => {
         ) 
       } : t);
 
-      // Thêm thông báo cho nhân viên
-      const nnotif: AppNotification = { 
-        id: `CANCEL-${Date.now()}`, 
-        targetRole: UserRole.STAFF, 
-        title: 'Khách huỷ món', 
-        message: `Bàn ${tid} đã huỷ món: ${item.name}`, 
-        timestamp: Date.now(), 
-        read: false, 
-        type: 'system' 
-      };
-
+      // Thông báo cho nhân viên biết khách huỷ món
+      const nnotif: AppNotification = { id: `C-${Date.now()}`, targetRole: UserRole.STAFF, title: 'Huỷ món', message: `Bàn ${tid} huỷ: ${item.name}`, timestamp: Date.now(), read: false, type: 'system' };
       pushToCloud({ tables: nt, notifications: [nnotif, ...notifications] });
     },
 
