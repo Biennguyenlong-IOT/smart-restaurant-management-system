@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { MenuItem, TableStatus, Table, UserRole, AppNotification, User, HistoryEntry } from '../types';
 import { CATEGORIES } from '../constants';
-import { ArrowRightLeft, Monitor, Settings, Plus, UserPlus, Pizza, Shield, Trash2, X, Edit3, Database, Cloud, LayoutDashboard, TrendingUp, ShoppingBag, DollarSign, Calendar, QrCode, Share2, Copy } from 'lucide-react';
+import { ArrowRightLeft, Monitor, Settings, Plus, UserPlus, Pizza, Shield, Trash2, X, Edit3, Database, Cloud, LayoutDashboard, TrendingUp, ShoppingBag, DollarSign, Calendar, QrCode, Share2, Copy, PowerOff } from 'lucide-react';
 
 interface AdminViewProps { store: any; }
 
@@ -159,16 +159,25 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
         {activeTab === 'MONITOR' && (
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4">
             {store.tables.map((t: Table) => (
-              <div key={t.id} className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between hover:border-orange-200 transition-all">
-                <div className="mb-4">
+              <div key={t.id} className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between hover:border-orange-200 transition-all min-h-[160px]">
+                <div>
                   <div className="flex justify-between items-center mb-1">
-                    <h3 className="font-black text-lg italic">Bàn {t.id}</h3>
-                    <div className={`w-2 h-2 rounded-full ${t.status === TableStatus.AVAILABLE ? 'bg-slate-200' : 'bg-orange-500 animate-pulse'}`}></div>
+                    <h3 className="font-black text-lg italic text-slate-800">Bàn {t.id}</h3>
+                    <div className={`w-2.5 h-2.5 rounded-full ${t.status === TableStatus.AVAILABLE ? 'bg-slate-200' : 'bg-orange-500 animate-pulse'}`}></div>
                   </div>
                   <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter truncate">{t.claimedBy ? `NV: ${t.claimedBy}` : 'Trống'}</p>
-                  {t.sessionToken && <p className="text-[8px] text-green-500 font-black mt-1">QR ACTIVE</p>}
+                  {t.sessionToken && <p className="text-[8px] text-green-500 font-black mt-1 bg-green-50 w-fit px-1.5 py-0.5 rounded">QR ACTIVE</p>}
                 </div>
-                <button onClick={() => store.adminForceClose(t.id)} className="w-full py-2 bg-red-50 text-red-500 rounded-xl font-black text-[9px] uppercase hover:bg-red-500 hover:text-white transition-all">Xoá Bill</button>
+                
+                <div className="space-y-2 mt-4">
+                   <button 
+                    onClick={() => { if(window.confirm(`Xác nhận ĐÓNG BÀN ${t.id}? Toàn bộ đơn hàng hiện tại sẽ bị xóa.`)) store.adminForceClose(t.id); }}
+                    className="w-full py-2.5 bg-slate-900 text-white rounded-xl font-black text-[9px] uppercase flex items-center justify-center gap-1.5 hover:bg-black transition-all"
+                  >
+                    <PowerOff size={10} /> Đóng bàn
+                  </button>
+                  <button onClick={() => store.adminForceClose(t.id)} className="w-full py-2 bg-red-50 text-red-500 rounded-xl font-black text-[8px] uppercase hover:bg-red-500 hover:text-white transition-all">Clear Session</button>
+                </div>
               </div>
             ))}
           </div>
@@ -225,13 +234,6 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
                   <Share2 size={16}/> Chia sẻ cho NV
                 </button>
               </div>
-            </div>
-            
-            <div className="bg-blue-50 p-6 rounded-3xl border border-blue-100">
-               <h5 className="text-[10px] font-black text-blue-900 uppercase mb-2">Mẹo setup nhanh:</h5>
-               <p className="text-[11px] text-blue-700 leading-relaxed font-medium">
-                 Admin hãy nhấn "Chia sẻ cho NV" và đưa mã QR cho các nhân viên khác quét. Họ sẽ không cần phải nhập URL thủ công nữa!
-               </p>
             </div>
           </div>
         )}
