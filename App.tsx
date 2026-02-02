@@ -86,11 +86,13 @@ const LoginOverlay: React.FC<{
     }
     const foundUser = users.find(u => u.username === username && u.password === password);
     if (foundUser) {
-      // Đảm bảo đúng role HOẶC là Admin
-      if (foundUser.role === UserRole.ADMIN || foundUser.role === role || (role === UserRole.STAFF && foundUser.role === UserRole.STAFF) || (role === UserRole.KITCHEN && foundUser.role === UserRole.KITCHEN)) {
+      // Cho phép Admin truy cập mọi nơi, hoặc Role phải khớp chính xác
+      const canAccess = foundUser.role === UserRole.ADMIN || foundUser.role === role;
+      
+      if (canAccess) {
         onSuccess(foundUser);
       } else {
-        setError(`Bạn không có quyền truy cập vai trò ${role}`);
+        setError(`Tài khoản ${foundUser.role} không có quyền vào trang ${role}`);
       }
     } else {
       setError('Sai tên đăng nhập hoặc mật khẩu');
@@ -99,14 +101,14 @@ const LoginOverlay: React.FC<{
 
   return (
     <div className="fixed inset-0 z-[100] bg-slate-900/95 backdrop-blur-xl flex items-center justify-center p-4">
-      <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-10 shadow-2xl border border-slate-100 animate-scaleIn">
-        <h2 className="text-2xl font-black text-slate-800 text-center mb-8 uppercase italic italic">Đăng nhập {role}</h2>
+      <div className="bg-white w-full max-sm rounded-[2.5rem] p-10 shadow-2xl border border-slate-100 animate-scaleIn">
+        <h2 className="text-2xl font-black text-slate-800 text-center mb-8 uppercase italic">Đăng nhập {role}</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <input type="text" placeholder="Username" value={username} onChange={e => setUsername(e.target.value)} className="w-full px-6 py-4 bg-slate-50 rounded-2xl outline-none font-bold" />
           <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} className="w-full px-6 py-4 bg-slate-50 rounded-2xl outline-none font-bold" />
           {error && <p className="text-red-500 text-[10px] font-bold text-center uppercase italic">{error}</p>}
           <button type="submit" className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black uppercase text-xs shadow-xl active:scale-95 transition-all">Vào hệ thống</button>
-          <button type="button" onClick={onCancel} className="w-full py-2 text-slate-400 font-bold text-xs uppercase italic">Hủy bỏ</button>
+          <button type="button" onClick={onCancel} className="w-full py-2 text-slate-400 font-bold text-xs uppercase italic">Quay lại</button>
         </form>
       </div>
     </div>
@@ -168,7 +170,8 @@ const AppContent: React.FC = () => {
     if (!currentUser) {
       return <LoginOverlay role={role} users={store.users} onSuccess={handleLoginSuccess} onCancel={() => navigate('/')} />;
     }
-    if (currentUser.role !== role && currentUser.role !== UserRole.ADMIN) {
+    // Admin có thể vào mọi trang, các vai trò khác chỉ vào được đúng trang của mình
+    if (currentUser.role !== UserRole.ADMIN && currentUser.role !== role) {
       return <Navigate to="/" replace />;
     }
     return <>{element}</>;
