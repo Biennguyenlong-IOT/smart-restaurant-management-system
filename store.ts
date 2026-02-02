@@ -131,6 +131,25 @@ export const useRestaurantStore = () => {
       isInitialLoad.current = true;
     },
     
+    updateTableCount: async (count: number) => {
+      if (count < 1) return;
+      const currentCount = tables.length;
+      let newTables = [...tables];
+      
+      if (count > currentCount) {
+        const extra = Array.from({ length: count - currentCount }, (_, i) => ({
+          id: currentCount + i + 1,
+          status: TableStatus.AVAILABLE,
+          currentOrders: []
+        }));
+        newTables = [...newTables, ...extra];
+      } else {
+        newTables = newTables.slice(0, count);
+      }
+      
+      await pushToCloud({ tables: newTables });
+    },
+
     updateBankConfig: async (config: BankConfig) => {
       await pushToCloud({ bankConfig: config });
     },
