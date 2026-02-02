@@ -30,8 +30,10 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
   ), [myTables]);
 
   const getFullQrUrl = (id: number, token: string) => {
+    // Tự động đính kèm URL Database vào mã QR cho khách
     const baseUrl = window.location.origin + window.location.pathname;
-    const tableUrl = `${baseUrl}#/table/${id}/${token}`;
+    const configParam = btoa(store.cloudUrl);
+    const tableUrl = `${baseUrl}#/table/${id}/${token}?config=${configParam}`;
     return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(tableUrl)}`;
   };
 
@@ -53,7 +55,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
         <div className="fixed inset-0 z-[150] bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4">
             <div className="bg-white rounded-[3rem] p-10 max-w-sm w-full text-center shadow-2xl animate-scaleIn">
                 <h3 className="text-2xl font-black text-slate-800 mb-2">Mã QR Bàn {showQrModalId}</h3>
-                <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-8">Vui lòng đưa khách hàng quét</p>
+                <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-8 px-4">Đưa khách quét - Họ sẽ tự động kết nối hệ thống</p>
                 <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100 mb-8">
                     <img src={getFullQrUrl(showQrModalId, store.tables.find((t:any)=>t.id === showQrModalId).sessionToken)} alt="QR" className="w-full h-auto rounded-xl" />
                 </div>
