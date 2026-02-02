@@ -143,7 +143,10 @@ export const useRestaurantStore = () => {
     },
 
     cancelOrderItem: (tid: number, oid: string) => {
-      // Cho phép hủy nếu món vẫn đang chờ hoặc mới xác nhận (chưa nấu)
+      const table = tables.find(t => t.id === tid);
+      const item = table?.currentOrders.find(o => o.id === oid);
+      if (!item) return;
+
       const nt = tables.map(t => t.id === tid ? { 
         ...t, 
         currentOrders: t.currentOrders.map(o => 
@@ -152,7 +155,19 @@ export const useRestaurantStore = () => {
           : o
         ) 
       } : t);
-      pushToCloud({ tables: nt });
+
+      // Thêm thông báo cho nhân viên
+      const nnotif: AppNotification = { 
+        id: `CANCEL-${Date.now()}`, 
+        targetRole: UserRole.STAFF, 
+        title: 'Khách huỷ món', 
+        message: `Bàn ${tid} đã huỷ món: ${item.name}`, 
+        timestamp: Date.now(), 
+        read: false, 
+        type: 'system' 
+      };
+
+      pushToCloud({ tables: nt, notifications: [nnotif, ...notifications] });
     },
 
     requestTableQr: (tid: number, sid: string) => {
