@@ -43,7 +43,7 @@ const SetupOverlay: React.FC<{ onSave: (url: string) => void }> = ({ onSave }) =
         </div>
         <h2 className="text-2xl font-black text-slate-800 mb-4 uppercase italic">Thiết lập hệ thống</h2>
         <p className="text-slate-400 text-xs font-bold mb-8 uppercase leading-relaxed px-4">
-          Vui lòng nhập đường dẫn Firebase Realtime Database của bạn để bắt đầu.
+          Nhập đường dẫn Firebase Realtime Database của bạn để bắt đầu.
         </p>
         <div className="space-y-4">
           <div className="relative">
@@ -80,34 +80,33 @@ const LoginOverlay: React.FC<{
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Đảm bảo users có dữ liệu trước khi check
     if (!users || users.length === 0) {
-      setError('Đang nạp dữ liệu người dùng, vui lòng thử lại...');
+      setError('Đang tải dữ liệu...');
       return;
     }
     const foundUser = users.find(u => u.username === username && u.password === password);
     if (foundUser) {
-      // Cho phép Admin vào bất kỳ đâu, Staff/Kitchen chỉ vào được trang của mình
-      if (foundUser.role === UserRole.ADMIN || foundUser.role === role) {
+      // Đảm bảo đúng role HOẶC là Admin
+      if (foundUser.role === UserRole.ADMIN || foundUser.role === role || (role === UserRole.STAFF && foundUser.role === UserRole.STAFF) || (role === UserRole.KITCHEN && foundUser.role === UserRole.KITCHEN)) {
         onSuccess(foundUser);
       } else {
-        setError(`Tài khoản này có quyền ${foundUser.role}, không thể vào trang ${role}`);
+        setError(`Bạn không có quyền truy cập vai trò ${role}`);
       }
     } else {
-      setError('Tên đăng nhập hoặc mật khẩu không đúng');
+      setError('Sai tên đăng nhập hoặc mật khẩu');
     }
   };
 
   return (
     <div className="fixed inset-0 z-[100] bg-slate-900/95 backdrop-blur-xl flex items-center justify-center p-4">
       <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-10 shadow-2xl border border-slate-100 animate-scaleIn">
-        <h2 className="text-2xl font-black text-slate-800 text-center mb-8 uppercase italic">Đăng nhập {role}</h2>
+        <h2 className="text-2xl font-black text-slate-800 text-center mb-8 uppercase italic italic">Đăng nhập {role}</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <input type="text" placeholder="Tên đăng nhập" value={username} onChange={e => setUsername(e.target.value)} className="w-full px-6 py-4 bg-slate-50 rounded-2xl outline-none font-bold" />
-          <input type="password" placeholder="Mật khẩu" value={password} onChange={e => setPassword(e.target.value)} className="w-full px-6 py-4 bg-slate-50 rounded-2xl outline-none font-bold" />
-          {error && <p className="text-red-500 text-[10px] font-bold text-center uppercase">{error}</p>}
+          <input type="text" placeholder="Username" value={username} onChange={e => setUsername(e.target.value)} className="w-full px-6 py-4 bg-slate-50 rounded-2xl outline-none font-bold" />
+          <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} className="w-full px-6 py-4 bg-slate-50 rounded-2xl outline-none font-bold" />
+          {error && <p className="text-red-500 text-[10px] font-bold text-center uppercase italic">{error}</p>}
           <button type="submit" className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black uppercase text-xs shadow-xl active:scale-95 transition-all">Vào hệ thống</button>
-          <button type="button" onClick={onCancel} className="w-full py-2 text-slate-400 font-bold text-xs uppercase">Quay lại</button>
+          <button type="button" onClick={onCancel} className="w-full py-2 text-slate-400 font-bold text-xs uppercase italic">Hủy bỏ</button>
         </form>
       </div>
     </div>
@@ -175,7 +174,6 @@ const AppContent: React.FC = () => {
     return <>{element}</>;
   };
 
-  // Sửa lỗi: Nếu URL có config, đừng hiện Setup ngay cả khi store chưa kết nối xong
   const shouldShowSetup = store.syncStatus === 'NEED_CONFIG' && !hasConfigInUrl;
 
   return (
