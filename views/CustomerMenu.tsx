@@ -102,8 +102,9 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
     }
   };
 
-  const cartCount: number = Object.values(cart).reduce((a: number, b: number) => a + b, 0);
-  const cartTotal: number = Object.entries(cart).reduce((s: number, [id, q]) => s + (((store.menu || []).find((m: any) => m.id === id)?.price || 0) * (q as number)), 0);
+  // Explicitly cast Object values and entries to fix 'unknown' type assignment issues in strict environments
+  const cartCount: number = (Object.values(cart) as number[]).reduce((a: number, b: number) => a + b, 0);
+  const cartTotal: number = (Object.entries(cart) as [string, number][]).reduce((s: number, [id, q]) => s + (((store.menu || []).find((m: any) => m.id === id)?.price || 0) * q), 0);
 
   const handleAddToCart = (itemId: string) => {
     setCart(prev => ({ ...prev, [itemId]: (prev[itemId] || 0) + 1 }));
@@ -123,14 +124,15 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
     
     setIsOrdering(true);
     try {
-        const newOrders: OrderItem[] = Object.entries(cart).map(([itemId, qty]) => {
+        // Cast entries to ensure [string, number] to fix 'unknown' type errors
+        const newOrders: OrderItem[] = (Object.entries(cart) as [string, number][]).map(([itemId, qty]) => {
           const menuItem = (store.menu || []).find((m: MenuItem) => m.id === itemId);
           return { 
             id: `ORDER-${Date.now()}-${itemId}-${Math.random().toString(36).substr(2, 4)}`, 
             menuItemId: itemId, 
             name: menuItem?.name || '', 
             price: menuItem?.price || 0, 
-            quantity: qty as number, 
+            quantity: qty, 
             status: OrderItemStatus.PENDING, 
             timestamp: Date.now() 
           };
@@ -243,7 +245,7 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
                         {Object.keys(cart).length === 0 ? (
                             <div className="py-10 text-center text-slate-300 font-bold uppercase text-[10px]">Chưa chọn món nào</div>
                         ) : (
-                            Object.entries(cart).map(([itemId, qty]) => {
+                            (Object.entries(cart) as [string, number][]).map(([itemId, qty]) => {
                                 const item = (store.menu || []).find((m: any) => m.id === itemId);
                                 return (
                                     <div key={itemId} className="flex items-center justify-between border-b border-slate-50 pb-3 last:border-0">
