@@ -34,7 +34,6 @@ export const useRestaurantStore = () => {
   const [syncStatus, setSyncStatus] = useState<'IDLE' | 'SYNCING' | 'ERROR' | 'SUCCESS' | 'NEED_CONFIG'>('IDLE');
   
   const [cloudUrl, setCloudUrl] = useState<string>(() => {
-    // 1. Kiểm tra cấu hình từ URL (Ưu tiên cao nhất cho khách quét QR)
     const params = new URLSearchParams(window.location.search);
     const configParam = params.get('config');
     if (configParam) {
@@ -45,21 +44,6 @@ export const useRestaurantStore = () => {
           return decodedUrl;
         }
       } catch (e) { console.error("URL Config error"); }
-    }
-    // 2. Kiểm tra Hash URL (cho các trường hợp Route thay đổi)
-    const hashPart = window.location.hash;
-    if (hashPart.includes('config=')) {
-      const hashParams = new URLSearchParams(hashPart.split('?')[1]);
-      const hConfig = hashParams.get('config');
-      if (hConfig) {
-        try {
-          const decoded = atob(hConfig);
-          if (decoded.startsWith('http')) {
-            localStorage.setItem(CLOUD_CONFIG_KEY, decoded);
-            return decoded;
-          }
-        } catch (e) {}
-      }
     }
     return localStorage.getItem(CLOUD_CONFIG_KEY) || '';
   });
@@ -142,18 +126,61 @@ export const useRestaurantStore = () => {
     },
     
     placeOrder: (tid: number, items: OrderItem[]) => {
+      const table = tables.find(t => t.id === tid);
       const nt = tables.map(t => t.id === tid ? { ...t, currentOrders: [...t.currentOrders, ...items], status: TableStatus.OCCUPIED } : t);
-      const nnotif: AppNotification = { id: `O-${Date.now()}`, targetRole: UserRole.STAFF, title: 'Món mới', message: `Bàn ${tid} gọi món`, timestamp: Date.now(), read: false, type: 'order' };
+      
+      const nnotif: AppNotification = { 
+        id: `O-${Date.now()}`, 
+        targetRole: UserRole.STAFF, 
+        title: 'Món mới chờ duyệt', 
+        message: `Bàn ${tid} vừa gọi thêm ${items.length} món`, 
+        timestamp: Date.now(), 
+        read: false, 
+        type: 'order',
+        payload: { tableId: tid }
+      };
       pushToCloud({ tables: nt, notifications: [nnotif, ...notifications] });
     },
 
     confirmBulkOrders: (tid: number) => {
+      const table = tables.find(t => t.id === tid);
+      if (!table) return;
+
       const nt = tables.map(t => t.id === tid ? { ...t, currentOrders: t.currentOrders.map(o => o.status === OrderItemStatus.PENDING ? { ...o, status: OrderItemStatus.CONFIRMED } : o) } : t);
-      pushToCloud({ tables: nt });
+      
+      // Thông báo cho nhà bếp khi Staff đã duyệt đơn
+      const kitchenNotif: AppNotification = {
+        id: `K-${Date.now()}`,
+        targetRole: UserRole.KITCHEN,
+        title: 'Có món mới cần nấu',
+        message: `Bàn ${tid} đã được duyệt món`,
+        timestamp: Date.now(),
+        read: false,
+        type: 'order'
+      };
+
+      pushToCloud({ tables: nt, notifications: [kitchenNotif, ...notifications] });
     },
 
     updateOrderItemStatus: (tid: number, oid: string, s: OrderItemStatus) => {
       const nt = tables.map(t => t.id === tid ? { ...t, currentOrders: t.currentOrders.map(o => o.id === oid ? { ...o, status: s } : o) } : t);
+      
+      // Nếu món đã nấu xong, báo cho Staff bưng
+      if (s === OrderItemStatus.READY) {
+        const item = tables.find(t => t.id === tid)?.currentOrders.find(o => o.id === oid);
+        const staffNotif: AppNotification = {
+            id: `R-${Date.now()}`,
+            targetRole: UserRole.STAFF,
+            title: 'Món đã xong',
+            message: `Bàn ${tid}: ${item?.name} đã nấu xong`,
+            timestamp: Date.now(),
+            read: false,
+            type: 'kitchen'
+        };
+        pushToCloud({ tables: nt, notifications: [staffNotif, ...notifications] });
+        return;
+      }
+
       pushToCloud({ tables: nt });
     },
 
@@ -171,7 +198,16 @@ export const useRestaurantStore = () => {
         ) 
       } : t);
 
-      const nnotif: AppNotification = { id: `C-${Date.now()}`, targetRole: UserRole.STAFF, title: 'Huỷ món', message: `Bàn ${tid} huỷ: ${item.name}`, timestamp: Date.now(), read: false, type: 'system' };
+      // Thông báo cho nhân viên biết khách huỷ món
+      const nnotif: AppNotification = { 
+        id: `C-${Date.now()}`, 
+        targetRole: UserRole.STAFF, 
+        title: 'Khách huỷ món', 
+        message: `Bàn ${tid} huỷ món: ${item.name}`, 
+        timestamp: Date.now(), 
+        read: false, 
+        type: 'system' 
+      };
       pushToCloud({ tables: nt, notifications: [nnotif, ...notifications] });
     },
 
@@ -193,20 +229,36 @@ export const useRestaurantStore = () => {
     approveTableQr: (nid: string) => {
       const notif = notifications.find(n => n.id === nid);
       if (!notif?.payload) return;
-      const { tableId } = notif.payload;
+      const { tableId, staffId } = notif.payload;
       const token = Math.random().toString(36).substring(2, 9).toUpperCase();
-      const nt = tables.map(t => t.id === tableId ? { ...t, qrRequested: false, status: TableStatus.OCCUPIED, sessionToken: token } : t);
-      pushToCloud({ tables: nt, notifications: notifications.filter(n => n.id !== nid) });
-    },
+      const nt = tables.map(t => t.id === tableId ? { ...t, qrRequested: false, status: TableStatus.OCCUPIED, sessionToken: token, claimedBy: staffId } : t);
+      
+      // Thông báo ngược lại cho Staff là bàn đã được mở
+      const staffNotif: AppNotification = {
+        id: `QR-OK-${Date.now()}`,
+        targetRole: UserRole.STAFF,
+        title: 'Bàn đã mở',
+        message: `Admin đã cấp QR cho bàn ${tableId}`,
+        timestamp: Date.now(),
+        read: false,
+        type: 'system'
+      };
 
-    claimTable: (tid: number, sid: string) => {
-      const nt = tables.map(t => t.id === tid ? { ...t, claimedBy: sid, status: TableStatus.OCCUPIED } : t);
-      pushToCloud({ tables: nt });
+      pushToCloud({ tables: nt, notifications: [staffNotif, ...notifications.filter(n => n.id !== nid)] });
     },
 
     requestPayment: (tid: number) => {
       const nt = tables.map(t => t.id === tid ? { ...t, status: TableStatus.PAYING } : t);
-      pushToCloud({ tables: nt });
+      const nnotif: AppNotification = { 
+        id: `PAY-${Date.now()}`, 
+        targetRole: UserRole.STAFF, 
+        title: 'Yêu cầu thanh toán', 
+        message: `Bàn ${tid} yêu cầu tính tiền`, 
+        timestamp: Date.now(), 
+        read: false, 
+        type: 'payment' 
+      };
+      pushToCloud({ tables: nt, notifications: [nnotif, ...notifications] });
     },
 
     confirmPayment: (tid: number) => {
@@ -215,32 +267,6 @@ export const useRestaurantStore = () => {
       const h: HistoryEntry = { id: `H-${Date.now()}`, tableId: tid, total: table.currentOrders.reduce((s, o) => s + (o.price * o.quantity), 0), items: table.currentOrders, date: new Date().toLocaleString() };
       const nt = tables.map(t => t.id === tid ? { ...t, status: TableStatus.AVAILABLE, currentOrders: [], claimedBy: null, sessionToken: null, qrRequested: false } : t);
       pushToCloud({ tables: nt, history: [h, ...history] });
-    },
-
-    requestMoveTable: (fid: number, tid: number, ty: 'SWAP'|'MERGE', sid: string) => {
-      const n: AppNotification = { id: `M-${Date.now()}`, targetRole: UserRole.ADMIN, title: 'Đổi bàn', message: `NV ${sid} yêu cầu chuyển bàn ${fid} -> ${tid}`, timestamp: Date.now(), read: false, type: 'move_request', payload: { fromId: fid, toId: tid, type: ty, staffId: sid } };
-      pushToCloud({ notifications: [n, ...notifications] });
-    },
-
-    approveMoveRequest: (nid: string) => {
-      const notif = notifications.find(n => n.id === nid);
-      if (!notif?.payload) return;
-      const { fromId, toId, type, staffId } = notif.payload;
-      const fromT = tables.find(t => t.id === fromId);
-      if (!fromT) return;
-      const nt = tables.map(t => {
-        if (t.id === fromId) return { ...t, status: TableStatus.AVAILABLE, currentOrders: [], claimedBy: null, sessionToken: null, qrRequested: false };
-        if (t.id === toId) return { ...t, status: TableStatus.OCCUPIED, claimedBy: staffId, sessionToken: fromT.sessionToken, currentOrders: type === 'MERGE' ? [...t.currentOrders, ...fromT.currentOrders] : fromT.currentOrders };
-        return t;
-      });
-      pushToCloud({ tables: nt, notifications: notifications.filter(n => n.id !== nid) });
-    },
-
-    setTotalTables: (c: number) => {
-      let nt = [...tables];
-      if (c > nt.length) for (let i = nt.length + 1; i <= c; i++) nt.push({ id: i, status: TableStatus.AVAILABLE, currentOrders: [] });
-      else nt = nt.slice(0, c);
-      pushToCloud({ tables: nt });
     },
 
     adminForceClose: (tid: number) => {
@@ -273,12 +299,6 @@ export const useRestaurantStore = () => {
     setTableEmpty: (tid: number) => {
       const nt = tables.map(t => t.id === tid ? { ...t, status: TableStatus.AVAILABLE, currentOrders: [], claimedBy: null, sessionToken: null, qrRequested: false } : t);
       pushToCloud({ tables: nt });
-    },
-
-    saveAndPush: (tables: any, menu: any, history: any, notifications: any, users: any, bankConfig: any) => {
-      pushToCloud({ tables, menu, history, notifications, users, bankConfig });
-    },
-    
-    userHeartbeat: (id: string) => {} 
+    }
   };
 };
