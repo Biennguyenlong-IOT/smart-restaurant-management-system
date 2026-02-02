@@ -455,4 +455,4 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
   );
 };
 
-export default CustomerMenu;
+export default CustomerMenu; 
