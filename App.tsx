@@ -96,11 +96,17 @@ const LoginOverlay: React.FC<{
       <div className="bg-white w-full max-sm rounded-[2.5rem] p-10 shadow-2xl border border-slate-100 animate-scaleIn">
         <h2 className="text-2xl font-black text-slate-800 text-center mb-8 uppercase italic">Đăng nhập hệ thống</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <input type="text" placeholder="Tên đăng nhập" value={username} onChange={e => setUsername(e.target.value)} className="w-full px-6 py-4 bg-slate-50 rounded-2xl outline-none font-bold" />
-          <input type="password" placeholder="Mật khẩu" value={password} onChange={e => setPassword(e.target.value)} className="w-full px-6 py-4 bg-slate-50 rounded-2xl outline-none font-bold" />
+          <div className="space-y-1">
+            <label className="text-[10px] font-black text-slate-400 uppercase ml-2">Tên đăng nhập</label>
+            <input type="text" placeholder="Username" value={username} onChange={e => setUsername(e.target.value)} className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold text-sm focus:border-slate-900 transition-all" />
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-black text-slate-400 uppercase ml-2">Mật khẩu</label>
+            <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold text-sm focus:border-slate-900 transition-all" />
+          </div>
           {error && <p className="text-red-500 text-[10px] font-bold text-center uppercase italic">{error}</p>}
-          <button type="submit" className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black uppercase text-xs shadow-xl active:scale-95 transition-all">Vào hệ thống</button>
-          <button type="button" onClick={onCancel} className="w-full py-2 text-slate-400 font-bold text-xs uppercase italic">Quay lại</button>
+          <button type="submit" className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black uppercase text-xs shadow-xl active:scale-95 transition-all mt-4">Vào hệ thống</button>
+          <button type="button" onClick={onCancel} className="w-full py-2 text-slate-400 font-bold text-[10px] uppercase italic">Quay lại</button>
         </form>
       </div>
     </div>
@@ -155,6 +161,7 @@ const AppContent: React.FC = () => {
     if (user.role === UserRole.ADMIN) navigate('/admin');
     else if (user.role === UserRole.STAFF) navigate('/staff');
     else if (user.role === UserRole.KITCHEN) navigate('/kitchen');
+    else navigate('/');
   };
 
   const handleLogout = useCallback(() => {
