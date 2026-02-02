@@ -1,20 +1,27 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { ref, onValue, set, get, Database } from 'firebase/database';
+import { getRemoteDatabase } from './firebase';
 import { Table, TableStatus, MenuItem, OrderItem, OrderItemStatus, HistoryEntry, AppNotification, UserRole, User, BankConfig } from './types';
 import { INITIAL_MENU } from './constants';
 
-const STORAGE_KEY = 'restaurant_data_v4';
-const CLOUD_CONFIG_KEY = 'restaurant_cloud_url_v4';
-const DEFAULT_CLOUD_URL = 'https://smart-resto-e3a59-default-rtdb.asia-southeast1.firebasedatabase.app/data.json';
-
+const CLOUD_CONFIG_KEY = 'resto_v5_url_v2';
 const DEFAULT_USERS: User[] = [
   { id: 'u-admin', username: 'admin', password: '123', role: UserRole.ADMIN, fullName: 'Quản lý Tổng' }
 ];
+const DEFAULT_BANK: BankConfig = { bankId: 'ICB', accountNo: '', accountName: '' };
 
-const DEFAULT_BANK: BankConfig = {
-  bankId: 'ICB',
-  accountNo: '',
-  accountName: ''
+const sanitizeForFirebase = (obj: any): any => {
+  if (Array.isArray(obj)) {
+    return obj.map(sanitizeForFirebase);
+  } else if (obj !== null && typeof obj === 'object') {
+    return Object.fromEntries(
+      Object.entries(obj)
+        .filter(([_, value]) => value !== undefined)
+        .map(([key, value]) => [key, sanitizeForFirebase(value)])
+    );
+  }
+  return obj;
 };
 
 export const useRestaurantStore = () => {
@@ -24,301 +31,231 @@ export const useRestaurantStore = () => {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [users, setUsers] = useState<User[]>(DEFAULT_USERS);
   const [bankConfig, setBankConfig] = useState<BankConfig>(DEFAULT_BANK);
-  const [cloudUrl, setCloudUrl] = useState<string>(localStorage.getItem(CLOUD_CONFIG_KEY) || DEFAULT_CLOUD_URL);
-  const [syncStatus, setSyncStatus] = useState<'IDLE' | 'SYNCING' | 'ERROR' | 'SUCCESS'>('IDLE');
-  const [lastSynced, setLastSynced] = useState<number>(Date.now());
-  const [latency, setLatency] = useState<number>(0);
-  const [errorDetail, setErrorDetail] = useState<string>('');
+  const [syncStatus, setSyncStatus] = useState<'IDLE' | 'SYNCING' | 'ERROR' | 'SUCCESS' | 'NEED_CONFIG'>('IDLE');
+  
+  const [cloudUrl, setCloudUrl] = useState<string>(() => {
+    // 1. Kiểm tra URL parameter 'config' (Ưu tiên cao nhất để setup nhanh)
+    const params = new URLSearchParams(window.location.search);
+    const configParam = params.get('config');
+    if (configParam) {
+      try {
+        const decodedUrl = atob(configParam);
+        if (decodedUrl.startsWith('http')) {
+          localStorage.setItem(CLOUD_CONFIG_KEY, decodedUrl);
+          // Xóa param trên URL để trông sạch sẽ hơn
+          window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
+          return decodedUrl;
+        }
+      } catch (e) { console.error("Invalid config param"); }
+    }
 
-  // Sử dụng Ref để lưu trữ trạng thái mới nhất cho các hàm callback và so sánh
-  const stateRef = useRef({ 
-    tables, 
-    menu, 
-    history, 
-    notifications, 
-    users, 
-    bankConfig, 
-    lastUpdated: 0,
-    isPushing: false 
+    // 2. Kiểm tra LocalStorage
+    // 3. Kiểm tra biến môi trường
+    return localStorage.getItem(CLOUD_CONFIG_KEY) || process.env.VITE_FIREBASE_DB_URL || '';
   });
 
+  const dbRef = useRef<Database | null>(null);
+  const isInitialLoad = useRef(true);
+
   useEffect(() => {
-    stateRef.current = { 
-      ...stateRef.current,
-      tables, 
-      menu, 
-      history, 
-      notifications, 
-      users, 
-      bankConfig 
-    };
-  }, [tables, menu, history, notifications, users, bankConfig]);
-
-  const lastCloudDataHash = useRef<string>('');
-  const isInitialPull = useRef(true);
-
-  const updateCloudUrl = useCallback((url: string) => {
-    let trimmedUrl = url.trim();
-    if (trimmedUrl) {
-      if (!trimmedUrl.startsWith('http')) trimmedUrl = 'https://' + trimmedUrl;
-      if (!trimmedUrl.endsWith('.json')) {
-        trimmedUrl = trimmedUrl.endsWith('/') ? trimmedUrl + 'data.json' : trimmedUrl + '/data.json';
-      }
-    } else {
-      trimmedUrl = DEFAULT_CLOUD_URL;
-    }
-    localStorage.setItem(CLOUD_CONFIG_KEY, trimmedUrl);
-    setCloudUrl(trimmedUrl);
-    lastCloudDataHash.current = '';
-    setErrorDetail('');
-    setSyncStatus('IDLE');
-    isInitialPull.current = true;
-    stateRef.current.lastUpdated = 0;
-  }, []);
-
-  const saveAndPush = useCallback(async (t: Table[], m: MenuItem[], h: HistoryEntry[], n: AppNotification[], u: User[], b: BankConfig, forceTimestamp?: number) => {
-    // Tăng timestamp để đánh dấu phiên bản dữ liệu mới
-    const timestamp = forceTimestamp || Date.now();
-    
-    // Cập nhật UI ngay lập tức (Optimistic UI)
-    setTables(t);
-    setMenu(m);
-    setHistory(h);
-    setNotifications(n);
-    setUsers(u.length > 0 ? u : DEFAULT_USERS);
-    setBankConfig(b);
-    
-    stateRef.current.lastUpdated = timestamp;
-    stateRef.current.isPushing = true; // Khóa pull trong khi đang push
-
-    const dataToSave = { 
-      tables: t, 
-      menu: m, 
-      history: h, 
-      notifications: n, 
-      users: u, 
-      bankConfig: b, 
-      lastUpdated: timestamp 
-    };
-    
-    const dataStr = JSON.stringify(dataToSave);
-    localStorage.setItem(STORAGE_KEY, dataStr);
-    lastCloudDataHash.current = dataStr;
-
     if (!cloudUrl) {
-      stateRef.current.isPushing = false;
+      setSyncStatus('NEED_CONFIG');
+      return;
+    }
+
+    const db = getRemoteDatabase(cloudUrl);
+    if (!db) {
+      setSyncStatus('NEED_CONFIG');
       return;
     }
 
     try {
+      dbRef.current = db;
+      const dataRef = ref(db, 'restaurant_data');
       setSyncStatus('SYNCING');
-      const isFirebase = cloudUrl.includes('firebasedatabase.app');
-      const response = await fetch(cloudUrl, {
-        method: isFirebase ? 'PUT' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: dataStr
-      });
-      
-      if (response.ok) {
-        setSyncStatus('SUCCESS');
-        setLastSynced(Date.now());
-      } else {
-        throw new Error("Push failed");
-      }
-    } catch (e) {
-      console.error("Sync Error:", e);
-      setSyncStatus('ERROR');
-    } finally {
-      // Đợi một khoảng ngắn sau khi push xong để đảm bảo server đã cập nhật ổn định trước khi pull lại
-      setTimeout(() => {
-        stateRef.current.isPushing = false;
-      }, 500);
-    }
-  }, [cloudUrl]);
 
-  const pullFromCloud = useCallback(async (isManual = false) => {
-    // Không pull nếu đang trong quá trình push dữ liệu lên
-    if (!cloudUrl || stateRef.current.isPushing) return;
-    
-    const startTime = Date.now();
-    if (isManual) setSyncStatus('SYNCING');
-
-    try {
-      // Thêm timestamp để tránh cache trình duyệt
-      const response = await fetch(`${cloudUrl}?nocache=${Date.now()}`, {
-        headers: { 'Accept': 'application/json', 'Cache-Control': 'no-cache' }
-      });
-      
-      if (!response.ok) throw new Error("Network error");
-      
-      const cloudData = await response.json();
-      if (!cloudData) return;
-
-      const cloudDataStr = JSON.stringify(cloudData);
-      
-      // Kiểm tra xem dữ liệu có thực sự khác biệt không
-      if (cloudDataStr !== lastCloudDataHash.current) {
-        const cloudTimestamp = cloudData.lastUpdated || 0;
-        
-        // Chỉ cập nhật nếu dữ liệu từ cloud "mới hơn" dữ liệu hiện tại
-        // hoặc là lần đầu tiên load ứng dụng
-        if (cloudTimestamp > stateRef.current.lastUpdated || isInitialPull.current) {
-          setTables(cloudData.tables || []);
-          setMenu(cloudData.menu || INITIAL_MENU);
-          setHistory(cloudData.history || []);
-          setNotifications(cloudData.notifications || []);
-          setUsers(cloudData.users || DEFAULT_USERS);
-          setBankConfig(cloudData.bankConfig || DEFAULT_BANK);
-          
-          stateRef.current.lastUpdated = cloudTimestamp;
-          lastCloudDataHash.current = cloudDataStr;
-          localStorage.setItem(STORAGE_KEY, cloudDataStr);
-          isInitialPull.current = false;
-        } else {
-          // Nếu dữ liệu cloud cũ hơn hoặc bằng, vẫn cập nhật hash để tránh so sánh lại
-          lastCloudDataHash.current = cloudDataStr;
+      const unsubscribe = onValue(dataRef, (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+          setTables(data.tables || []);
+          setMenu(data.menu || INITIAL_MENU);
+          setHistory(data.history || []);
+          setNotifications(data.notifications || []);
+          setUsers(data.users || DEFAULT_USERS);
+          setBankConfig(data.bankConfig || DEFAULT_BANK);
+          setSyncStatus('SUCCESS');
+        } else if (isInitialLoad.current) {
+          const initialData = {
+            tables: Array.from({ length: 12 }, (_, i) => ({ id: i + 1, status: TableStatus.AVAILABLE, currentOrders: [] })),
+            menu: INITIAL_MENU,
+            history: [],
+            notifications: [],
+            users: DEFAULT_USERS,
+            bankConfig: DEFAULT_BANK,
+            lastUpdated: Date.now()
+          };
+          set(dataRef, initialData);
         }
-      }
-      
-      setLatency(Date.now() - startTime);
-      setSyncStatus('SUCCESS');
-      setLastSynced(Date.now());
-    } catch (error) {
-      console.warn("Pull error:", error);
-      if (isManual) setSyncStatus('ERROR');
+        isInitialLoad.current = false;
+      }, (error) => {
+        console.error("Firebase Sync Error:", error);
+        setSyncStatus('ERROR');
+      });
+
+      return () => unsubscribe();
+    } catch (e) {
+      console.error("Database initialization failed:", e);
+      setSyncStatus('ERROR');
     }
   }, [cloudUrl]);
 
-  const userHeartbeat = useCallback((userId: string) => {
-    const now = Date.now();
-    const updatedUsers = stateRef.current.users.map(u => 
-      u.id === userId ? { ...u, lastActive: now } : u
-    );
-    // Heartbeat chỉ đẩy dữ liệu, không cập nhật timestamp chính để tránh kích hoạt pull diện rộng
-    saveAndPush(
-      stateRef.current.tables,
-      stateRef.current.menu,
-      stateRef.current.history,
-      stateRef.current.notifications,
-      updatedUsers,
-      stateRef.current.bankConfig,
-      stateRef.current.lastUpdated
-    );
-  }, [saveAndPush]);
-
-  useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        const p = JSON.parse(saved);
-        setTables(p.tables || []);
-        setMenu(p.menu || INITIAL_MENU);
-        setHistory(p.history || []);
-        setNotifications(p.notifications || []);
-        setUsers(p.users || DEFAULT_USERS);
-        setBankConfig(p.bankConfig || DEFAULT_BANK);
-        stateRef.current.lastUpdated = p.lastUpdated || 0;
-        lastCloudDataHash.current = saved;
-      } catch (e) {}
+  const pushToCloud = useCallback(async (updates: any) => {
+    if (!dbRef.current) return;
+    try {
+      const dataRef = ref(dbRef.current, 'restaurant_data');
+      const snapshot = await get(dataRef);
+      const currentData = snapshot.val() || {};
+      const cleanUpdates = sanitizeForFirebase(updates);
+      const newData = { ...currentData, ...cleanUpdates, lastUpdated: Date.now() };
+      await set(dataRef, newData);
+    } catch (e) {
+      console.error("Push failed:", e);
     }
   }, []);
 
-  useEffect(() => {
-    if (!cloudUrl) return;
-    pullFromCloud(true);
-    // Tần suất đồng bộ hợp lý (2.5 giây) để tránh quá tải và feedback loop
-    const interval = setInterval(() => pullFromCloud(false), 2500); 
-    return () => clearInterval(interval);
-  }, [cloudUrl, pullFromCloud]);
-
-  // Các hàm nghiệp vụ giữ nguyên logic nhưng bọc trong store logic chuẩn
-  const requestTableQr = useCallback((tableId: number) => {
-    const newTables = stateRef.current.tables.map(t => t.id === tableId ? { ...t, qrRequested: true } : t);
-    const newNotif: AppNotification = {
-        id: `N-QRREQ-${Date.now()}`, targetRole: UserRole.ADMIN, title: 'Yêu cầu mã QR', message: `Bàn ${tableId} yêu cầu mã QR`, timestamp: Date.now(), read: false, type: 'qr_request'
-    };
-    saveAndPush(newTables, stateRef.current.menu, stateRef.current.history, [newNotif, ...stateRef.current.notifications], stateRef.current.users, stateRef.current.bankConfig);
-  }, [saveAndPush]);
-
-  const approveTableQr = useCallback((tableId: number) => {
-    const token = Math.random().toString(36).substring(2, 10).toUpperCase();
-    const newTables = stateRef.current.tables.map(t => t.id === tableId ? { ...t, qrRequested: false, sessionToken: token, status: TableStatus.OCCUPIED } : t);
-    const newNotifs = stateRef.current.notifications.filter(n => !(n.type === 'qr_request' && n.message.includes(`Bàn ${tableId}`)));
-    saveAndPush(newTables, stateRef.current.menu, stateRef.current.history, newNotifs, stateRef.current.users, stateRef.current.bankConfig);
-  }, [saveAndPush]);
-
-  const placeOrder = useCallback((tableId: number, items: OrderItem[]) => {
-    const newTables = stateRef.current.tables.map(t => t.id === tableId ? { 
-        ...t, 
-        status: TableStatus.OCCUPIED, 
-        currentOrders: [...(t.currentOrders || []), ...items] 
-    } : t);
-    const newNotif: AppNotification = {
-      id: `N-ORD-${Date.now()}`, targetRole: UserRole.STAFF, title: 'Đơn mới', message: `Bàn ${tableId} gọi món`, timestamp: Date.now(), read: false, type: 'order'
-    };
-    saveAndPush(newTables, stateRef.current.menu, stateRef.current.history, [newNotif, ...stateRef.current.notifications], stateRef.current.users, stateRef.current.bankConfig);
-  }, [saveAndPush]);
-
-  const updateOrderItemStatus = useCallback((tableId: number, itemId: string, status: OrderItemStatus) => {
-    const newTables = stateRef.current.tables.map(t => t.id === tableId ? { ...t, currentOrders: (t.currentOrders || []).map(o => o.id === itemId ? { ...o, status } : o) } : t);
-    saveAndPush(newTables, stateRef.current.menu, stateRef.current.history, stateRef.current.notifications, stateRef.current.users, stateRef.current.bankConfig);
-  }, [saveAndPush]);
-
-  const requestPayment = useCallback((tableId: number) => {
-    const newTables = stateRef.current.tables.map(t => t.id === tableId ? { ...t, status: TableStatus.PAYING } : t);
-    const newNotif: AppNotification = {
-      id: `N-PAY-${Date.now()}`, targetRole: UserRole.STAFF, title: 'Yêu cầu thanh toán', message: `Bàn ${tableId} yêu cầu thanh toán`, timestamp: Date.now(), read: false, type: 'payment'
-    };
-    saveAndPush(newTables, stateRef.current.menu, stateRef.current.history, [newNotif, ...stateRef.current.notifications], stateRef.current.users, stateRef.current.bankConfig);
-  }, [saveAndPush]);
-
-  const confirmPayment = useCallback((tableId: number) => {
-    const table = stateRef.current.tables.find(t => t.id === tableId);
-    if (!table) return;
-    const total = table.currentOrders.reduce((s, o) => s + (o.price * o.quantity), 0);
-    const newHistory: HistoryEntry = {
-      id: `H-${Date.now()}`,
-      tableId,
-      items: table.currentOrders,
-      total,
-      date: new Date().toLocaleString()
-    };
-    const newTables = stateRef.current.tables.map(t => t.id === tableId ? { ...t, status: TableStatus.BILLING, needsCleaning: true, sessionToken: undefined } : t);
-    saveAndPush(newTables, stateRef.current.menu, [newHistory, ...stateRef.current.history], stateRef.current.notifications, stateRef.current.users, stateRef.current.bankConfig);
-  }, [saveAndPush]);
-
-  const setTableEmpty = useCallback((tableId: number) => {
-    const newTables = stateRef.current.tables.map(t => t.id === tableId ? { ...t, status: TableStatus.AVAILABLE, currentOrders: [], needsCleaning: false, sessionToken: undefined, qrRequested: false } : t);
-    saveAndPush(newTables, stateRef.current.menu, stateRef.current.history, stateRef.current.notifications, stateRef.current.users, stateRef.current.bankConfig);
-  }, [saveAndPush]);
-
-  const manageUsers = useCallback((u: User[]) => {
-    saveAndPush(stateRef.current.tables, stateRef.current.menu, stateRef.current.history, stateRef.current.notifications, u, stateRef.current.bankConfig);
-  }, [saveAndPush]);
-
-  const updateBankConfig = useCallback((b: BankConfig) => {
-    saveAndPush(stateRef.current.tables, stateRef.current.menu, stateRef.current.history, stateRef.current.notifications, stateRef.current.users, b);
-  }, [saveAndPush]);
-
-  const clearHistory = useCallback(() => {
-    saveAndPush(stateRef.current.tables, stateRef.current.menu, [], stateRef.current.notifications, stateRef.current.users, stateRef.current.bankConfig);
-  }, [saveAndPush]);
-
-  const deleteNotification = useCallback((id: string) => {
-    const filtered = stateRef.current.notifications.filter(n => n.id !== id);
-    saveAndPush(stateRef.current.tables, stateRef.current.menu, stateRef.current.history, filtered, stateRef.current.users, stateRef.current.bankConfig);
-  }, [saveAndPush]);
-
   return {
-    tables, menu, history, notifications, users, bankConfig, syncStatus, lastSynced, cloudUrl, latency, errorDetail,
-    updateCloudUrl, requestPayment, confirmPayment, 
-    setTableEmpty, placeOrder, userHeartbeat,
-    updateOrderItemStatus, confirmBulkOrders: (id:number) => {
-        const newTables = stateRef.current.tables.map(t => t.id === id ? { ...t, currentOrders: t.currentOrders.map(o => o.status === OrderItemStatus.PENDING ? {...o, status: OrderItemStatus.CONFIRMED} : o) } : t);
-        saveAndPush(newTables, stateRef.current.menu, stateRef.current.history, stateRef.current.notifications, stateRef.current.users, stateRef.current.bankConfig);
-    }, markAsCleaned: (id:number) => setTableEmpty(id), 
-    manageUsers, saveAndPush, deleteNotification,
-    clearHistory, updateBankConfig, requestTableQr, approveTableQr,
-    pullFromCloud: () => pullFromCloud(true)
+    tables, menu, history, notifications, users, syncStatus, cloudUrl,
+    updateCloudUrl: (u: string) => { 
+      setCloudUrl(u); 
+      localStorage.setItem(CLOUD_CONFIG_KEY, u);
+      isInitialLoad.current = true;
+    },
+    
+    placeOrder: (tid: number, items: OrderItem[]) => {
+      const nt = tables.map(t => t.id === tid ? { ...t, currentOrders: [...t.currentOrders, ...items], status: TableStatus.OCCUPIED } : t);
+      const nnotif: AppNotification = { id: `O-${Date.now()}`, targetRole: UserRole.STAFF, title: 'Món mới', message: `Bàn ${tid} gọi món`, timestamp: Date.now(), read: false, type: 'order' };
+      pushToCloud({ tables: nt, notifications: [nnotif, ...notifications] });
+    },
+
+    confirmBulkOrders: (tid: number) => {
+      const nt = tables.map(t => t.id === tid ? { ...t, currentOrders: t.currentOrders.map(o => o.status === OrderItemStatus.PENDING ? { ...o, status: OrderItemStatus.CONFIRMED } : o) } : t);
+      pushToCloud({ tables: nt });
+    },
+
+    updateOrderItemStatus: (tid: number, oid: string, s: OrderItemStatus) => {
+      const nt = tables.map(t => t.id === tid ? { ...t, currentOrders: t.currentOrders.map(o => o.id === oid ? { ...o, status: s } : o) } : t);
+      pushToCloud({ tables: nt });
+    },
+
+    cancelOrderItem: (tid: number, oid: string) => {
+      const nt = tables.map(t => t.id === tid ? { ...t, currentOrders: t.currentOrders.map(o => (o.id === oid && o.status === OrderItemStatus.PENDING) ? { ...o, status: OrderItemStatus.CANCELLED } : o) } : t);
+      pushToCloud({ tables: nt });
+    },
+
+    requestTableQr: (tid: number, sid: string) => {
+      const nt = tables.map(t => t.id === tid ? { ...t, qrRequested: true, claimedBy: sid } : t);
+      const nnotif: AppNotification = { 
+        id: `QR-REQ-${Date.now()}`, 
+        targetRole: UserRole.ADMIN, 
+        title: 'Yêu cầu mở bàn', 
+        message: `NV ${sid} yêu cầu mở bàn ${tid}`, 
+        timestamp: Date.now(), 
+        read: false, 
+        type: 'qr_request',
+        payload: { tableId: tid, staffId: sid }
+      };
+      pushToCloud({ tables: nt, notifications: [nnotif, ...notifications] });
+    },
+
+    approveTableQr: (nid: string) => {
+      const notif = notifications.find(n => n.id === nid);
+      if (!notif?.payload) return;
+      const { tableId } = notif.payload;
+      const token = Math.random().toString(36).substring(2, 9).toUpperCase();
+      const nt = tables.map(t => t.id === tableId ? { ...t, qrRequested: false, status: TableStatus.OCCUPIED, sessionToken: token } : t);
+      pushToCloud({ tables: nt, notifications: notifications.filter(n => n.id !== nid) });
+    },
+
+    claimTable: (tid: number, sid: string) => {
+      const nt = tables.map(t => t.id === tid ? { ...t, claimedBy: sid, status: TableStatus.OCCUPIED } : t);
+      pushToCloud({ tables: nt });
+    },
+
+    requestPayment: (tid: number) => {
+      const nt = tables.map(t => t.id === tid ? { ...t, status: TableStatus.PAYING } : t);
+      pushToCloud({ tables: nt });
+    },
+
+    confirmPayment: (tid: number) => {
+      const table = tables.find(t => t.id === tid);
+      if (!table) return;
+      const h: HistoryEntry = { id: `H-${Date.now()}`, tableId: tid, total: table.currentOrders.reduce((s, o) => s + (o.price * o.quantity), 0), items: table.currentOrders, date: new Date().toLocaleString() };
+      const nt = tables.map(t => t.id === tid ? { ...t, status: TableStatus.AVAILABLE, currentOrders: [], claimedBy: null, sessionToken: null, qrRequested: false } : t);
+      pushToCloud({ tables: nt, history: [h, ...history] });
+    },
+
+    requestMoveTable: (fid: number, tid: number, ty: 'SWAP'|'MERGE', sid: string) => {
+      const n: AppNotification = { id: `M-${Date.now()}`, targetRole: UserRole.ADMIN, title: 'Đổi bàn', message: `NV ${sid} yêu cầu chuyển bàn ${fid} -> ${tid}`, timestamp: Date.now(), read: false, type: 'move_request', payload: { fromId: fid, toId: tid, type: ty, staffId: sid } };
+      pushToCloud({ notifications: [n, ...notifications] });
+    },
+
+    approveMoveRequest: (nid: string) => {
+      const notif = notifications.find(n => n.id === nid);
+      if (!notif?.payload) return;
+      const { fromId, toId, type, staffId } = notif.payload;
+      const fromT = tables.find(t => t.id === fromId);
+      if (!fromT) return;
+      const nt = tables.map(t => {
+        if (t.id === fromId) return { ...t, status: TableStatus.AVAILABLE, currentOrders: [], claimedBy: null, sessionToken: null, qrRequested: false };
+        if (t.id === toId) return { ...t, status: TableStatus.OCCUPIED, claimedBy: staffId, sessionToken: fromT.sessionToken, currentOrders: type === 'MERGE' ? [...t.currentOrders, ...fromT.currentOrders] : fromT.currentOrders };
+        return t;
+      });
+      pushToCloud({ tables: nt, notifications: notifications.filter(n => n.id !== nid) });
+    },
+
+    setTotalTables: (c: number) => {
+      let nt = [...tables];
+      if (c > nt.length) for (let i = nt.length + 1; i <= c; i++) nt.push({ id: i, status: TableStatus.AVAILABLE, currentOrders: [] });
+      else nt = nt.slice(0, c);
+      pushToCloud({ tables: nt });
+    },
+
+    adminForceClose: (tid: number) => {
+      const nt = tables.map(t => t.id === tid ? { ...t, status: TableStatus.AVAILABLE, currentOrders: [], claimedBy: null, sessionToken: null, qrRequested: false } : t);
+      pushToCloud({ tables: nt });
+    },
+
+    upsertMenuItem: (item: MenuItem) => {
+      const nm = menu.find(m => m.id === item.id) ? menu.map(m => m.id === item.id ? item : m) : [...menu, item];
+      pushToCloud({ menu: nm });
+    },
+
+    deleteMenuItem: (id: string) => {
+      const nm = menu.filter(m => m.id !== id);
+      pushToCloud({ menu: nm });
+    },
+
+    upsertUser: (u: User) => {
+      const nu = users.find(x => x.id === u.id) ? users.map(x => x.id === u.id ? u : x) : [...users, u];
+      pushToCloud({ users: nu });
+    },
+
+    deleteUser: (id: string) => {
+      const nu = users.filter(u => u.id !== id);
+      pushToCloud({ users: nu });
+    },
+
+    deleteNotification: (id: string) => pushToCloud({ notifications: notifications.filter(n => n.id !== id) }),
+    
+    setTableEmpty: (tid: number) => {
+      const nt = tables.map(t => t.id === tid ? { ...t, status: TableStatus.AVAILABLE, currentOrders: [], claimedBy: null, sessionToken: null, qrRequested: false } : t);
+      pushToCloud({ tables: nt });
+    },
+
+    saveAndPush: (tables: any, menu: any, history: any, notifications: any, users: any, bankConfig: any) => {
+      pushToCloud({ tables, menu, history, notifications, users, bankConfig });
+    },
+    
+    userHeartbeat: (id: string) => {} 
   };
 };
