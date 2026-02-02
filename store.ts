@@ -263,7 +263,8 @@ export const useRestaurantStore = () => {
         read: false,
         type: 'system'
       };
-      await pushToCloud({ tables: nt, notifications: [staffNotif, ...notifications.filter(n => n.id !== nid)] });
+      await pushToCloud({ tables: nt, notifications: notifications.filter(n => n.id !== nid) });
+      await pushToCloud({ notifications: [staffNotif, ...notifications.filter(n => n.id !== nid)] });
     },
 
     requestMoveTable: async (fromId: number, toId: number, type: 'SWAP' | 'MERGE', staffId: string) => {
@@ -317,7 +318,8 @@ export const useRestaurantStore = () => {
         message: `Bàn ${tid} yêu cầu tính tiền.`, 
         timestamp: Date.now(), 
         read: false, 
-        type: 'payment' 
+        type: 'payment',
+        payload: { tableId: tid }
       };
       await pushToCloud({ tables: nt, notifications: [nnotif, ...notifications] });
     },
@@ -370,7 +372,23 @@ export const useRestaurantStore = () => {
       await pushToCloud({ users: nu });
     },
 
-    deleteNotification: async (id: string) => await pushToCloud({ notifications: notifications.filter(n => n.id !== id) }),
+    deleteNotification: async (id: string) => {
+      const notif = notifications.find(n => n.id === id);
+      const filteredNotifs = notifications.filter(n => n.id !== id);
+      
+      // LOGIC HUỶ YÊU CẦU: Trả bàn về trạng thái ban đầu
+      if (notif?.type === 'qr_request' && notif.payload?.tableId) {
+        // Trả về trạng thái AVAILABLE nếu admin huỷ yêu cầu mở bàn
+        const nt = tables.map(t => t.id === notif.payload.tableId ? { ...t, qrRequested: false, claimedBy: null } : t);
+        await pushToCloud({ tables: nt, notifications: filteredNotifs });
+      } else if (notif?.type === 'payment' && notif.payload?.tableId) {
+        // Trả về trạng thái OCCUPIED nếu admin huỷ yêu cầu thanh toán
+        const nt = tables.map(t => t.id === notif.payload.tableId ? { ...t, status: TableStatus.OCCUPIED } : t);
+        await pushToCloud({ tables: nt, notifications: filteredNotifs });
+      } else {
+        await pushToCloud({ notifications: filteredNotifs });
+      }
+    },
     
     setTableEmpty: async (tid: number) => {
       const nt = tables.map(t => t.id === tid ? { ...t, status: TableStatus.AVAILABLE, currentOrders: [], claimedBy: null, sessionToken: null, qrRequested: false } : t);
