@@ -7,8 +7,16 @@ interface KitchenViewProps {
 }
 
 const KitchenView: React.FC<KitchenViewProps> = ({ store }) => {
+  // Đồng bộ session
+  const currentUser = useMemo(() => {
+    try {
+      const saved = sessionStorage.getItem('current_user');
+      return saved ? JSON.parse(saved) : {};
+    } catch { return {}; }
+  }, []);
+
   const kitchenCommands = useMemo(() => 
-    (store.notifications || []).filter((n: AppNotification) => n.targetRole === UserRole.KITCHEN && n.type === 'system')
+    (store.notifications || []).filter((n: AppNotification) => n.targetRole === UserRole.KITCHEN)
   , [store.notifications]);
 
   const incoming = (store.tables || []).flatMap((t: any) => 
@@ -28,12 +36,12 @@ const KitchenView: React.FC<KitchenViewProps> = ({ store }) => {
       {kitchenCommands.length > 0 && (
         <div className="bg-slate-900 text-white p-8 rounded-[2.5rem] shadow-2xl relative overflow-hidden">
             <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full -mr-16 -mt-16"></div>
-            <h2 className="text-xs font-black text-blue-400 uppercase tracking-[0.3em] mb-4">Chỉ thị từ Quản lý</h2>
+            <h2 className="text-xs font-black text-blue-400 uppercase tracking-[0.3em] mb-4">Thông báo Bếp</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {kitchenCommands.map((cmd: AppNotification) => (
                     <div key={cmd.id} className="flex items-start justify-between gap-4 bg-white/5 p-4 rounded-2xl border border-white/10 border-l-4 border-l-blue-500">
                         <div className="flex items-start gap-4">
-                            <span className="text-2xl">👨‍💼</span>
+                            <span className="text-2xl">👨‍🍳</span>
                             <div>
                                 <p className="font-black text-sm italic">"{cmd.message}"</p>
                                 <span className="text-[9px] text-white/20 font-bold uppercase mt-1 block">Nhận lúc {new Date(cmd.timestamp).toLocaleTimeString()}</span>
