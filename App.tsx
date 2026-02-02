@@ -93,7 +93,7 @@ const LoginOverlay: React.FC<{
 
   return (
     <div className="fixed inset-0 z-[100] bg-slate-900/95 backdrop-blur-xl flex items-center justify-center p-4">
-      <div className="bg-white w-full max-sm rounded-[2.5rem] p-10 shadow-2xl border border-slate-100 animate-scaleIn">
+      <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-10 shadow-2xl border border-slate-100 animate-scaleIn">
         <h2 className="text-2xl font-black text-slate-800 text-center mb-8 uppercase italic">Đăng nhập hệ thống</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1">
@@ -131,6 +131,7 @@ const AppContent: React.FC = () => {
   useEffect(() => {
     if (!currentUser || !isAudioEnabled) return;
 
+    // Chỉ lọc các thông báo mà user hiện tại có quyền nhận
     const relevantNotifs = store.notifications.filter(n => 
       !n.read && (n.targetRole === currentUser.role || currentUser.role === UserRole.ADMIN)
     );
@@ -140,14 +141,21 @@ const AppContent: React.FC = () => {
       if (latest.id !== lastNotifIdRef.current) {
         lastNotifIdRef.current = latest.id;
         
+        // Phát loa thông báo tiếng Việt
         const speech = new SpeechSynthesisUtterance(latest.message);
         speech.lang = 'vi-VN';
         speech.rate = 1.1;
         window.speechSynthesis.speak(speech);
 
+        // Phát âm thanh ping
         const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
         audio.volume = 0.5;
         audio.play().catch(() => {});
+
+        // Rung thiết bị (nếu trình duyệt hỗ trợ)
+        if ('vibrate' in navigator) {
+          navigator.vibrate([200, 100, 200]);
+        }
       }
     }
   }, [store.notifications, currentUser, isAudioEnabled]);
