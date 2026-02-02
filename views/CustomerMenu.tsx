@@ -1,9 +1,10 @@
-
 import React, { memo, useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { CATEGORIES } from '../constants';
 import { OrderItem, OrderItemStatus, MenuItem, TableStatus, UserRole, Table } from '../types';
 import { ConfirmModal } from '../App';
+// Import X icon from lucide-react
+import { X } from 'lucide-react';
 
 const MenuCard = memo(({ item, quantity, onAdd, onRemove }: { item: MenuItem, quantity: number, onAdd: () => void, onRemove: () => void }) => {
     return (
@@ -57,8 +58,6 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
         const lockedTable = store.tables.find((t: any) => t.id === parseInt(lockedId));
         if (lockedTable && lockedTable.status !== TableStatus.AVAILABLE) {
           navigate(`/table/${lockedId}`, { replace: true });
-        } else if (lockedTable && lockedTable.status === TableStatus.AVAILABLE) {
-          localStorage.removeItem('locked_table_id');
         }
       }
     }
@@ -70,23 +69,14 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
     }
   }, [tableId, table?.status]);
 
-  useEffect(() => {
-    if (tableId && table) {
-      if (prevStatusRef.current !== TableStatus.AVAILABLE && table.status === TableStatus.AVAILABLE) {
-        localStorage.removeItem('locked_table_id'); 
-        navigate('/', { replace: true });
-      }
-      prevStatusRef.current = table.status;
-    }
-  }, [table?.status, tableId, navigate]);
-
-  // Explicitly type the return of useMemo as number to avoid 'unknown' comparison issues
   const totalCurrentOrder = useMemo((): number => 
-    (table?.currentOrders || []).reduce((sum: number, item: OrderItem) => sum + (item.price * item.quantity), 0)
+    (table?.currentOrders || []).filter((i: OrderItem) => i.status !== OrderItemStatus.CANCELLED)
+      .reduce((sum: number, item: OrderItem) => sum + (item.price * item.quantity), 0)
   , [table?.currentOrders]);
 
   const allServed = useMemo(() => 
-    (table?.currentOrders || []).length > 0 && (table?.currentOrders || []).every((item: OrderItem) => item.status === OrderItemStatus.SERVED)
+    (table?.currentOrders || []).filter((o:OrderItem) => o.status !== OrderItemStatus.CANCELLED).length > 0 && 
+    (table?.currentOrders || []).filter((o:OrderItem) => o.status !== OrderItemStatus.CANCELLED).every((item: OrderItem) => item.status === OrderItemStatus.SERVED)
   , [table?.currentOrders]);
 
   if (tableId && (store.tables.length === 0 || !table)) {
@@ -100,13 +90,6 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
 
   const isTokenValid = tableId && table && table.sessionToken && table.sessionToken === tokenFromUrl;
 
-  const getQrUrl = (amount: number) => {
-    if (!store.bankConfig || !store.bankConfig.accountNo) return null;
-    const { bankId, accountNo, accountName } = store.bankConfig;
-    const info = `THANH TOAN BAN ${idNum}`;
-    return `https://img.vietqr.io/image/${bankId}-${accountNo}-compact2.png?amount=${amount}&addInfo=${encodeURIComponent(info)}&accountName=${encodeURIComponent(accountName)}`;
-  };
-
   const getStatusLabel = (status: OrderItemStatus) => {
     switch (status) {
       case OrderItemStatus.PENDING: return { label: 'Chờ xác nhận', color: 'bg-slate-100 text-slate-500' };
@@ -114,11 +97,11 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
       case OrderItemStatus.COOKING: return { label: 'Đang nấu', color: 'bg-orange-100 text-orange-600' };
       case OrderItemStatus.READY: return { label: 'Chờ bưng món', color: 'bg-amber-100 text-amber-600' };
       case OrderItemStatus.SERVED: return { label: 'Đã phục vụ', color: 'bg-green-100 text-green-600' };
+      case OrderItemStatus.CANCELLED: return { label: 'Đã hủy', color: 'bg-red-100 text-red-600' };
       default: return { label: status, color: 'bg-slate-100' };
     }
   };
 
-  // Fixed: Added explicit type annotations to cartCount and cartTotal to prevent unknown inference in comparisons.
   const cartCount: number = Object.values(cart).reduce((a: number, b: number) => a + b, 0);
   const cartTotal: number = Object.entries(cart).reduce((s: number, [id, q]) => s + (((store.menu || []).find((m: any) => m.id === id)?.price || 0) * (q as number)), 0);
 
@@ -188,17 +171,6 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
         <h2 className="text-2xl font-black text-slate-800 mb-4">
            {table.status === TableStatus.PAYING ? 'Đang kiểm bill...' : 'Đang in hóa đơn...'}
         </h2>
-        {getQrUrl(totalCurrentOrder) && (
-            <div className="bg-white p-6 rounded-[2.5rem] shadow-xl border border-slate-100 w-full max-w-xs animate-scaleIn">
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-4">Quét chuyển khoản nhanh</p>
-                <div className="bg-slate-50 p-4 rounded-2xl mb-4 flex items-center justify-center">
-                   <img src={getQrUrl(totalCurrentOrder)!} alt="QR" className="w-full h-auto rounded-xl" />
-                </div>
-                <div className="text-sm font-black text-orange-600 mb-2">{totalCurrentOrder.toLocaleString()}đ</div>
-                <div className="text-[9px] font-bold text-slate-400 uppercase leading-none">{store.bankConfig.accountName}</div>
-                <div className="text-[10px] font-bold text-slate-800">{store.bankConfig.accountNo}</div>
-            </div>
-        )}
       </div>
     );
   }
@@ -209,7 +181,6 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
     <div className="flex flex-col h-full max-w-md mx-auto w-full relative">
       <ConfirmModal isOpen={showPaymentConfirm} title="Thanh toán" message={`Xác nhận yêu cầu thanh toán ${totalCurrentOrder.toLocaleString()}đ?`} onConfirm={() => store.requestPayment(idNum)} onCancel={() => setShowPaymentConfirm(false)} />
 
-      {/* Header Bàn */}
       <div className="bg-white rounded-[1.5rem] p-3 mb-4 shadow-sm border border-slate-100 flex justify-between items-center shrink-0 mt-1">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-orange-500 text-white rounded-lg flex items-center justify-center font-black shadow-md text-sm italic">B{idNum}</div>
@@ -221,7 +192,6 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
         </div>
       </div>
 
-      {/* Vùng nội dung cuộn */}
       <div className="flex-1 overflow-y-auto no-scrollbar pb-32">
         {view === 'MENU' && (
             <>
@@ -291,9 +261,6 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
                         </div>
                     )}
                 </div>
-                {Object.keys(cart).length === 0 && (
-                    <button onClick={() => setView('MENU')} className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black uppercase text-[10px]">Về trang Menu</button>
-                )}
             </div>
         )}
 
@@ -318,7 +285,17 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
                                             {statusInfo.label}
                                             </span>
                                         </div>
-                                        <span className="font-black text-slate-800 text-[11px]">{(item.price * item.quantity).toLocaleString()}đ</span>
+                                        <div className="flex items-center gap-3">
+                                          <span className="font-black text-slate-800 text-[11px]">{(item.price * item.quantity).toLocaleString()}đ</span>
+                                          {item.status === OrderItemStatus.PENDING && (
+                                            <button 
+                                              onClick={() => { if(confirm("Hủy món này?")) store.cancelOrderItem(idNum, item.id) }} 
+                                              className="p-1 text-red-500 hover:bg-red-50 rounded-lg"
+                                            >
+                                              <X className="w-4 h-4" />
+                                            </button>
+                                          )}
+                                        </div>
                                     </div>
                                 );
                             })
@@ -346,8 +323,6 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
         )}
       </div>
 
-      {/* FOOTER CỐ ĐỊNH NÚT XEM GIỎ HÀNG - SỬ DỤNG INSET-X ĐỂ CĂN GIỮA CHUẨN */}
-      {/* Fixed: Explicitly cast cartCount to number to avoid 'unknown' comparison error at line 349 (relative) */}
       {view === 'MENU' && (cartCount as number) > 0 && (
         <div className="fixed bottom-6 inset-x-4 md:left-1/2 md:-translate-x-1/2 md:w-full md:max-w-md bg-slate-900 rounded-[1.8rem] p-4 shadow-2xl flex items-center justify-between animate-slideUp z-50 border border-white/10">
             <div className="flex items-center gap-3">
