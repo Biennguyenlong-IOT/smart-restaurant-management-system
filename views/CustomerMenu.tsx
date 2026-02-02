@@ -1,10 +1,14 @@
 
-import React, { memo, useState, useEffect, useMemo, useRef } from 'react';
-import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
+import React, { memo, useState, useEffect, useMemo } from 'react';
+// Use namespace import to resolve missing named exports in some environments
+import * as ReactRouterDOM from 'react-router-dom';
+const { useParams, Link, useNavigate, useSearchParams } = ReactRouterDOM;
+
+import { GoogleGenAI } from "@google/genai";
 import { CATEGORIES } from '../constants';
 import { OrderItem, OrderItemStatus, MenuItem, TableStatus, UserRole, Table } from '../types';
 import { ConfirmModal } from '../App';
-import { X, ShoppingCart, History, ChefHat } from 'lucide-react';
+import { X, ShoppingCart, History, ChefHat, Loader2, Sparkles, Send, Bot } from 'lucide-react';
 
 const MenuCard = memo(({ item, quantity, onAdd, onRemove }: { item: MenuItem, quantity: number, onAdd: () => void, onRemove: () => void }) => {
     return (
@@ -50,6 +54,12 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
   const [showPaymentConfirm, setShowPaymentConfirm] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<{id: string, name: string} | null>(null);
   const [isOrdering, setIsOrdering] = useState(false);
+
+  // AI Assistant State
+  const [isAiOpen, setIsAiOpen] = useState(false);
+  const [aiQuery, setAiQuery] = useState('');
+  const [aiResponse, setAiResponse] = useState('');
+  const [isAiThinking, setIsAiThinking] = useState(false);
   
   useEffect(() => {
     if (!tableId) {
@@ -69,6 +79,32 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
     }
   }, [tableId, table?.status]);
 
+  const handleAiAsk = async () => {
+    if (!aiQuery.trim() || isAiThinking) return;
+    setIsAiThinking(true);
+    setAiResponse('');
+    
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: aiQuery,
+        config: {
+          systemInstruction: `Bạn là một trợ lý AI thông minh tại nhà hàng 'Smart Resto'. 
+          Thực đơn hiện tại: ${JSON.stringify(store.menu)}.
+          Hãy giúp khách hàng chọn món, giải thích nguyên liệu và đưa ra gợi ý dựa trên sở thích của họ.
+          Hãy trả lời thân thiện, súc tích và hoàn toàn bằng tiếng Việt.`,
+        }
+      });
+      setAiResponse(response.text || 'Xin lỗi, tôi không thể xử lý yêu cầu lúc này.');
+    } catch (e) {
+      setAiResponse('Có lỗi xảy ra khi kết nối với trí tuệ nhân tạo. Vui lòng thử lại sau.');
+      console.error(e);
+    } finally {
+      setIsAiThinking(false);
+    }
+  };
+
   const totalCurrentOrder = useMemo((): number => 
     (table?.currentOrders || []).filter((i: OrderItem) => i.status !== OrderItemStatus.CANCELLED)
       .reduce((sum: number, item: OrderItem) => sum + (item.price * item.quantity), 0)
@@ -83,7 +119,7 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
     return (
       <div className="flex flex-col items-center justify-center h-full animate-fadeIn">
         <div className="w-16 h-16 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mb-6"></div>
-        <h2 className="text-lg font-black text-slate-800 uppercase tracking-tighter">Đang kết nối bàn {tableId}...</h2>
+        <h2 className="text-lg font-black text-slate-800 uppercase tracking-tighter">Đang kết nối...</h2>
       </div>
     );
   }
@@ -102,7 +138,6 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
     }
   };
 
-  // Explicitly cast Object values and entries to fix 'unknown' type assignment issues in strict environments
   const cartCount: number = (Object.values(cart) as number[]).reduce((a: number, b: number) => a + b, 0);
   const cartTotal: number = (Object.entries(cart) as [string, number][]).reduce((s: number, [id, q]) => s + (((store.menu || []).find((m: any) => m.id === id)?.price || 0) * q), 0);
 
@@ -124,11 +159,10 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
     
     setIsOrdering(true);
     try {
-        // Cast entries to ensure [string, number] to fix 'unknown' type errors
         const newOrders: OrderItem[] = (Object.entries(cart) as [string, number][]).map(([itemId, qty]) => {
           const menuItem = (store.menu || []).find((m: MenuItem) => m.id === itemId);
           return { 
-            id: `ORDER-${Date.now()}-${itemId}-${Math.random().toString(36).substr(2, 4)}`, 
+            id: `O-${Date.now()}-${itemId}-${Math.random().toString(36).substr(2, 4)}`, 
             menuItemId: itemId, 
             name: menuItem?.name || '', 
             price: menuItem?.price || 0, 
@@ -142,7 +176,8 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
         setCart({});
         setView('HISTORY'); 
     } catch (e) {
-        alert("Có lỗi xảy ra khi gửi đơn hàng. Vui lòng thử lại!");
+        console.error("Order process error:", e);
+        alert("Không thể gửi đơn hàng. Vui lòng kiểm tra kết nối mạng!");
     } finally {
         setIsOrdering(false);
     }
@@ -155,7 +190,7 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
             <h2 className="text-2xl font-black text-slate-800 mb-2 tracking-tight uppercase">Smart Restaurant</h2>
             <p className="text-slate-500 mb-10 text-sm font-medium">Vui lòng quét QR tại bàn để gọi món</p>
             <div className="w-full max-w-xs space-y-3">
-                <Link to="/admin" className="flex items-center justify-center py-4 bg-slate-900 rounded-2xl shadow-xl text-[10px] font-black uppercase text-white tracking-widest active:scale-95 transition-transform">Vào Hệ Thống (Staff/Admin)</Link>
+                <Link to="/staff" className="flex items-center justify-center py-4 bg-slate-900 rounded-2xl shadow-xl text-[10px] font-black uppercase text-white tracking-widest active:scale-95 transition-transform">Vào Hệ Thống (Staff/Kitchen/Admin)</Link>
             </div>
         </div>
     );
@@ -165,7 +200,7 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
     return (
       <div className="flex flex-col items-center justify-center h-full px-6 text-center animate-fadeIn">
         <div className="w-24 h-24 rounded-[2.5rem] bg-red-50 text-red-500 border-2 border-red-100 flex items-center justify-center mb-8 shadow-xl text-4xl">🚫</div>
-        <h2 className="text-2xl font-black text-slate-800 mb-4 uppercase tracking-tighter">Mã QR không hợp lệ</h2>
+        <h2 className="text-2xl font-black text-slate-800 mb-4 uppercase tracking-tighter">Mã QR hết hạn</h2>
         <p className="text-slate-500 text-xs mb-10 max-w-[240px]">Bàn {idNum} chưa được mở hoặc mã đã hết hạn. Vui lòng yêu cầu nhân viên cấp mã mới.</p>
         <Link to="/" className="inline-block px-10 py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl active:scale-95 transition-transform">Quay lại</Link>
       </div>
@@ -200,6 +235,54 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
         }} 
         onCancel={() => setCancelTarget(null)} 
       />
+
+      {/* AI Assistant Modal */}
+      {isAiOpen && (
+        <div className="fixed inset-0 z-[100] bg-slate-900/80 backdrop-blur-md flex items-end md:items-center justify-center p-4">
+          <div className="bg-white w-full max-w-sm rounded-t-[3rem] md:rounded-[3rem] p-8 shadow-2xl animate-slideUp relative">
+            <button onClick={() => setIsAiOpen(false)} className="absolute top-6 right-6 p-2 bg-slate-50 rounded-full text-slate-400"><X size={20}/></button>
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center">
+                <Bot size={28} />
+              </div>
+              <div>
+                <h3 className="text-xl font-black text-slate-800 italic">Smart Assistant</h3>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Hỏi về món ăn, gợi ý thực đơn</p>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 rounded-2xl p-4 min-h-[120px] max-h-[300px] overflow-y-auto mb-6 text-sm text-slate-700 leading-relaxed">
+              {isAiThinking ? (
+                <div className="flex items-center gap-2 text-slate-400 font-bold italic animate-pulse">
+                  <Loader2 size={16} className="animate-spin" /> Gemini đang suy nghĩ...
+                </div>
+              ) : aiResponse ? (
+                <div className="whitespace-pre-wrap">{aiResponse}</div>
+              ) : (
+                <div className="text-slate-300 italic">Chào bạn! Tôi có thể giúp gì cho bạn hôm nay?</div>
+              )}
+            </div>
+
+            <div className="relative">
+              <input 
+                type="text" 
+                value={aiQuery} 
+                onChange={e => setAiQuery(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleAiAsk()}
+                placeholder="Ví dụ: Có món nào cay không?..." 
+                className="w-full pl-6 pr-14 py-4 bg-slate-100 rounded-2xl font-bold text-sm outline-none focus:ring-2 ring-blue-500 transition-all"
+              />
+              <button 
+                onClick={handleAiAsk}
+                disabled={isAiThinking}
+                className="absolute right-2 top-2 w-10 h-10 bg-blue-600 text-white rounded-xl flex items-center justify-center shadow-lg active:scale-90 transition-transform disabled:bg-slate-300"
+              >
+                <Send size={18} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="bg-white rounded-[1.5rem] p-3 mb-4 shadow-sm border border-slate-100 flex justify-between items-center shrink-0 mt-1">
         <div className="flex items-center gap-2">
@@ -275,11 +358,11 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
                             <button 
                                 onClick={handlePlaceOrder} 
                                 disabled={isOrdering}
-                                className={`w-full py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl active:scale-95 transition-all ${
+                                className={`w-full py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl flex items-center justify-center gap-2 active:scale-95 transition-all ${
                                     isOrdering ? 'bg-slate-400 cursor-not-allowed' : 'bg-slate-900 text-white'
                                 }`}
                             >
-                                {isOrdering ? 'Đang gửi...' : 'Xác nhận gọi món ngay'}
+                                {isOrdering ? <Loader2 size={16} className="animate-spin" /> : 'Xác nhận gọi món'}
                             </button>
                         </div>
                     )}
@@ -300,7 +383,6 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
                         ) : (
                             table.currentOrders.map((item: OrderItem) => {
                                 const statusInfo = getStatusLabel(item.status);
-                                // Khách có thể huỷ khi Staff chưa duyệt hoặc vừa mới duyệt xong
                                 const canCancel = item.status === OrderItemStatus.PENDING || item.status === OrderItemStatus.CONFIRMED;
                                 
                                 return (
@@ -348,6 +430,14 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
             </div>
         )}
       </div>
+
+      {/* AI Assistant Button */}
+      <button 
+        onClick={() => setIsAiOpen(true)}
+        className="fixed bottom-24 right-6 w-14 h-14 bg-blue-600 text-white rounded-full shadow-2xl flex items-center justify-center z-[60] hover:scale-110 active:scale-95 transition-all border-4 border-white"
+      >
+        <Sparkles size={24} />
+      </button>
 
       {view === 'MENU' && cartCount > 0 && (
         <div className="fixed bottom-6 inset-x-4 md:left-1/2 md:-translate-x-1/2 md:w-full md:max-w-md bg-slate-900 rounded-[1.8rem] p-4 shadow-2xl flex items-center justify-between animate-slideUp z-50 border border-white/10">
