@@ -34,7 +34,7 @@ export const useRestaurantStore = () => {
   const [syncStatus, setSyncStatus] = useState<'IDLE' | 'SYNCING' | 'ERROR' | 'SUCCESS' | 'NEED_CONFIG'>('IDLE');
   
   const [cloudUrl, setCloudUrl] = useState<string>(() => {
-    // Ưu tiên 1: Cấu hình từ URL param (config=...)
+    // 1. Kiểm tra cấu hình từ URL (Ưu tiên cao nhất cho khách quét QR)
     const params = new URLSearchParams(window.location.search);
     const configParam = params.get('config');
     if (configParam) {
@@ -42,13 +42,26 @@ export const useRestaurantStore = () => {
         const decodedUrl = atob(configParam);
         if (decodedUrl.startsWith('http')) {
           localStorage.setItem(CLOUD_CONFIG_KEY, decodedUrl);
-          // Không xóa ngay để effect bên dưới nhận diện được sự thay đổi
           return decodedUrl;
         }
-      } catch (e) { console.error("Invalid config param"); }
+      } catch (e) { console.error("URL Config error"); }
     }
-    // Ưu tiên 2: LocalStorage
-    return localStorage.getItem(CLOUD_CONFIG_KEY) || process.env.VITE_FIREBASE_DB_URL || '';
+    // 2. Kiểm tra Hash URL (cho các trường hợp Route thay đổi)
+    const hashPart = window.location.hash;
+    if (hashPart.includes('config=')) {
+      const hashParams = new URLSearchParams(hashPart.split('?')[1]);
+      const hConfig = hashParams.get('config');
+      if (hConfig) {
+        try {
+          const decoded = atob(hConfig);
+          if (decoded.startsWith('http')) {
+            localStorage.setItem(CLOUD_CONFIG_KEY, decoded);
+            return decoded;
+          }
+        } catch (e) {}
+      }
+    }
+    return localStorage.getItem(CLOUD_CONFIG_KEY) || '';
   });
 
   const dbRef = useRef<Database | null>(null);
@@ -158,7 +171,6 @@ export const useRestaurantStore = () => {
         ) 
       } : t);
 
-      // Thông báo cho nhân viên biết khách huỷ món
       const nnotif: AppNotification = { id: `C-${Date.now()}`, targetRole: UserRole.STAFF, title: 'Huỷ món', message: `Bàn ${tid} huỷ: ${item.name}`, timestamp: Date.now(), read: false, type: 'system' };
       pushToCloud({ tables: nt, notifications: [nnotif, ...notifications] });
     },
