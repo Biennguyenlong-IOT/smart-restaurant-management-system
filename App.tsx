@@ -1,6 +1,9 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { HashRouter, Routes, Route, Navigate, Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+// Use namespace import to resolve missing named exports in some environments
+import * as ReactRouterDOM from 'react-router-dom';
+const { HashRouter, Routes, Route, Navigate, Link, useLocation, useNavigate, useSearchParams } = ReactRouterDOM;
+
 import { UserRole, User, AppNotification } from './types.ts';
 import { useRestaurantStore } from './store.ts';
 import CustomerMenu from './views/CustomerMenu.tsx';
@@ -9,7 +12,6 @@ import KitchenView from './views/KitchenView.tsx';
 import AdminView from './views/AdminView.tsx';
 import { Database, Link as LinkIcon, Volume2, VolumeX } from 'lucide-react';
 
-// Modal xác nhận chung
 export const ConfirmModal: React.FC<{
   isOpen: boolean; title: string; message: string; onConfirm: () => void; onCancel: () => void;
   confirmText?: string; cancelText?: string; type?: 'danger' | 'info' | 'success';
@@ -78,12 +80,21 @@ const LoginOverlay: React.FC<{
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const foundUser = (users || []).find(u => u.username === username && u.password === password);
-    // Cho phép đúng role hoặc Admin vào mọi phân hệ
-    if (foundUser && (foundUser.role === role || foundUser.role === UserRole.ADMIN)) {
-      onSuccess(foundUser);
+    // Đảm bảo users có dữ liệu trước khi check
+    if (!users || users.length === 0) {
+      setError('Đang nạp dữ liệu người dùng, vui lòng thử lại...');
+      return;
+    }
+    const foundUser = users.find(u => u.username === username && u.password === password);
+    if (foundUser) {
+      // Cho phép Admin vào bất kỳ đâu, Staff/Kitchen chỉ vào được trang của mình
+      if (foundUser.role === UserRole.ADMIN || foundUser.role === role) {
+        onSuccess(foundUser);
+      } else {
+        setError(`Tài khoản này có quyền ${foundUser.role}, không thể vào trang ${role}`);
+      }
     } else {
-      setError('Tài khoản, mật khẩu hoặc quyền truy cập không đúng');
+      setError('Tên đăng nhập hoặc mật khẩu không đúng');
     }
   };
 
@@ -106,6 +117,7 @@ const LoginOverlay: React.FC<{
 const AppContent: React.FC = () => {
   const store = useRestaurantStore();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const hasConfigInUrl = searchParams.get('config');
   
@@ -117,7 +129,6 @@ const AppContent: React.FC = () => {
   const [isAudioEnabled, setIsAudioEnabled] = useState(false);
   const lastNotifIdRef = useRef<string | null>(null);
 
-  // Hệ thống phát loa thông báo (Text to Speech)
   useEffect(() => {
     if (!currentUser || !isAudioEnabled) return;
 
@@ -130,30 +141,21 @@ const AppContent: React.FC = () => {
       if (latest.id !== lastNotifIdRef.current) {
         lastNotifIdRef.current = latest.id;
         
-        // Phát loa
         const speech = new SpeechSynthesisUtterance(latest.message);
         speech.lang = 'vi-VN';
-        speech.rate = 1;
+        speech.rate = 1.1;
         window.speechSynthesis.speak(speech);
 
-        // Phát thêm tiếng bíp nếu muốn
         const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+        audio.volume = 0.5;
         audio.play().catch(() => {});
       }
     }
   }, [store.notifications, currentUser, isAudioEnabled]);
 
-  useEffect(() => {
-    if (currentUser && store.syncStatus === 'SUCCESS') {
-      const stillExists = store.users.find(u => u.id === currentUser.id);
-      if (!stillExists) handleLogout();
-    }
-  }, [store.users, store.syncStatus]);
-
   const handleLoginSuccess = (user: User) => {
     sessionStorage.setItem('current_user', JSON.stringify(user));
     setCurrentUser(user);
-    // Khi login thành công, kích hoạt âm thanh ngay
     setIsAudioEnabled(true);
   };
 
@@ -167,14 +169,13 @@ const AppContent: React.FC = () => {
     if (!currentUser) {
       return <LoginOverlay role={role} users={store.users} onSuccess={handleLoginSuccess} onCancel={() => navigate('/')} />;
     }
-    // Admin có quyền vào tất cả các trang của Staff/Kitchen
     if (currentUser.role !== role && currentUser.role !== UserRole.ADMIN) {
       return <Navigate to="/" replace />;
     }
     return <>{element}</>;
   };
 
-  // Nếu URL có config, đừng hiện SetupOverlay ngay lập tức vì store đang xử lý kết nối
+  // Sửa lỗi: Nếu URL có config, đừng hiện Setup ngay cả khi store chưa kết nối xong
   const shouldShowSetup = store.syncStatus === 'NEED_CONFIG' && !hasConfigInUrl;
 
   return (
@@ -188,7 +189,7 @@ const AppContent: React.FC = () => {
           </Link>
 
           <div className="flex items-center gap-4">
-            {currentUser && (
+            {currentUser && currentUser.role !== UserRole.CUSTOMER && (
               <button 
                 onClick={() => setIsAudioEnabled(!isAudioEnabled)}
                 className={`p-2 rounded-xl transition-all ${isAudioEnabled ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-400'}`}
@@ -199,7 +200,7 @@ const AppContent: React.FC = () => {
             <div title={store.syncStatus} className={`w-2 h-2 rounded-full ${store.syncStatus === 'SUCCESS' ? 'bg-green-500' : 'bg-red-400 animate-pulse'}`}></div>
             {currentUser && (
               <div className="flex items-center gap-3">
-                <span className="text-[10px] font-black text-slate-400 uppercase hidden md:inline">Chào, {currentUser.fullName}</span>
+                <span className="text-[10px] font-black text-slate-400 uppercase hidden md:inline">{currentUser.fullName} ({currentUser.role})</span>
                 <button onClick={handleLogout} className="text-[10px] font-black text-red-500 px-4 py-2 bg-red-50 rounded-xl uppercase hover:bg-red-100 transition-colors">Thoát</button>
               </div>
             )}
@@ -220,11 +221,10 @@ const AppContent: React.FC = () => {
            </div>
         </main>
 
-        {/* Thông báo nhắc bật âm thanh cho nhân viên */}
         {currentUser && !isAudioEnabled && currentUser.role !== UserRole.CUSTOMER && (
           <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[150] bg-slate-900 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-4 animate-slideUp">
              <VolumeX className="text-orange-500" />
-             <p className="text-xs font-bold uppercase tracking-tight">Vui lòng bật loa để nhận thông báo thoại</p>
+             <p className="text-xs font-bold uppercase tracking-tight">Bật loa để nhận thông báo</p>
              <button onClick={() => setIsAudioEnabled(true)} className="bg-orange-500 px-4 py-2 rounded-xl text-[10px] font-black uppercase">Bật ngay</button>
           </div>
         )}
