@@ -108,18 +108,29 @@ const AppContent: React.FC = () => {
   const store = useRestaurantStore();
   const navigate = useNavigate();
   
+  // Chuyển sang sử dụng sessionStorage để khi tắt trình duyệt là hết phiên đăng nhập
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
-    const saved = localStorage.getItem('current_user');
+    const saved = sessionStorage.getItem('current_user');
     try { return saved ? JSON.parse(saved) : null; } catch { return null; }
   });
 
+  // Tăng cường kiểm soát: Nếu User có trong session nhưng không có trong Database (bị xóa), buộc logout
+  useEffect(() => {
+    if (currentUser && store.syncStatus === 'SUCCESS') {
+      const stillExists = store.users.find(u => u.id === currentUser.id && u.role === currentUser.role);
+      if (!stillExists) {
+        handleLogout();
+      }
+    }
+  }, [store.users, store.syncStatus]);
+
   const handleLoginSuccess = (user: User) => {
-    localStorage.setItem('current_user', JSON.stringify(user));
+    sessionStorage.setItem('current_user', JSON.stringify(user));
     setCurrentUser(user);
   };
 
   const handleLogout = useCallback(() => {
-    localStorage.removeItem('current_user');
+    sessionStorage.removeItem('current_user');
     setCurrentUser(null);
     navigate('/', { replace: true });
   }, [navigate]);
@@ -147,7 +158,10 @@ const AppContent: React.FC = () => {
           <div className="flex items-center gap-4">
             <div title={store.syncStatus} className={`w-2 h-2 rounded-full ${store.syncStatus === 'SUCCESS' ? 'bg-green-500' : 'bg-red-400 animate-pulse'}`}></div>
             {currentUser && (
-              <button onClick={handleLogout} className="text-[10px] font-black text-red-500 px-4 py-2 bg-red-50 rounded-xl uppercase hover:bg-red-100 transition-colors">Thoát</button>
+              <div className="flex items-center gap-3">
+                <span className="text-[10px] font-black text-slate-400 uppercase hidden md:inline">Chào, {currentUser.fullName}</span>
+                <button onClick={handleLogout} className="text-[10px] font-black text-red-500 px-4 py-2 bg-red-50 rounded-xl uppercase hover:bg-red-100 transition-colors">Thoát</button>
+              </div>
             )}
           </div>
         </header>
