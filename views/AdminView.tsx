@@ -6,7 +6,7 @@ import {
   ArrowRightLeft, Monitor, Settings, Plus, UserPlus, Pizza, Shield, 
   Trash2, X, Edit3, Database, Cloud, LayoutDashboard, TrendingUp, 
   ShoppingBag, DollarSign, Calendar, QrCode, Share2, Copy, PowerOff, 
-  Search, Image as ImageIcon, Save, CreditCard, Banknote
+  Search, Image as ImageIcon, Save, CreditCard, Banknote, CheckCircle2
 } from 'lucide-react';
 
 interface AdminViewProps { store: any; }
@@ -217,6 +217,47 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
           </div>
         )}
 
+        {activeTab === 'REQUESTS' && (
+          <div className="max-w-2xl mx-auto space-y-4">
+            {activeRequests.length === 0 ? (
+              <div className="bg-white p-20 rounded-[3rem] text-center border border-dashed border-slate-200">
+                <div className="w-16 h-16 bg-slate-50 text-slate-200 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle2 size={32}/>
+                </div>
+                <p className="text-xs font-black text-slate-300 uppercase italic">Không có yêu cầu chờ duyệt</p>
+              </div>
+            ) : (
+              activeRequests.map((req: AppNotification) => (
+                <div key={req.id} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between group hover:border-orange-200 transition-all">
+                  <div className="flex items-center gap-4">
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${req.type === 'qr_request' ? 'bg-blue-50 text-blue-500' : 'bg-orange-50 text-orange-500'}`}>
+                      {req.type === 'qr_request' ? <QrCode size={24}/> : <ArrowRightLeft size={24}/>}
+                    </div>
+                    <div>
+                      <h4 className="font-black text-slate-800 text-sm">{req.title}</h4>
+                      <p className="text-[10px] font-bold text-slate-400">{req.message}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => store.deleteNotification(req.id)}
+                      className="px-4 py-2 bg-slate-100 text-slate-400 rounded-xl text-[10px] font-black uppercase"
+                    >
+                      Từ chối
+                    </button>
+                    <button 
+                      onClick={() => req.type === 'qr_request' ? store.approveTableQr(req.id) : store.approveMoveTable(req.id)}
+                      className="px-6 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase shadow-lg shadow-slate-200"
+                    >
+                      Duyệt ngay
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
         {activeTab === 'BANK' && (
           <div className="max-w-xl mx-auto">
             <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm">
@@ -246,34 +287,80 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
                   <Save size={18}/> Lưu cấu hình ngân hàng
                 </button>
               </div>
-              
-              <div className="mt-8 p-6 bg-slate-50 rounded-[2rem] border-2 border-dashed border-slate-200">
-                <p className="text-[9px] font-black text-slate-400 text-center uppercase tracking-widest mb-4">Xem trước VietQR mẫu</p>
-                {bankForm.accountNo ? (
-                  <img src={`https://img.vietqr.io/image/${bankForm.bankId}-${bankForm.accountNo}-compact.png?amount=100000&addInfo=Thanh+Toan+Ban+Preview&accountName=${encodeURIComponent(bankForm.accountName)}`} className="w-48 h-48 mx-auto rounded-xl shadow-lg" alt="VietQR Preview" />
-                ) : (
-                  <div className="h-48 flex items-center justify-center text-slate-300 italic text-xs">Vui lòng nhập STK</div>
-                )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'CLOUD' && (
+          <div className="max-w-xl mx-auto space-y-6">
+            <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm">
+              <div className="flex items-center gap-3 mb-8">
+                <div className="w-12 h-12 bg-slate-900 text-white rounded-2xl flex items-center justify-center">
+                  <Database size={24}/>
+                </div>
+                <div>
+                  <h4 className="font-black text-slate-800 uppercase italic">Kết nối Database</h4>
+                  <p className="text-[10px] font-bold text-slate-400">Firebase Realtime Database URL</p>
+                </div>
+              </div>
+              <div className="space-y-4">
+                <div className="relative">
+                  <Cloud className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
+                  <input 
+                    type="text" 
+                    value={tempCloudUrl} 
+                    onChange={e => setTempCloudUrl(e.target.value)}
+                    placeholder="https://your-project.firebaseio.com"
+                    className="w-full pl-12 pr-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold text-xs outline-none focus:border-slate-900" 
+                  />
+                </div>
+                <button 
+                  onClick={handleUpdateCloudUrl}
+                  className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black uppercase text-xs shadow-xl active:scale-95 transition-all"
+                >
+                  Cập nhật Database
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-slate-900 text-white p-8 rounded-[3rem] shadow-2xl relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/10 rounded-full -mr-16 -mt-16"></div>
+              <div className="relative z-10">
+                <h4 className="text-xl font-black italic mb-2">Chia sẻ hệ thống</h4>
+                <p className="text-white/40 text-[10px] font-black uppercase tracking-widest mb-8">Tạo mã QR hoặc Link để nhân viên kết nối nhanh</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <button 
+                    onClick={() => setShowShareModal(true)}
+                    className="py-4 bg-orange-500 rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-2"
+                  >
+                    <QrCode size={16}/> Hiện mã QR
+                  </button>
+                  <button 
+                    onClick={() => { navigator.clipboard.writeText(getSetupLink()); alert("Đã copy Link cấu hình!"); }}
+                    className="py-4 bg-white/10 hover:bg-white/20 rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-2"
+                  >
+                    <Copy size={16}/> Copy Link
+                  </button>
+                </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* Các tab khác giữ nguyên logic cũ nhưng cập nhật style đồng nhất */}
         {activeTab === 'MENU' && (
            <div className="space-y-6">
-             <div className="bg-white p-4 rounded-3xl border border-slate-100 flex items-center gap-4">
+             <div className="bg-white p-4 rounded-3xl border border-slate-100 flex items-center gap-4 shadow-sm">
                <div className="relative flex-1">
                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18}/>
                  <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Tìm món..." className="w-full pl-12 pr-6 py-3.5 bg-slate-50 rounded-2xl font-bold text-sm outline-none" />
                </div>
-               <button onClick={() => setMenuForm({})} className="bg-orange-500 text-white px-6 py-3.5 rounded-2xl font-black uppercase text-[10px] flex items-center gap-2">
+               <button onClick={() => setMenuForm({})} className="bg-orange-500 text-white px-6 py-3.5 rounded-2xl font-black uppercase text-[10px] flex items-center gap-2 shadow-lg shadow-orange-100">
                  <Plus size={16}/> Thêm món
                </button>
              </div>
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                {store.menu.filter((m: any) => m.name.toLowerCase().includes(searchTerm.toLowerCase())).map((item: MenuItem) => (
-                 <div key={item.id} className="bg-white p-4 rounded-[2rem] border border-slate-100 flex gap-4 shadow-sm">
+                 <div key={item.id} className="bg-white p-4 rounded-[2rem] border border-slate-100 flex gap-4 shadow-sm group hover:border-orange-200 transition-all">
                    <img src={item.image} className="w-20 h-20 rounded-2xl object-cover shrink-0" />
                    <div className="flex-1 min-w-0 flex flex-col justify-between">
                      <div>
@@ -282,8 +369,8 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
                        <p className="font-black text-orange-600 text-xs mt-1">{item.price.toLocaleString()}đ</p>
                      </div>
                      <div className="flex gap-2 mt-2">
-                       <button onClick={() => setMenuForm(item)} className="p-2 bg-slate-50 text-slate-400 rounded-xl"><Edit3 size={14}/></button>
-                       <button onClick={() => { if(window.confirm(`Xoá món?`)) store.deleteMenuItem(item.id); }} className="p-2 bg-red-50 text-red-400 rounded-xl"><Trash2 size={14}/></button>
+                       <button onClick={() => setMenuForm(item)} className="p-2 bg-slate-50 text-slate-400 rounded-xl hover:bg-slate-900 hover:text-white transition-all"><Edit3 size={14}/></button>
+                       <button onClick={() => { if(window.confirm(`Xoá món ${item.name}?`)) store.deleteMenuItem(item.id); }} className="p-2 bg-red-50 text-red-400 rounded-xl hover:bg-red-500 hover:text-white transition-all"><Trash2 size={14}/></button>
                      </div>
                    </div>
                  </div>
@@ -295,27 +382,31 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
         {activeTab === 'USERS' && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {store.users.map((u: User) => (
-              <div key={u.id} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between">
+              <div key={u.id} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between hover:border-blue-200 transition-all">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-400">
+                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${u.role === UserRole.ADMIN ? 'bg-red-50 text-red-500' : 'bg-blue-50 text-blue-500'}`}>
                     <Shield size={24}/>
                   </div>
                   <div>
                     <h5 className="font-black text-slate-800 text-sm">{u.fullName}</h5>
-                    <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase ${u.role === UserRole.ADMIN ? 'bg-red-50 text-red-500' : 'bg-blue-50 text-blue-500'}`}>{u.role}</span>
+                    <span className="text-[8px] font-black uppercase text-slate-400">{u.role}</span>
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => setUserForm(u)} className="p-2.5 bg-slate-50 text-slate-400 rounded-xl"><Edit3 size={16}/></button>
-                  <button onClick={() => { if(window.confirm(`Xoá NV?`)) store.deleteUser(u.id); }} className="p-2.5 bg-red-50 text-red-400 rounded-xl"><Trash2 size={16}/></button>
+                  <button onClick={() => setUserForm(u)} className="p-2.5 bg-slate-50 text-slate-400 rounded-xl hover:bg-slate-900 hover:text-white transition-all"><Edit3 size={16}/></button>
+                  <button onClick={() => { if(window.confirm(`Xoá NV ${u.fullName}?`)) store.deleteUser(u.id); }} className="p-2.5 bg-red-50 text-red-400 rounded-xl hover:bg-red-500 hover:text-white transition-all"><Trash2 size={16}/></button>
                 </div>
               </div>
             ))}
+            <button onClick={() => setUserForm({})} className="bg-slate-50 border-2 border-dashed border-slate-200 p-6 rounded-3xl flex flex-col items-center justify-center gap-2 text-slate-300 hover:text-blue-500 hover:border-blue-200 transition-all">
+              <UserPlus size={32}/>
+              <span className="text-[10px] font-black uppercase tracking-widest">Thêm nhân sự</span>
+            </button>
           </div>
         )}
       </div>
 
-      {/* Re-use modals for menuForm and userForm as they are mostly the same as original */}
+      {/* Form Modals */}
       {menuForm && (
         <div className="fixed inset-0 z-[250] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl animate-scaleIn border border-slate-100">
@@ -324,9 +415,21 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
               <button onClick={() => setMenuForm(null)} className="p-2 bg-slate-50 rounded-full text-slate-400"><X size={20}/></button>
             </div>
             <div className="space-y-4">
-              <input type="text" value={menuForm.name || ''} onChange={e => setMenuForm({...menuForm, name: e.target.value})} className="w-full px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl font-bold" placeholder="Tên món" />
-              <input type="number" value={menuForm.price || ''} onChange={e => setMenuForm({...menuForm, price: Number(e.target.value)})} className="w-full px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl font-bold" placeholder="Giá" />
-              <button onClick={saveMenuItem} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-xs">Lưu món</button>
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase ml-2 mb-1 block">Tên món</label>
+                <input type="text" value={menuForm.name || ''} onChange={e => setMenuForm({...menuForm, name: e.target.value})} className="w-full px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl font-bold" placeholder="VD: Bò Lúc Lắc" />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase ml-2 mb-1 block">Giá (VNĐ)</label>
+                <input type="number" value={menuForm.price || ''} onChange={e => setMenuForm({...menuForm, price: Number(e.target.value)})} className="w-full px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl font-bold" placeholder="VD: 150000" />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase ml-2 mb-1 block">Danh mục</label>
+                <select value={menuForm.category || 'Tất cả'} onChange={e => setMenuForm({...menuForm, category: e.target.value})} className="w-full px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl font-bold">
+                  {CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                </select>
+              </div>
+              <button onClick={saveMenuItem} className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black uppercase text-xs shadow-xl active:scale-95 transition-all mt-4">Lưu món</button>
             </div>
           </div>
         </div>
