@@ -1,9 +1,9 @@
+
 import React, { memo, useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { CATEGORIES } from '../constants';
 import { OrderItem, OrderItemStatus, MenuItem, TableStatus, UserRole, Table } from '../types';
 import { ConfirmModal } from '../App';
-// Import X icon from lucide-react
 import { X } from 'lucide-react';
 
 const MenuCard = memo(({ item, quantity, onAdd, onRemove }: { item: MenuItem, quantity: number, onAdd: () => void, onRemove: () => void }) => {
@@ -48,6 +48,7 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
   const [cart, setCart] = useState<Record<string, number>>({});
   const [view, setView] = useState<'MENU' | 'CART' | 'HISTORY'>('MENU');
   const [showPaymentConfirm, setShowPaymentConfirm] = useState(false);
+  const [cancelTarget, setCancelTarget] = useState<{id: string, name: string} | null>(null);
   
   const prevStatusRef = useRef<TableStatus | undefined>(table?.status);
 
@@ -180,6 +181,17 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
   return (
     <div className="flex flex-col h-full max-w-md mx-auto w-full relative">
       <ConfirmModal isOpen={showPaymentConfirm} title="Thanh toán" message={`Xác nhận yêu cầu thanh toán ${totalCurrentOrder.toLocaleString()}đ?`} onConfirm={() => store.requestPayment(idNum)} onCancel={() => setShowPaymentConfirm(false)} />
+      <ConfirmModal 
+        isOpen={cancelTarget !== null} 
+        type="danger"
+        title="Huỷ món" 
+        message={`Bạn muốn huỷ món "${cancelTarget?.name}"?`} 
+        onConfirm={() => {
+            if (cancelTarget) store.cancelOrderItem(idNum, cancelTarget.id);
+            setCancelTarget(null);
+        }} 
+        onCancel={() => setCancelTarget(null)} 
+      />
 
       <div className="bg-white rounded-[1.5rem] p-3 mb-4 shadow-sm border border-slate-100 flex justify-between items-center shrink-0 mt-1">
         <div className="flex items-center gap-2">
@@ -277,6 +289,8 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
                         ) : (
                             table.currentOrders.map((item: OrderItem) => {
                                 const statusInfo = getStatusLabel(item.status);
+                                const canCancel = item.status === OrderItemStatus.PENDING || item.status === OrderItemStatus.CONFIRMED;
+                                
                                 return (
                                     <div key={item.id} className="p-3 bg-slate-50 rounded-2xl flex items-center justify-between border border-white">
                                         <div className="flex-1 min-w-0 pr-4">
@@ -287,10 +301,10 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
                                         </div>
                                         <div className="flex items-center gap-3">
                                           <span className="font-black text-slate-800 text-[11px]">{(item.price * item.quantity).toLocaleString()}đ</span>
-                                          {item.status === OrderItemStatus.PENDING && (
+                                          {canCancel && (
                                             <button 
-                                              onClick={() => { if(confirm("Hủy món này?")) store.cancelOrderItem(idNum, item.id) }} 
-                                              className="p-1 text-red-500 hover:bg-red-50 rounded-lg"
+                                              onClick={() => setCancelTarget({ id: item.id, name: item.name })} 
+                                              className="p-1 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                                             >
                                               <X className="w-4 h-4" />
                                             </button>
