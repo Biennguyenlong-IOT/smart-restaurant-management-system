@@ -11,7 +11,8 @@ export enum OrderItemStatus {
   CONFIRMED = 'CONFIRMED',
   COOKING = 'COOKING',
   READY = 'READY',
-  SERVED = 'SERVED'
+  SERVED = 'SERVED',
+  CANCELLED = 'CANCELLED'
 }
 
 export enum TableStatus {
@@ -45,8 +46,9 @@ export interface Table {
   status: TableStatus;
   currentOrders: OrderItem[];
   needsCleaning?: boolean;
-  sessionToken?: string;
+  sessionToken?: string | null;
   qrRequested?: boolean;
+  claimedBy?: string | null; // ID of the staff serving this table
 }
 
 export interface HistoryEntry {
@@ -57,6 +59,14 @@ export interface HistoryEntry {
   date: string;
 }
 
+export interface TableMoveRequest {
+  fromId: number;
+  toId: number;
+  type: 'SWAP' | 'MERGE';
+  staffId: string;
+  status: 'PENDING' | 'APPROVED' | 'DENIED';
+}
+
 export interface AppNotification {
   id: string;
   targetRole: UserRole;
@@ -64,7 +74,8 @@ export interface AppNotification {
   message: string;
   timestamp: number;
   read: boolean;
-  type: 'order' | 'kitchen' | 'payment' | 'system' | 'qr_request';
+  type: 'order' | 'kitchen' | 'payment' | 'system' | 'qr_request' | 'move_request';
+  payload?: any;
 }
 
 export interface User {
@@ -73,7 +84,7 @@ export interface User {
   password: string;
   role: UserRole;
   fullName: string;
-  lastActive?: number; // Timestamp of last activity
+  lastActive?: number;
 }
 
 export interface BankConfig {
