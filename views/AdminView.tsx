@@ -60,12 +60,12 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
   };
 
   const handleUpdateTableCount = () => {
-    if (tempTableCount < 1) return alert("Số bàn không hợp lệ!");
+    if (tempTableCount < 1) return alert("Số bàn phải ít nhất là 1!");
     if (tempTableCount < store.tables.length) {
-      if (!window.confirm("Giảm số bàn có thể làm mất dữ liệu các bàn đang hoạt động. Bạn có chắc chắn?")) return;
+      if (!window.confirm("Giảm số bàn có thể gây lỗi cho các bàn đang có khách. Bạn chắc chắn muốn tiếp tục?")) return;
     }
     store.updateTableCount(tempTableCount);
-    alert("Cập nhật quy mô bàn thành công!");
+    alert("Đã cập nhật số lượng bàn!");
   };
 
   const getSetupLink = () => {
@@ -321,13 +321,13 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
               <div className="flex items-center gap-3 mb-8">
                 <div className="w-12 h-12 bg-slate-900 text-white rounded-2xl flex items-center justify-center"><LayoutGrid size={24}/></div>
                 <div>
-                  <h4 className="font-black text-slate-800 uppercase italic">Quy mô bàn ăn</h4>
+                  <h4 className="font-black text-slate-800 uppercase italic">Quy mô quán</h4>
                   <p className="text-[10px] font-bold text-slate-400">Thiết lập tổng số bàn trong quán</p>
                 </div>
               </div>
               <div className="space-y-4">
                 <div className="flex flex-col gap-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase ml-2 italic">Tổng số bàn</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase ml-2 italic">Số bàn tổng cộng</label>
                   <div className="flex items-center gap-4">
                     <input 
                       type="number" 
@@ -337,7 +337,7 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
                       onChange={e => setTempTableCount(parseInt(e.target.value) || 1)} 
                       className="flex-1 px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl font-black text-lg outline-none focus:border-orange-500" 
                     />
-                    <button onClick={handleUpdateTableCount} className="px-8 py-4 bg-orange-500 text-white rounded-2xl font-black uppercase text-xs shadow-lg active:scale-95 transition-all">Lưu cấu hình</button>
+                    <button onClick={handleUpdateTableCount} className="px-8 py-4 bg-orange-500 text-white rounded-2xl font-black uppercase text-xs shadow-lg active:scale-95 transition-all">Lưu số bàn</button>
                   </div>
                 </div>
               </div>
@@ -347,7 +347,7 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
               <div className="flex items-center gap-3 mb-8">
                 <div className="w-12 h-12 bg-slate-900 text-white rounded-2xl flex items-center justify-center"><Database size={24}/></div>
                 <div>
-                  <h4 className="font-black text-slate-800 uppercase italic">Database Link</h4>
+                  <h4 className="font-black text-slate-800 uppercase italic">Kết nối Database</h4>
                   <p className="text-[10px] font-bold text-slate-400">Firebase Realtime Database</p>
                 </div>
               </div>
@@ -359,7 +359,7 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
 
             <div className="bg-slate-900 text-white p-8 rounded-[3rem] shadow-2xl">
               <h4 className="text-xl font-black italic mb-2">Chia sẻ cấu hình</h4>
-              <p className="text-white/40 text-[10px] font-black uppercase mb-8">QR này chứa sẵn URL Database bên trên</p>
+              <p className="text-white/40 text-[10px] font-black uppercase mb-8">QR này dùng để thiết lập máy nhân viên</p>
               <div className="grid grid-cols-2 gap-3">
                 <button onClick={() => setShowShareModal(true)} className="py-4 bg-orange-500 rounded-2xl font-black uppercase text-[10px]">Hiện QR</button>
                 <button onClick={() => { navigator.clipboard.writeText(getSetupLink()); alert("Đã copy!"); }} className="py-4 bg-white/10 rounded-2xl font-black uppercase text-[10px]">Copy Link</button>
@@ -427,29 +427,31 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
         )}
       </div>
 
-      {/* Form Modals */}
+      {/* Form Món ăn với tính năng sửa Hình ảnh */}
       {menuForm && (
         <div className="fixed inset-0 z-[250] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl animate-scaleIn">
             <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-black text-slate-800 uppercase italic">{menuForm.id ? 'Sửa món ăn' : 'Thêm món ăn mới'}</h3>
+              <h3 className="text-xl font-black text-slate-800 uppercase italic">{menuForm.id ? 'Sửa món ăn' : 'Thêm món mới'}</h3>
               <button onClick={() => setMenuForm(null)} className="p-2 bg-slate-50 rounded-full text-slate-400"><X size={20}/></button>
             </div>
-            <div className="space-y-4 max-h-[70dvh] overflow-y-auto no-scrollbar pr-2">
+            <div className="space-y-4 max-h-[70dvh] overflow-y-auto no-scrollbar pr-1">
               <div className="space-y-1">
                 <label className="text-[10px] font-black text-slate-400 uppercase ml-2 italic">Tên món</label>
-                <input type="text" value={menuForm.name || ''} onChange={e => setMenuForm({...menuForm, name: e.target.value})} className="w-full px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl font-bold" placeholder="VD: Bò Lúc Lắc" />
-              </div>
-              
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase ml-2 italic">Giá tiền (VNĐ)</label>
-                <input type="number" value={menuForm.price || ''} onChange={e => setMenuForm({...menuForm, price: Number(e.target.value)})} className="w-full px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl font-bold" placeholder="VD: 150000" />
+                <input type="text" value={menuForm.name || ''} onChange={e => setMenuForm({...menuForm, name: e.target.value})} className="w-full px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl font-bold" placeholder="Tên món" />
               </div>
 
               <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase ml-2 italic">Link ảnh món ăn</label>
-                <input type="text" value={menuForm.image || ''} onChange={e => setMenuForm({...menuForm, image: e.target.value})} className="w-full px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl font-bold text-xs" placeholder="https://..." />
-                {menuForm.image && <img src={menuForm.image} className="w-20 h-20 rounded-xl object-cover mx-auto mt-2 border-2 border-slate-100 shadow-sm" alt="Preview" />}
+                <label className="text-[10px] font-black text-slate-400 uppercase ml-2 italic">Giá bán (VNĐ)</label>
+                <input type="number" value={menuForm.price || ''} onChange={e => setMenuForm({...menuForm, price: Number(e.target.value)})} className="w-full px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl font-bold" placeholder="Giá tiền" />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase ml-2 italic">Đường dẫn hình ảnh (URL)</label>
+                <div className="flex gap-3">
+                  <input type="text" value={menuForm.image || ''} onChange={e => setMenuForm({...menuForm, image: e.target.value})} className="flex-1 px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl font-bold text-xs" placeholder="https://..." />
+                  {menuForm.image && <img src={menuForm.image} className="w-14 h-14 rounded-xl object-cover border border-slate-200" alt="Preview" />}
+                </div>
               </div>
 
               <div className="space-y-1">
@@ -460,8 +462,8 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
               </div>
 
               <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase ml-2 italic">Mô tả món ăn</label>
-                <textarea value={menuForm.description || ''} onChange={e => setMenuForm({...menuForm, description: e.target.value})} className="w-full px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl font-bold h-24 resize-none" placeholder="Mô tả sơ lược về món ăn..." />
+                <label className="text-[10px] font-black text-slate-400 uppercase ml-2 italic">Mô tả chi tiết</label>
+                <textarea value={menuForm.description || ''} onChange={e => setMenuForm({...menuForm, description: e.target.value})} className="w-full px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl font-bold h-24 resize-none" placeholder="Thông tin về món ăn..." />
               </div>
 
               <button onClick={saveMenuItem} className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black uppercase text-xs shadow-xl active:scale-95 transition-all mt-4">Lưu món ăn</button>
@@ -484,7 +486,7 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
               <select value={userForm.role || UserRole.STAFF} onChange={e => setUserForm({...userForm, role: e.target.value as UserRole})} className="w-full px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl font-bold">
                   {Object.values(UserRole).map(r => <option key={r} value={r}>{r}</option>)}
               </select>
-              <button onClick={saveUser} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-xs">Lưu NV</button>
+              <button onClick={saveUser} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-xs">Lưu nhân sự</button>
             </div>
           </div>
         </div>
