@@ -1,5 +1,5 @@
 
-import React, { memo, useState, useEffect, useMemo } from 'react';
+import React, { memo, useState, useEffect, useMemo, useCallback } from 'react';
 // Use namespace import to resolve missing named exports in some environments
 import * as ReactRouterDOM from 'react-router-dom';
 const { useParams, Link, useNavigate, useSearchParams } = ReactRouterDOM;
@@ -8,7 +8,7 @@ import { GoogleGenAI } from "@google/genai";
 import { CATEGORIES } from '../constants';
 import { OrderItem, OrderItemStatus, MenuItem, TableStatus, UserRole, Table } from '../types';
 import { ConfirmModal } from '../App';
-import { X, ShoppingCart, History, ChefHat, Loader2, Sparkles, Send, Bot } from 'lucide-react';
+import { X, ShoppingCart, History, ChefHat, Loader2, Sparkles, Send, Bot, FileText, CreditCard } from 'lucide-react';
 
 const MenuCard = memo(({ item, quantity, onAdd, onRemove }: { item: MenuItem, quantity: number, onAdd: () => void, onRemove: () => void }) => {
     return (
@@ -55,6 +55,35 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
   const [cancelTarget, setCancelTarget] = useState<{id: string, name: string} | null>(null);
   const [isOrdering, setIsOrdering] = useState(false);
 
+  // Add missing cart utility functions and derived state
+  const cartCount = useMemo(() => 
+    Object.values(cart).reduce((sum, qty) => sum + qty, 0)
+  , [cart]);
+
+  const cartTotal = useMemo(() => 
+    Object.entries(cart).reduce((sum, [id, qty]) => {
+      const item = (store.menu || []).find((m: MenuItem) => m.id === id);
+      return sum + (item?.price || 0) * qty;
+    }, 0)
+  , [cart, store.menu]);
+
+  const handleAddToCart = useCallback((id: string) => {
+    setCart(prev => ({ ...prev, [id]: (prev[id] || 0) + 1 }));
+  }, []);
+
+  const handleRemoveFromCart = useCallback((id: string) => {
+    setCart(prev => {
+      if (!prev[id]) return prev;
+      const newCart = { ...prev };
+      if (newCart[id] > 1) {
+        newCart[id] -= 1;
+      } else {
+        delete newCart[id];
+      }
+      return newCart;
+    });
+  }, []);
+
   // AI Assistant State
   const [isAiOpen, setIsAiOpen] = useState(false);
   const [aiQuery, setAiQuery] = useState('');
@@ -98,22 +127,24 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
       });
       setAiResponse(response.text || 'Xin lỗi, tôi không thể xử lý yêu cầu lúc này.');
     } catch (e) {
-      setAiResponse('Có lỗi xảy ra khi kết nối với trí tuệ nhân tạo. Vui lòng thử lại sau.');
+      setAiResponse('Có lỗi xảy ra khi kết nối với AI. Vui lòng thử lại sau.');
       console.error(e);
     } finally {
       setIsAiThinking(false);
     }
   };
 
-  const totalCurrentOrder = useMemo((): number => 
+  const activeOrders = useMemo(() => 
     (table?.currentOrders || []).filter((i: OrderItem) => i.status !== OrderItemStatus.CANCELLED)
-      .reduce((sum: number, item: OrderItem) => sum + (item.price * item.quantity), 0)
   , [table?.currentOrders]);
 
+  const totalCurrentOrder = useMemo((): number => 
+    activeOrders.reduce((sum: number, item: OrderItem) => sum + (item.price * item.quantity), 0)
+  , [activeOrders]);
+
   const allServed = useMemo(() => {
-    const activeOrders = (table?.currentOrders || []).filter((o:OrderItem) => o.status !== OrderItemStatus.CANCELLED);
     return activeOrders.length > 0 && activeOrders.every((item: OrderItem) => item.status === OrderItemStatus.SERVED);
-  }, [table?.currentOrders]);
+  }, [activeOrders]);
 
   if (tableId && (store.tables.length === 0 || !table)) {
     return (
@@ -129,7 +160,7 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
   const getStatusLabel = (status: OrderItemStatus) => {
     switch (status) {
       case OrderItemStatus.PENDING: return { label: 'Chờ duyệt', color: 'bg-slate-100 text-slate-500' };
-      case OrderItemStatus.CONFIRMED: return { label: 'Đã nhận đơn', color: 'bg-blue-100 text-blue-600' };
+      case OrderItemStatus.CONFIRMED: return { label: 'Đã nhận', color: 'bg-blue-100 text-blue-600' };
       case OrderItemStatus.COOKING: return { label: 'Đang nấu', color: 'bg-orange-100 text-orange-600' };
       case OrderItemStatus.READY: return { label: 'Xong - Chờ bưng', color: 'bg-amber-100 text-amber-600' };
       case OrderItemStatus.SERVED: return { label: 'Đã phục vụ', color: 'bg-green-100 text-green-600' };
@@ -138,25 +169,8 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
     }
   };
 
-  const cartCount: number = (Object.values(cart) as number[]).reduce((a: number, b: number) => a + b, 0);
-  const cartTotal: number = (Object.entries(cart) as [string, number][]).reduce((s: number, [id, q]) => s + (((store.menu || []).find((m: any) => m.id === id)?.price || 0) * q), 0);
-
-  const handleAddToCart = (itemId: string) => {
-    setCart(prev => ({ ...prev, [itemId]: (prev[itemId] || 0) + 1 }));
-  };
-
-  const handleRemoveFromCart = (itemId: string) => {
-    setCart(prev => {
-        const next = { ...prev };
-        if (next[itemId] > 1) next[itemId]--;
-        else delete next[itemId];
-        return next;
-    });
-  };
-
   const handlePlaceOrder = async () => {
     if (Object.keys(cart).length === 0 || isOrdering) return;
-    
     setIsOrdering(true);
     try {
         const newOrders: OrderItem[] = (Object.entries(cart) as [string, number][]).map(([itemId, qty]) => {
@@ -171,13 +185,11 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
             timestamp: Date.now() 
           };
         });
-        
         await store.placeOrder(idNum, newOrders);
         setCart({});
         setView('HISTORY'); 
     } catch (e) {
-        console.error("Order process error:", e);
-        alert("Không thể gửi đơn hàng. Vui lòng kiểm tra kết nối mạng!");
+        alert("Có lỗi khi gọi món!");
     } finally {
         setIsOrdering(false);
     }
@@ -190,7 +202,7 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
             <h2 className="text-2xl font-black text-slate-800 mb-2 tracking-tight uppercase">Smart Restaurant</h2>
             <p className="text-slate-500 mb-10 text-sm font-medium">Vui lòng quét QR tại bàn để gọi món</p>
             <div className="w-full max-w-xs space-y-3">
-                <Link to="/staff" className="flex items-center justify-center py-4 bg-slate-900 rounded-2xl shadow-xl text-[10px] font-black uppercase text-white tracking-widest active:scale-95 transition-transform">Vào Hệ Thống (Staff/Kitchen/Admin)</Link>
+                <Link to="/staff" className="flex items-center justify-center py-4 bg-slate-900 rounded-2xl shadow-xl text-[10px] font-black uppercase text-white tracking-widest active:scale-95 transition-transform">Vào Hệ Thống (Nhân Viên)</Link>
             </div>
         </div>
     );
@@ -200,21 +212,68 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
     return (
       <div className="flex flex-col items-center justify-center h-full px-6 text-center animate-fadeIn">
         <div className="w-24 h-24 rounded-[2.5rem] bg-red-50 text-red-500 border-2 border-red-100 flex items-center justify-center mb-8 shadow-xl text-4xl">🚫</div>
-        <h2 className="text-2xl font-black text-slate-800 mb-4 uppercase tracking-tighter">Mã QR hết hạn</h2>
-        <p className="text-slate-500 text-xs mb-10 max-w-[240px]">Bàn {idNum} chưa được mở hoặc mã đã hết hạn. Vui lòng yêu cầu nhân viên cấp mã mới.</p>
-        <Link to="/" className="inline-block px-10 py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl active:scale-95 transition-transform">Quay lại</Link>
+        <h2 className="text-2xl font-black text-slate-800 mb-4 uppercase tracking-tighter">Mã QR không hợp lệ</h2>
+        <p className="text-slate-500 text-xs mb-10 max-w-[240px]">Mã đã hết hạn hoặc chưa được kích hoạt. Hãy liên hệ nhân viên.</p>
+        <Link to="/" className="inline-block px-10 py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl">Quay lại</Link>
       </div>
     );
   }
 
+  // View Thanh toán (Hóa đơn và VietQR)
   if (table?.status === TableStatus.PAYING || table?.status === TableStatus.BILLING) {
+    const qrUrl = `https://img.vietqr.io/image/${store.bankConfig.bankId}-${store.bankConfig.accountNo}-compact.png?amount=${totalCurrentOrder}&addInfo=Thanh+Toan+Ban+${idNum}&accountName=${encodeURIComponent(store.bankConfig.accountName)}`;
+    
     return (
-      <div className="flex flex-col items-center justify-center h-full px-6 text-center animate-fadeIn">
-        <div className="w-20 h-20 rounded-[2.5rem] bg-amber-50 text-amber-500 border-2 border-amber-100 flex items-center justify-center mb-6 shadow-xl animate-pulse text-4xl">⏳</div>
-        <h2 className="text-2xl font-black text-slate-800 mb-4 uppercase italic">
-           {table.status === TableStatus.PAYING ? 'Đang kiểm bill...' : 'Đang in hóa đơn...'}
-        </h2>
-        <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">Vui lòng chờ nhân viên phục vụ</p>
+      <div className="flex flex-col h-full animate-fadeIn max-w-md mx-auto w-full pb-10">
+        <div className="flex-1 overflow-y-auto no-scrollbar pt-6 px-4">
+           <div className="bg-white rounded-[2.5rem] p-8 shadow-xl border border-slate-100 text-center mb-6">
+              <div className="w-16 h-16 bg-blue-50 text-blue-500 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                 <FileText size={32} />
+              </div>
+              <h2 className="text-2xl font-black text-slate-800 uppercase italic mb-2">Hóa đơn bàn {idNum}</h2>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-8">Vui lòng kiểm tra và thanh toán</p>
+              
+              <div className="space-y-3 mb-10 text-left border-y border-slate-50 py-6">
+                {activeOrders.map(o => (
+                  <div key={o.id} className="flex justify-between items-center">
+                    <span className="text-xs font-bold text-slate-600 truncate flex-1">{o.name} <span className="text-slate-400 ml-1">x{o.quantity}</span></span>
+                    <span className="text-xs font-black text-slate-800 ml-4">{(o.price * o.quantity).toLocaleString()}đ</span>
+                  </div>
+                ))}
+                <div className="pt-4 border-t border-slate-50 flex justify-between items-center">
+                   <span className="text-sm font-black text-slate-900 uppercase italic">Tổng cộng</span>
+                   <span className="text-xl font-black text-orange-600">{totalCurrentOrder.toLocaleString()}đ</span>
+                </div>
+              </div>
+
+              {store.bankConfig.accountNo ? (
+                <div className="space-y-4">
+                  <p className="text-[10px] font-black text-blue-500 uppercase flex items-center justify-center gap-2">
+                    <CreditCard size={12}/> Quét mã VietQR để thanh toán
+                  </p>
+                  <img src={qrUrl} alt="VietQR" className="w-56 h-56 mx-auto rounded-3xl shadow-lg border-4 border-white" />
+                  <div className="text-[10px] font-bold text-slate-400">
+                    <p>{store.bankConfig.accountName}</p>
+                    <p>{store.bankConfig.bankId} - {store.bankConfig.accountNo}</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-6 bg-slate-50 rounded-2xl text-[11px] font-bold text-slate-500 italic">
+                  Vui lòng chờ nhân viên thu tiền mặt tại quầy.
+                </div>
+              )}
+           </div>
+           
+           <div className="bg-slate-900 text-white p-6 rounded-[2rem] shadow-xl text-center">
+             <p className="text-[10px] font-black uppercase tracking-widest mb-2 opacity-60">Trạng thái thanh toán</p>
+             <div className="flex items-center justify-center gap-2">
+                <Loader2 size={16} className="animate-spin text-blue-400"/>
+                <span className="font-black italic uppercase text-sm">
+                  {table.status === TableStatus.PAYING ? 'Đang chờ nhân viên xác nhận...' : 'Đang in hóa đơn...'}
+                </span>
+             </div>
+           </div>
+        </div>
       </div>
     );
   }
@@ -228,7 +287,7 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
         isOpen={cancelTarget !== null} 
         type="danger"
         title="Huỷ món" 
-        message={`Bạn muốn huỷ món "${cancelTarget?.name}"?`} 
+        message={`Huỷ món "${cancelTarget?.name}"?`} 
         onConfirm={() => {
             if (cancelTarget) store.cancelOrderItem(idNum, cancelTarget.id);
             setCancelTarget(null);
@@ -247,7 +306,7 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
               </div>
               <div>
                 <h3 className="text-xl font-black text-slate-800 italic">Smart Assistant</h3>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Hỏi về món ăn, gợi ý thực đơn</p>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tư vấn chọn món AI</p>
               </div>
             </div>
 
@@ -259,7 +318,7 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
               ) : aiResponse ? (
                 <div className="whitespace-pre-wrap">{aiResponse}</div>
               ) : (
-                <div className="text-slate-300 italic">Chào bạn! Tôi có thể giúp gì cho bạn hôm nay?</div>
+                <div className="text-slate-300 italic">Chào bạn! Hãy đặt câu hỏi để tôi gợi ý món ăn nhé.</div>
               )}
             </div>
 
@@ -269,13 +328,13 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
                 value={aiQuery} 
                 onChange={e => setAiQuery(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleAiAsk()}
-                placeholder="Ví dụ: Có món nào cay không?..." 
-                className="w-full pl-6 pr-14 py-4 bg-slate-100 rounded-2xl font-bold text-sm outline-none focus:ring-2 ring-blue-500 transition-all"
+                placeholder="Có món nào lạ không?..." 
+                className="w-full pl-6 pr-14 py-4 bg-slate-100 rounded-2xl font-bold text-sm outline-none"
               />
               <button 
                 onClick={handleAiAsk}
                 disabled={isAiThinking}
-                className="absolute right-2 top-2 w-10 h-10 bg-blue-600 text-white rounded-xl flex items-center justify-center shadow-lg active:scale-90 transition-transform disabled:bg-slate-300"
+                className="absolute right-2 top-2 w-10 h-10 bg-blue-600 text-white rounded-xl flex items-center justify-center shadow-lg disabled:bg-slate-300"
               >
                 <Send size={18} />
               </button>
@@ -322,11 +381,11 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
                 <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-100">
                     <div className="flex justify-between items-center mb-6">
                         <h3 className="font-black text-slate-800 text-lg">Giỏ hàng</h3>
-                        <button onClick={() => setView('MENU')} className="text-[10px] font-black text-orange-500 uppercase">Tiếp tục chọn</button>
+                        <button onClick={() => setView('MENU')} className="text-[10px] font-black text-orange-500 uppercase">Chọn thêm</button>
                     </div>
                     <div className="space-y-4">
                         {Object.keys(cart).length === 0 ? (
-                            <div className="py-10 text-center text-slate-300 font-bold uppercase text-[10px]">Chưa chọn món nào</div>
+                            <div className="py-10 text-center text-slate-300 font-bold uppercase text-[10px]">Chưa chọn món</div>
                         ) : (
                             (Object.entries(cart) as [string, number][]).map(([itemId, qty]) => {
                                 const item = (store.menu || []).find((m: any) => m.id === itemId);
@@ -340,9 +399,9 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-3 shrink-0">
-                                            <button onClick={() => handleRemoveFromCart(itemId)} className="w-6 h-6 bg-slate-100 rounded-lg font-black text-xs active:bg-slate-200">-</button>
+                                            <button onClick={() => handleRemoveFromCart(itemId)} className="w-6 h-6 bg-slate-100 rounded-lg font-black text-xs">-</button>
                                             <span className="font-black text-xs w-4 text-center">{qty}</span>
-                                            <button onClick={() => handleAddToCart(itemId)} className="w-6 h-6 bg-orange-500 text-white rounded-lg font-black text-xs active:bg-orange-600 shadow-md shadow-orange-200">+</button>
+                                            <button onClick={() => handleAddToCart(itemId)} className="w-6 h-6 bg-orange-500 text-white rounded-lg font-black text-xs shadow-md shadow-orange-200">+</button>
                                         </div>
                                     </div>
                                 )
@@ -378,7 +437,7 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
                         {(!table?.currentOrders || table.currentOrders.length === 0) ? (
                             <div className="flex flex-col items-center justify-center py-20 text-slate-200">
                                 <span className="text-4xl mb-2">🍽️</span>
-                                <p className="text-[10px] font-black uppercase tracking-widest italic">Chưa có lịch sử</p>
+                                <p className="text-[10px] font-black uppercase tracking-widest italic">Chưa có món nào</p>
                             </div>
                         ) : (
                             table.currentOrders.map((item: OrderItem) => {
@@ -455,4 +514,4 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
   );
 };
 
-export default CustomerMenu; 
+export default CustomerMenu;
