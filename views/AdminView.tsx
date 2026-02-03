@@ -219,7 +219,7 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
                     {moveRequests.map((n: AppNotification) => (
                         <div key={n.id} className="p-5 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-between">
                             <div>
-                                <p className="text-[11px] font-black uppercase text-slate-800 italic">Gộp bàn: {n.payload.fromId} -> {n.payload.toId}</p>
+                                <p className="text-[11px] font-black uppercase text-slate-800 italic">Gộp bàn: {n.payload.fromId} {'->'} {n.payload.toId}</p>
                             </div>
                             <button onClick={() => store.approveTableMove(n.id)} className="bg-blue-500 text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase italic shadow-lg">Duyệt gộp</button>
                         </div>
