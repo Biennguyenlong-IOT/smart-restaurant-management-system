@@ -307,8 +307,9 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
                                 </div>
                                 <div className="flex items-center gap-3">
                                    <span className="font-black text-slate-900 text-[10px]">{(item.price * item.quantity).toLocaleString()}đ</span>
-                                   {(item.status === OrderItemStatus.PENDING || item.status === OrderItemStatus.CONFIRMED) && (
-                                     <button onClick={() => setCancelTarget({ id: item.id, name: item.name })} className="p-1.5 bg-red-50 text-red-500 rounded-lg"><Trash2 size={14}/></button>
+                                   {/* Refined cancellation logic: Customer can only cancel PENDING items */}
+                                   {item.status === OrderItemStatus.PENDING && (
+                                     <button onClick={() => setCancelTarget({ id: item.id, name: item.name })} className="p-1.5 bg-red-50 text-red-500 rounded-lg transition-transform active:scale-90"><Trash2 size={14}/></button>
                                    )}
                                 </div>
                             </div>
