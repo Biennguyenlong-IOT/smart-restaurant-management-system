@@ -1,7 +1,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { OrderItem, OrderItemStatus, AppNotification, UserRole, MenuItem, OrderType } from '../types.ts';
-import { Pizza, XCircle, CheckCircle, AlertTriangle, ChefHat, Clock } from 'lucide-react';
+import { Pizza, XCircle, CheckCircle, AlertTriangle, ChefHat, Clock, BellRing } from 'lucide-react';
 import { ensureArray } from '../store.ts';
 
 interface KitchenViewProps {
@@ -40,25 +40,28 @@ const KitchenView: React.FC<KitchenViewProps> = ({ store }) => {
           {kitchenCommands.length > 0 && (
             <div className="bg-red-600 text-white p-6 rounded-[2.5rem] shadow-2xl relative overflow-hidden animate-slideUp">
                 <div className="flex items-center gap-2 mb-4">
-                    <AlertTriangle size={20} />
+                    <AlertTriangle size={20} className="animate-pulse" />
                     <h2 className="text-xs font-black uppercase tracking-[0.3em]">Cảnh báo từ hệ thống</h2>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {kitchenCommands.map((cmd: AppNotification) => (
                         <div key={cmd.id} className="flex items-start justify-between gap-4 bg-white/20 p-4 rounded-2xl border border-white/30">
-                            <div><p className="font-black text-sm italic">{cmd.message}</p></div>
-                            <button onClick={() => store.deleteNotification(cmd.id)} className="bg-white text-red-600 text-[9px] font-black px-3 py-1.5 rounded-lg uppercase shadow-lg">Xác nhận</button>
+                            <div className="flex gap-3">
+                                <div className="mt-1"><BellRing size={16}/></div>
+                                <div><p className="font-black text-sm italic leading-tight">{cmd.message}</p></div>
+                            </div>
+                            <button onClick={() => store.deleteNotification(cmd.id)} className="bg-white text-red-600 text-[9px] font-black px-3 py-1.5 rounded-lg uppercase shadow-lg shrink-0">Đã xem</button>
                         </div>
                     ))}
                 </div>
             </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pb-10">
             <section className="space-y-4">
                 <div className="flex items-center justify-between px-2">
                     <h2 className="text-xl font-black flex items-center gap-3 text-slate-800 italic uppercase tracking-tighter"><ChefHat className="text-slate-400" size={24}/> 1. Món mới nhận</h2>
-                    <span className="bg-slate-100 text-slate-500 text-[10px] font-black px-3 py-1 rounded-full">{incoming.length}</span>
+                    <span className="bg-slate-900 text-white text-[10px] font-black px-3 py-1 rounded-full">{incoming.length}</span>
                 </div>
                 {incoming.length === 0 ? <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-3xl p-12 text-center text-slate-300 font-black uppercase text-xs italic">Chưa có món nào chờ làm...</div> : 
                     incoming.map((item: any) => (
@@ -102,7 +105,7 @@ const KitchenView: React.FC<KitchenViewProps> = ({ store }) => {
           </div>
         </div>
       ) : (
-        <div className="flex-1 bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm flex flex-col overflow-hidden">
+        <div className="flex-1 bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm flex flex-col overflow-hidden mb-10">
             <div className="flex items-center gap-4 mb-8 bg-slate-50 p-4 rounded-2xl shrink-0">
                <Pizza className="text-orange-500" />
                <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Tìm kiếm món để cập nhật tình trạng..." className="bg-transparent border-none outline-none font-bold text-sm uppercase w-full" />
