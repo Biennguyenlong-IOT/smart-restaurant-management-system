@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { OrderItem, OrderItemStatus, TableStatus, UserRole, Table, OrderType, MenuItem, AppNotification } from '../types.ts';
 import { ConfirmModal } from '../App.tsx';
 import { CATEGORIES } from '../constants';
-import { QrCode, PlusCircle, Loader2, Coffee, Clock, ShoppingBag, Utensils, Search, FileText, CreditCard, MessageCircle, X, ArrowRightLeft, Bell, AlertCircle, CheckCircle2, Trash2, Tag, ChevronRight } from 'lucide-react';
+import { QrCode, PlusCircle, Loader2, Coffee, Clock, ShoppingBag, Utensils, Search, FileText, CreditCard, MessageCircle, X, ArrowRightLeft, Bell, AlertCircle, CheckCircle2, Trash2, Tag, ChevronRight, ArrowLeft, User as UserIcon } from 'lucide-react';
 
 interface StaffViewProps { store: any; }
 
@@ -23,7 +23,6 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
   const [moveFromId, setMoveFromId] = useState<number | null>(null);
   const [moveToId, setMoveToId] = useState<number | null>(null);
 
-  const [orderType, setOrderType] = useState<OrderType>(OrderType.TAKEAWAY);
   const [selectedTable, setSelectedTable] = useState<number | null>(null);
   const [cart, setCart] = useState<Record<string, { qty: number, note: string }>>({});
   const [searchTerm, setSearchTerm] = useState('');
@@ -130,7 +129,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
   }, [store.menu, searchTerm, activeCategory]);
 
   return (
-    <div className="space-y-4 animate-fadeIn pb-24 h-full flex flex-col max-w-full">
+    <div className="space-y-4 animate-fadeIn pb-24 h-full flex flex-col max-w-full overflow-hidden">
       {/* Header Status Bar */}
       <div className="flex justify-between items-center bg-white px-5 py-3 rounded-2xl border border-slate-100 shadow-sm shrink-0">
          <div className="flex items-center gap-3">
@@ -149,7 +148,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
       {/* Main Tab Navigation */}
       <div className="flex bg-white p-1 rounded-2xl border border-slate-200 w-full shrink-0 shadow-sm">
         <button onClick={() => setActiveTab('TABLES')} className={`flex-1 px-3 py-3 rounded-xl text-[10px] font-black uppercase transition-all flex items-center justify-center gap-1.5 ${activeTab === 'TABLES' ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}><Utensils size={14}/> Sơ đồ</button>
-        <button onClick={() => setActiveTab('ORDER')} className={`flex-1 px-3 py-3 rounded-xl text-[10px] font-black uppercase transition-all flex items-center justify-center gap-1.5 ${activeTab === 'ORDER' ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}><PlusCircle size={14}/> Order</button>
+        <button onClick={() => { setActiveTab('ORDER'); if(selectedTable === null && cartTotal === 0) setSelectedTable(null); }} className={`flex-1 px-3 py-3 rounded-xl text-[10px] font-black uppercase transition-all flex items-center justify-center gap-1.5 ${activeTab === 'ORDER' ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}><PlusCircle size={14}/> Order</button>
         <button onClick={() => setActiveTab('PAYMENTS')} className={`flex-1 px-3 py-3 rounded-xl text-[10px] font-black uppercase transition-all flex items-center justify-center gap-1.5 ${activeTab === 'PAYMENTS' ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}><Clock size={14}/> Bill</button>
       </div>
 
@@ -226,99 +225,131 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
           </div>
         )}
 
-        {/* TAB 2: ORDER (REFINED) */}
+        {/* TAB 2: ORDER (REFINED FLOW) */}
         {activeTab === 'ORDER' && (
            <div className="flex flex-col h-full bg-slate-50 rounded-[2rem] overflow-hidden animate-slideUp">
-              {/* Filter Section */}
-              <div className="bg-white p-4 border-b border-slate-100 space-y-4 shrink-0 shadow-sm">
-                  {/* Search */}
-                  <div className="flex bg-slate-50 rounded-2xl flex items-center px-4 py-3 border border-slate-100">
-                     <Search size={16} className="text-slate-300 mr-3 shrink-0"/>
-                     <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Tìm món ăn nhanh..." className="bg-transparent w-full outline-none font-black text-[11px] uppercase placeholder:text-slate-300" />
-                  </div>
-                  
-                  {/* Table Selector */}
-                  <div className="space-y-2">
-                      <p className="text-[9px] font-black text-slate-400 uppercase italic ml-1">Đang Order cho:</p>
-                      <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
-                          <button onClick={() => setSelectedTable(0)} className={`px-5 py-2.5 rounded-xl text-[10px] font-black whitespace-nowrap border-2 transition-all shadow-sm ${selectedTable === 0 ? 'bg-orange-500 text-white border-orange-500' : 'bg-white border-slate-100 text-slate-400'}`}>Lẻ (Mang đi)</button>
-                          {store.tables.filter((t:any) => t.id !== 0 && t.status === TableStatus.OCCUPIED && t.claimedBy === currentUser.id).map((t:Table) => (
-                            <button key={t.id} onClick={() => setSelectedTable(t.id)} className={`px-5 py-2.5 rounded-xl text-[10px] font-black whitespace-nowrap border-2 transition-all shadow-sm ${selectedTable === t.id ? 'bg-slate-900 text-white border-slate-900' : 'bg-white border-slate-100 text-slate-400'}`}>Bàn {t.id}</button>
-                          ))}
-                          {store.tables.filter((t:any) => t.id !== 0 && t.status === TableStatus.OCCUPIED && t.claimedBy === currentUser.id).length === 0 && (
-                            <span className="text-[9px] font-bold text-slate-300 uppercase italic py-2">Chưa có bàn nào đang mở</span>
-                          )}
-                      </div>
-                  </div>
+              {selectedTable === null ? (
+                /* STEP 1: SELECT TABLE OR GUEST */
+                <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-8 animate-fadeIn">
+                   <div className="w-20 h-20 bg-orange-100 text-orange-600 rounded-[2.5rem] flex items-center justify-center shadow-inner"><PlusCircle size={40}/></div>
+                   <div>
+                      <h2 className="text-xl font-black text-slate-800 uppercase italic mb-2">Bắt đầu gọi món</h2>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Chọn khách lẻ hoặc bàn đang phục vụ</p>
+                   </div>
+                   
+                   <div className="w-full space-y-4 max-w-xs">
+                      <button onClick={() => setSelectedTable(0)} className="w-full p-6 bg-white border-2 border-orange-500 rounded-[2rem] flex items-center justify-between group active:scale-95 transition-all shadow-xl shadow-orange-50">
+                         <div className="text-left">
+                            <span className="text-[9px] font-black text-orange-500 uppercase tracking-widest block mb-1">Dành cho</span>
+                            <span className="text-lg font-black text-slate-800 uppercase italic">Khách lẻ mang đi</span>
+                         </div>
+                         <div className="w-10 h-10 bg-orange-500 text-white rounded-xl flex items-center justify-center group-hover:rotate-12 transition-transform"><ShoppingBag size={20}/></div>
+                      </button>
 
-                  {/* Category Filter */}
-                  <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pt-1">
-                      {CATEGORIES.map(cat => (
-                          <button key={cat} onClick={() => setActiveCategory(cat)} className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase whitespace-nowrap transition-all border-2 ${activeCategory === cat ? 'bg-slate-800 text-white border-slate-800 shadow-md' : 'bg-slate-50 border-transparent text-slate-400'}`}>
-                              {cat}
-                          </button>
-                      ))}
-                  </div>
-              </div>
-
-              {/* Menu List */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-3 no-scrollbar pb-32">
-                  {filteredMenu.length === 0 ? (
-                    <div className="py-20 text-center space-y-4">
-                        <Tag className="mx-auto text-slate-200" size={48}/>
-                        <p className="text-[10px] font-black text-slate-300 uppercase italic">Không tìm thấy món ăn phù hợp</p>
-                    </div>
-                  ) : filteredMenu.map((m:MenuItem) => {
-                    const cartItem = cart[m.id];
-                    const isOut = !m.isAvailable;
-                    return (
-                        <div key={m.id} className={`p-3 bg-white rounded-2xl border border-slate-100 flex items-center justify-between gap-4 shadow-sm transition-all relative ${isOut ? 'opacity-50 grayscale' : ''}`}>
-                            <div className="flex items-center gap-4 min-w-0">
-                                <img src={m.image} className="w-14 h-14 rounded-xl object-cover shrink-0 shadow-sm" />
-                                <div className="truncate">
-                                    <h4 className="text-[11px] font-black text-slate-800 uppercase italic truncate leading-tight mb-1">{m.name}</h4>
-                                    <p className="text-[10px] font-bold text-orange-600 italic leading-none">{m.price.toLocaleString()}đ</p>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-2 shrink-0 bg-slate-50 p-1.5 rounded-2xl border border-slate-100 shadow-inner">
-                                {cartItem && cartItem.qty > 0 && (
-                                    <button onClick={() => updateCartItem(m.id, cartItem.qty - 1)} className="w-8 h-8 bg-white text-slate-400 rounded-xl shadow-sm flex items-center justify-center font-black active:scale-90 transition-all">-</button>
-                                )}
-                                {cartItem && cartItem.qty > 0 && (
-                                    <span className="text-[12px] font-black text-slate-800 w-5 text-center">{cartItem.qty}</span>
-                                )}
-                                <button disabled={isOut} onClick={() => updateCartItem(m.id, (cartItem?.qty || 0) + 1)} className={`w-8 h-8 rounded-xl shadow-lg flex items-center justify-center font-black active:scale-90 transition-all ${isOut ? 'bg-slate-200 text-slate-400' : 'bg-orange-500 text-white'}`}>+</button>
-                            </div>
-                        </div>
-                    );
-                  })}
-              </div>
-
-              {/* Floating Summary Cart Bar */}
-              {Object.keys(cart).length > 0 && (
-                <div className="fixed bottom-24 left-4 right-4 bg-slate-900/90 backdrop-blur-md text-white rounded-[2rem] p-5 shadow-2xl animate-slideUp border border-white/10 z-[100]">
-                   <div className="flex justify-between items-end mb-4">
-                      <div>
-                        <p className="text-[9px] font-black uppercase text-orange-500 tracking-widest mb-1 italic">
-                            {selectedTable === null ? '⚠️ Chưa chọn bàn' : selectedTable === 0 ? '🔵 Đơn khách lẻ' : `🔴 Đang Order: Bàn ${selectedTable}`}
-                        </p>
-                        <h3 className="text-xl font-black italic leading-none">{cartTotal.toLocaleString()}đ</h3>
-                      </div>
-                      <div className="text-right">
-                        {/* Fix: Added explicit type cast for cart values to resolve 'unknown' property access error */}
-                        <span className="text-[10px] font-black text-slate-400 block mb-1 uppercase italic">Tổng {(Object.values(cart) as { qty: number }[]).reduce((a, b) => a + b.qty, 0)} món</span>
-                        <div className="flex -space-x-2">
-                             {Object.keys(cart).slice(0, 3).map(id => (
-                                 <img key={id} src={store.menu.find((m:any)=>m.id === id)?.image} className="w-6 h-6 rounded-full border-2 border-slate-900 object-cover" />
-                             ))}
-                             {Object.keys(cart).length > 3 && <div className="w-6 h-6 rounded-full bg-slate-800 flex items-center justify-center text-[8px] font-bold">+{Object.keys(cart).length - 3}</div>}
-                        </div>
+                      <div className="pt-4 space-y-3">
+                         <p className="text-[9px] font-black text-slate-300 uppercase italic text-left ml-4">Hoặc chọn bàn đang trực:</p>
+                         <div className="grid grid-cols-2 gap-3">
+                            {store.tables.filter((t:any) => t.id !== 0 && t.status === TableStatus.OCCUPIED && t.claimedBy === currentUser.id).map((t:Table) => (
+                               <button key={t.id} onClick={() => setSelectedTable(t.id)} className="p-4 bg-white border border-slate-100 rounded-2xl flex items-center justify-center gap-2 font-black text-xs uppercase italic text-slate-600 hover:border-slate-900 transition-all active:scale-90">
+                                  Bàn {t.id}
+                               </button>
+                            ))}
+                         </div>
+                         {store.tables.filter((t:any) => t.id !== 0 && t.status === TableStatus.OCCUPIED && t.claimedBy === currentUser.id).length === 0 && (
+                            <p className="text-[9px] font-bold text-slate-400 uppercase italic py-4">Bạn chưa nhận bàn trực tiếp nào</p>
+                         )}
                       </div>
                    </div>
-                   <button onClick={handlePlaceStaffOrder} className="w-full py-4 bg-orange-500 hover:bg-orange-400 text-white rounded-2xl font-black uppercase text-[11px] shadow-xl italic flex items-center justify-center gap-2 transition-all active:scale-95">
-                      Gửi đơn xuống bếp <ChevronRight size={16}/>
-                   </button>
                 </div>
+              ) : (
+                /* STEP 2: SHOW MENU FOR SELECTED TABLE */
+                <>
+                  {/* Top Control Bar */}
+                  <div className="bg-white p-4 border-b border-slate-100 space-y-4 shrink-0 shadow-sm">
+                      <div className="flex items-center justify-between">
+                         <button onClick={() => setSelectedTable(null)} className="flex items-center gap-2 text-slate-400 hover:text-slate-900 transition-all">
+                            <ArrowLeft size={16}/> <span className="text-[10px] font-black uppercase italic">Đổi bàn</span>
+                         </button>
+                         <div className="bg-slate-900 text-white px-4 py-1.5 rounded-full text-[9px] font-black uppercase italic shadow-lg">
+                            {selectedTable === 0 ? '🔵 Đơn khách lẻ' : `🔴 Bàn số ${selectedTable}`}
+                         </div>
+                      </div>
+
+                      {/* Search */}
+                      <div className="flex bg-slate-50 rounded-2xl flex items-center px-4 py-3 border border-slate-100">
+                         <Search size={16} className="text-slate-300 mr-3 shrink-0"/>
+                         <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Tìm món ăn nhanh..." className="bg-transparent w-full outline-none font-black text-[11px] uppercase placeholder:text-slate-300" />
+                      </div>
+
+                      {/* Category Filter */}
+                      <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pt-1">
+                          {CATEGORIES.map(cat => (
+                              <button key={cat} onClick={() => setActiveCategory(cat)} className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase whitespace-nowrap transition-all border-2 ${activeCategory === cat ? 'bg-slate-800 text-white border-slate-800 shadow-md' : 'bg-slate-50 border-transparent text-slate-400'}`}>
+                                  {cat}
+                              </button>
+                          ))}
+                      </div>
+                  </div>
+
+                  {/* Menu List */}
+                  <div className="flex-1 overflow-y-auto p-4 space-y-3 no-scrollbar pb-32">
+                      {filteredMenu.length === 0 ? (
+                        <div className="py-20 text-center space-y-4">
+                            <Tag className="mx-auto text-slate-200" size={48}/>
+                            <p className="text-[10px] font-black text-slate-300 uppercase italic">Không tìm thấy món ăn phù hợp</p>
+                        </div>
+                      ) : filteredMenu.map((m:MenuItem) => {
+                        const cartItem = cart[m.id];
+                        const isOut = !m.isAvailable;
+                        return (
+                            <div key={m.id} className={`p-3 bg-white rounded-2xl border border-slate-100 flex items-center justify-between gap-4 shadow-sm transition-all relative ${isOut ? 'opacity-50 grayscale' : ''}`}>
+                                <div className="flex items-center gap-4 min-w-0">
+                                    <img src={m.image} className="w-14 h-14 rounded-xl object-cover shrink-0 shadow-sm" />
+                                    <div className="truncate">
+                                        <h4 className="text-[11px] font-black text-slate-800 uppercase italic truncate leading-tight mb-1">{m.name}</h4>
+                                        <p className="text-[10px] font-bold text-orange-600 italic leading-none">{m.price.toLocaleString()}đ</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0 bg-slate-50 p-1.5 rounded-2xl border border-slate-100 shadow-inner">
+                                    {cartItem && cartItem.qty > 0 && (
+                                        <button onClick={() => updateCartItem(m.id, cartItem.qty - 1)} className="w-8 h-8 bg-white text-slate-400 rounded-xl shadow-sm flex items-center justify-center font-black active:scale-90 transition-all">-</button>
+                                    )}
+                                    {cartItem && cartItem.qty > 0 && (
+                                        <span className="text-[12px] font-black text-slate-800 w-5 text-center">{cartItem.qty}</span>
+                                    )}
+                                    <button disabled={isOut} onClick={() => updateCartItem(m.id, (cartItem?.qty || 0) + 1)} className={`w-8 h-8 rounded-xl shadow-lg flex items-center justify-center font-black active:scale-90 transition-all ${isOut ? 'bg-slate-200 text-slate-400' : 'bg-orange-500 text-white'}`}>+</button>
+                                </div>
+                            </div>
+                        );
+                      })}
+                  </div>
+
+                  {/* Floating Summary Cart Bar */}
+                  {Object.keys(cart).length > 0 && (
+                    <div className="fixed bottom-24 left-4 right-4 bg-slate-900/90 backdrop-blur-md text-white rounded-[2rem] p-5 shadow-2xl animate-slideUp border border-white/10 z-[100]">
+                       <div className="flex justify-between items-end mb-4">
+                          <div>
+                            <p className="text-[9px] font-black uppercase text-orange-500 tracking-widest mb-1 italic">
+                                {selectedTable === 0 ? '🔵 Đơn khách lẻ' : `🔴 Bàn số ${selectedTable}`}
+                            </p>
+                            <h3 className="text-xl font-black italic leading-none">{cartTotal.toLocaleString()}đ</h3>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-[10px] font-black text-slate-400 block mb-1 uppercase italic">Tổng {(Object.values(cart) as { qty: number }[]).reduce((a, b) => a + b.qty, 0)} món</span>
+                            <div className="flex -space-x-2">
+                                 {Object.keys(cart).slice(0, 3).map(id => (
+                                     <img key={id} src={store.menu.find((m:any)=>m.id === id)?.image} className="w-6 h-6 rounded-full border-2 border-slate-900 object-cover" />
+                                 ))}
+                                 {Object.keys(cart).length > 3 && <div className="w-6 h-6 rounded-full bg-slate-800 flex items-center justify-center text-[8px] font-bold">+{Object.keys(cart).length - 3}</div>}
+                            </div>
+                          </div>
+                       </div>
+                       <button onClick={handlePlaceStaffOrder} className="w-full py-4 bg-orange-500 hover:bg-orange-400 text-white rounded-2xl font-black uppercase text-[11px] shadow-xl italic flex items-center justify-center gap-2 transition-all active:scale-95">
+                          Gửi đơn xuống bếp <ChevronRight size={16}/>
+                       </button>
+                    </div>
+                  )}
+                </>
               )}
            </div>
         )}
@@ -348,7 +379,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
         )}
       </div>
 
-      {/* Bill Modal (Updated logic for Table 0) */}
+      {/* Bill Modal */}
       {showBillTableId !== null && currentBillTable && (
         <div className="fixed inset-0 z-[200] bg-slate-900/90 backdrop-blur-md flex items-center justify-center p-4">
             <div className="bg-white rounded-[2.5rem] p-7 max-w-sm w-full shadow-2xl animate-scaleIn border border-slate-100 max-h-[90dvh] flex flex-col relative overflow-hidden">
