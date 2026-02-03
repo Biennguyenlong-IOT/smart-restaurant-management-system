@@ -162,13 +162,11 @@ export const useRestaurantStore = () => {
 
         const nt = tables.map(t => {
             if (t.id === toId) {
-                // Merge logic: Cộng dồn món ăn nếu bàn đích đang có khách
                 const mergedOrders = [...(toTable.currentOrders || []), ...(fromTable.currentOrders || [])];
                 return { 
                     ...t, 
                     status: TableStatus.OCCUPIED, 
                     currentOrders: mergedOrders, 
-                    // Ưu tiên sessionToken của bàn đích nếu nó đã OCCUPIED, ngược lại lấy của bàn nguồn
                     sessionToken: toTable.status === TableStatus.AVAILABLE ? fromTable.sessionToken : toTable.sessionToken,
                     claimedBy: toTable.claimedBy || fromTable.claimedBy, 
                     orderType: toTable.orderType 
@@ -239,7 +237,6 @@ export const useRestaurantStore = () => {
       const table = tables.find(t => t.id === tid);
       const item = table?.currentOrders.find(o => o.id === oid);
       if (!item) return;
-      // Chỉ cho huỷ nếu chưa nấu hoặc đang chờ duyệt
       const nt = tables.map(t => t.id === tid ? { ...t, currentOrders: t.currentOrders.map(o => (o.id === oid && (o.status === OrderItemStatus.PENDING || o.status === OrderItemStatus.CONFIRMED)) ? { ...o, status: OrderItemStatus.CANCELLED } : o) } : t);
       const nnotif: AppNotification = { id: `C-${Date.now()}`, targetRole: UserRole.ADMIN, title: 'Huỷ món (Đối soát)', message: `Bàn ${tid === 0 ? 'Khách lẻ' : tid} huỷ món: ${item.name}.`, timestamp: Date.now(), read: false, type: 'system', payload: { tableId: tid, claimedBy: table?.claimedBy } };
       await pushToCloud({ tables: nt, notifications: [nnotif, ...notifications] });
@@ -259,10 +256,32 @@ export const useRestaurantStore = () => {
       if (!notif?.payload) return;
       const { tableId, staffId } = notif.payload;
       const token = Math.random().toString(36).substring(2, 9).toUpperCase();
-      const nt = tables.map(t => t.id === tableId ? { ...t, qrRequested: false, status: TableStatus.OCCUPIED, sessionToken: token, claimedBy: staffId } : t);
-      const staffNotif: AppNotification = { id: `QR-OK-${Date.now()}`, targetRole: UserRole.STAFF, title: 'Đã mở bàn', message: `Mã QR Bàn ${tableId} đã sẵn sàng.`, timestamp: Date.now(), read: false, type: 'system', payload: { tableId, claimedBy: staffId } };
-      await pushToCloud({ tables: nt, notifications: notifications.filter(n => n.id !== nid) });
-      await pushToCloud({ notifications: [staffNotif, ...notifications.filter(n => n.id !== nid)] });
+      
+      const nt = tables.map(t => t.id === tableId ? { 
+        ...t, 
+        qrRequested: false, 
+        status: TableStatus.OCCUPIED, 
+        sessionToken: token, 
+        claimedBy: staffId,
+        currentOrders: [] // Đảm bảo reset đơn cũ nếu có
+      } : t);
+      
+      const staffNotif: AppNotification = { 
+        id: `QR-OK-${Date.now()}`, 
+        targetRole: UserRole.STAFF, 
+        title: 'Đã mở bàn', 
+        message: `Mã QR Bàn ${tableId} đã sẵn sàng.`, 
+        timestamp: Date.now(), 
+        read: false, 
+        type: 'system', 
+        payload: { tableId, claimedBy: staffId } 
+      };
+
+      // Gộp các cập nhật vào một lần push duy nhất để tránh xung đột dữ liệu Cloud
+      await pushToCloud({ 
+        tables: nt, 
+        notifications: [staffNotif, ...notifications.filter(n => n.id !== nid)] 
+      });
     },
 
     requestPayment: async (tid: number) => {
@@ -274,12 +293,10 @@ export const useRestaurantStore = () => {
 
     confirmPayment: async (tid: number) => {
       const table = tables.find(t => t.id === tid);
-      if (!table || table.status === TableStatus.AVAILABLE) return; // Chống trùng lặp nếu đã xử lý rồi
+      if (!table || table.status === TableStatus.AVAILABLE) return;
       
       const paidItems = (table.currentOrders || []).filter(o => o.status !== OrderItemStatus.CANCELLED);
       const total = paidItems.reduce((s, o) => s + (o.price * o.quantity), 0);
-      
-      // Tạo bản ghi lịch sử với ID duy nhất dựa trên sessionToken để chống trùng lặp bill
       const transactionId = `BILL-${table.sessionToken || 'CASH'}-${Date.now()}`;
       
       const h: HistoryEntry = { 
@@ -287,7 +304,7 @@ export const useRestaurantStore = () => {
         tableId: tid, 
         staffId: table.claimedBy || 'direct',
         total, 
-        items: table.currentOrders || [], // Lưu CẢ món đã huỷ để đối soát thất thoát
+        items: table.currentOrders || [], 
         date: new Date().toISOString(), 
         orderType: table.orderType
       };
@@ -296,7 +313,6 @@ export const useRestaurantStore = () => {
         const nt = tables.map(t => t.id === 0 ? { ...t, status: TableStatus.AVAILABLE, currentOrders: [], claimedBy: null, sessionToken: null, qrRequested: false } : t);
         await pushToCloud({ tables: nt, history: [h, ...history] });
       } else {
-        // Chuyển sang REVIEWING để khách đánh giá, token sẽ bị vô hiệu hóa sau bước này
         const nt = tables.map(t => t.id === tid ? { ...t, status: TableStatus.REVIEWING } : t);
         await pushToCloud({ tables: nt, history: [h, ...history] });
       }
