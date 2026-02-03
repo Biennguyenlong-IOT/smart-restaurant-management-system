@@ -30,11 +30,9 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
     const todayRevenue = todayOrders.reduce((sum, h) => sum + h.total, 0);
     const totalRevenue = history.reduce((sum, h) => sum + h.total, 0);
     
-    // Thống kê theo loại hình
     const dineInCount = history.filter(h => h.orderType === OrderType.DINE_IN).length;
     const takeawayCount = history.filter(h => h.orderType === OrderType.TAKEAWAY).length;
 
-    // Top món ăn
     const itemCounts: Record<string, number> = {};
     history.forEach(h => {
       h.items.forEach(item => {
@@ -74,9 +72,9 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
         ...s,
         orderCount: staffOrders.length,
         totalSales,
-        avgRating: avgRating.toFixed(1)
+        avgRating: Number(avgRating).toFixed(1)
       };
-    });
+    }).sort((a, b) => b.totalSales - a.totalSales);
   }, [store.users, store.history, store.reviews]);
 
   const saveMenuItem = () => {
@@ -182,7 +180,7 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
            <div className="bg-white p-10 rounded-[3rem] border border-slate-100 shadow-sm space-y-8">
               <div className="flex justify-between items-center border-b border-slate-50 pb-6">
                 <h2 className="text-xl font-black italic uppercase text-slate-800">Bảng theo dõi KPI Nhân viên</h2>
-                <div className="bg-slate-900 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase">Tháng này</div>
+                <div className="bg-slate-900 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase">Toàn thời gian</div>
               </div>
               <div className="overflow-x-auto">
                  <table className="w-full text-left">
@@ -190,7 +188,7 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
                        <tr className="text-[10px] font-black uppercase text-slate-400 border-b border-slate-50">
                           <th className="py-4 pl-4">Nhân viên</th>
                           <th className="py-4">Số đơn</th>
-                          <th className="py-4 text-right">Doanh thu mang lại</th>
+                          <th className="py-4 text-right">Doanh thu</th>
                           <th className="py-4 text-center">Đánh giá</th>
                           <th className="py-4 text-right pr-4">Xếp hạng</th>
                        </tr>
