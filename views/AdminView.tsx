@@ -365,16 +365,14 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
                                     </div>
                                 )}
 
-                                {/* Admin Force Reset Button: LUÔN HIỂN THỊ nếu bàn không trống */}
-                                {!isAvailable && (
-                                    <button 
-                                        onClick={() => setResetTableId(t.id)} 
-                                        title="Reset bàn này"
-                                        className="mt-1 text-white bg-slate-900 p-2 rounded-xl shadow-lg active:scale-90 transition-all z-20"
-                                    >
-                                        <RotateCcw size={12}/>
-                                    </button>
-                                )}
+                                {/* Admin Force Reset Button: ALWAYS VISIBLE for quick manual reset */}
+                                <button 
+                                    onClick={() => setResetTableId(t.id)} 
+                                    title="Reset bàn này"
+                                    className={`mt-1 text-white bg-slate-900 p-2 rounded-xl shadow-lg active:scale-90 transition-all z-20 ${isAvailable ? 'opacity-20 hover:opacity-100' : 'opacity-100'}`}
+                                >
+                                    <RotateCcw size={12}/>
+                                </button>
                             </div>
                         )
                      })}
