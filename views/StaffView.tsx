@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { OrderItem, OrderItemStatus, TableStatus, UserRole, Table, OrderType, MenuItem, AppNotification, User } from '../types.ts';
 import { ConfirmModal } from '../App.tsx';
 import { CATEGORIES } from '../constants';
-import { PlusCircle, Utensils, Search, X, Bell, Trash2, ChevronRight, QrCode, LogOut, CheckCheck, MoveHorizontal, Merge, Sparkles, Eraser, Loader2, AlertCircle } from 'lucide-react';
+import { PlusCircle, Utensils, Search, X, Bell, Trash2, ChevronRight, QrCode, LogOut, CheckCheck, MoveHorizontal, Merge, Sparkles, Eraser, Loader2, AlertCircle, ShoppingBag, User as UserIcon, Check } from 'lucide-react';
 import { ensureArray } from '../store.ts';
 
 interface StaffViewProps { store: any; currentUser: User; }
@@ -51,8 +51,9 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
     await store.serveOrderItem(tid, oid, nid);
   };
 
-  const handlePlaceStaffOrder = async () => {
-    if (selectedTableId === null) return alert("Vui lòng chọn bàn!");
+  const handlePlaceStaffOrder = async (targetId?: number) => {
+    const tid = targetId !== undefined ? targetId : selectedTableId;
+    if (tid === null) return alert("Vui lòng chọn bàn!");
     if (Object.keys(cart).length === 0) return alert("Vui lòng chọn món!");
     
     const newItems: OrderItem[] = (Object.entries(cart) as [string, { qty: number, note: string }][])
@@ -66,7 +67,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
       });
 
     try {
-      await store.placeOrder(selectedTableId, newItems, selectedTableId === 0 ? OrderType.TAKEAWAY : OrderType.DINE_IN);
+      await store.placeOrder(tid, newItems, tid === 0 ? OrderType.TAKEAWAY : OrderType.DINE_IN);
       setCart({}); setSelectedTableId(null); setActiveTab('TABLES');
     } catch (e: any) { alert(e.message || "Lỗi đặt đơn!"); }
   };
@@ -92,6 +93,11 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
     const link = getTableLink(t);
     return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(link)}`;
   };
+
+  const cartTotalAmount = useMemo(() => (Object.entries(cart) as [string, { qty: number, note: string }][]).reduce((sum, [id, data]) => {
+    const item = store.menu.find((m: MenuItem) => m.id === id);
+    return sum + (item?.price || 0) * data.qty;
+  }, 0), [cart, store.menu]);
 
   return (
     <div className="flex flex-col h-full max-w-full overflow-hidden animate-fadeIn pb-12">
@@ -246,36 +252,75 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
         )}
 
         {activeTab === 'ORDER' && (
-            <div className="flex flex-col h-full p-4">
-                <div className="bg-white p-3 rounded-2xl mb-4 border border-slate-200 flex items-center gap-3">
-                    <Search size={16} className="text-slate-400"/>
-                    <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Tìm món ăn..." className="bg-transparent border-none outline-none font-bold text-xs uppercase w-full"/>
+            <div className="flex flex-col h-full overflow-hidden">
+                <div className="px-4 pt-4 shrink-0">
+                    <div className="bg-white p-2.5 rounded-2xl border border-slate-200 flex items-center gap-3 mb-3 shadow-sm">
+                        <Search size={14} className="text-slate-400 ml-2"/>
+                        <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="TÌM MÓN NHANH..." className="bg-transparent border-none outline-none font-black text-[10px] uppercase w-full py-1"/>
+                        {searchTerm && <button onClick={() => setSearchTerm('')} className="p-1"><X size={14} className="text-slate-300"/></button>}
+                    </div>
                 </div>
-                <div className="flex-1 overflow-y-auto no-scrollbar grid grid-cols-2 gap-3 mb-24">
-                    {ensureArray<MenuItem>(store.menu).filter(m => m.name.toLowerCase().includes(searchTerm.toLowerCase())).map((item: MenuItem) => (
-                        <div key={item.id} className="bg-white p-3 rounded-2xl border border-slate-200 flex flex-col gap-2">
-                            <img src={item.image} className="w-full h-24 rounded-xl object-cover"/>
-                            <h4 className="text-[10px] font-black uppercase truncate">{item.name}</h4>
-                            <div className="flex justify-between items-center">
-                                <span className="text-[10px] font-black text-orange-600">{item.price.toLocaleString()}đ</span>
-                                <div className="flex items-center gap-2">
-                                    {cart[item.id] && <button onClick={() => updateCartItem(item.id, (cart[item.id].qty - 1))} className="w-6 h-6 bg-slate-100 rounded-md font-black">-</button>}
-                                    {cart[item.id] && <span className="text-[10px] font-black">{cart[item.id].qty}</span>}
-                                    <button onClick={() => updateCartItem(item.id, (cart[item.id]?.qty || 0) + 1)} className="w-6 h-6 bg-slate-900 text-white rounded-md font-black">+</button>
+
+                <div className="flex-1 overflow-y-auto px-4 pb-48 no-scrollbar">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                        {ensureArray<MenuItem>(store.menu).filter(m => m.name.toLowerCase().includes(searchTerm.toLowerCase())).map((item: MenuItem) => (
+                            <div key={item.id} className={`bg-white p-2 rounded-2xl border transition-all flex flex-col gap-1.5 active:scale-[0.97] ${cart[item.id] ? 'border-orange-500 shadow-md shadow-orange-50' : 'border-slate-100 shadow-sm'}`}>
+                                <div className="relative">
+                                    <img src={item.image} className="w-full h-20 rounded-xl object-cover" />
+                                    {cart[item.id] && (
+                                        <div className="absolute top-1.5 right-1.5 bg-orange-500 text-white w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black border-2 border-white shadow-lg">{cart[item.id].qty}</div>
+                                    )}
+                                </div>
+                                <div className="px-1">
+                                    <h4 className="text-[9px] font-black uppercase truncate leading-tight text-slate-800">{item.name}</h4>
+                                    <p className="text-[9px] font-bold text-orange-600 italic">{item.price.toLocaleString()}đ</p>
+                                </div>
+                                <div className="flex items-center justify-between gap-1.5 mt-0.5">
+                                    <button onClick={() => updateCartItem(item.id, (cart[item.id]?.qty || 0) - 1)} className="flex-1 h-7 bg-slate-50 rounded-lg font-black text-slate-400 hover:bg-slate-100 transition-colors">-</button>
+                                    <button onClick={() => updateCartItem(item.id, (cart[item.id]?.qty || 0) + 1)} className="flex-1 h-7 bg-slate-900 text-white rounded-lg font-black hover:bg-orange-600 transition-colors">+</button>
                                 </div>
                             </div>
-                        </div>
-                    ))}
-                </div>
-                <div className="fixed bottom-16 left-4 right-4 bg-slate-900 text-white p-5 rounded-2xl shadow-2xl z-50">
-                    <div className="flex justify-between items-center mb-4">
-                        <select value={selectedTableId ?? ''} onChange={e => setSelectedTableId(parseInt(e.target.value))} className="bg-white/10 border-none outline-none font-black text-[10px] uppercase p-2 rounded-xl">
-                            <option value="">Chọn bàn</option>
-                            {store.tables.filter((t: any) => t.status !== TableStatus.AVAILABLE).map((t: any) => <option key={t.id} value={t.id}>{t.id === 0 ? 'Khách lẻ' : 'Bàn ' + t.id}</option>)}
-                        </select>
-                        <span className="text-xs font-black italic">{(Object.values(cart) as {qty:number}[]).reduce((s,d)=>s+d.qty,0)} món</span>
+                        ))}
                     </div>
-                    <button onClick={handlePlaceStaffOrder} className="w-full py-4 bg-orange-500 rounded-xl font-black uppercase text-[10px] italic shadow-lg active:scale-95 transition-all">Đặt món ngay</button>
+                </div>
+
+                {/* Floating Cart & Action Area */}
+                <div className="fixed bottom-16 left-4 right-4 bg-white/80 backdrop-blur-xl border-2 border-slate-100 p-4 rounded-[2.5rem] shadow-2xl z-50 flex flex-col gap-3 animate-slideUp">
+                    {Object.keys(cart).length > 0 && (
+                        <div className="flex gap-2 overflow-x-auto no-scrollbar py-1">
+                            {/* Fix: Added explicit type casting to Object.entries(cart) to prevent 'unknown' type errors for 'data' */}
+                            {(Object.entries(cart) as [string, { qty: number, note: string }][]).map(([id, data]) => {
+                                const m = store.menu.find((x: MenuItem) => x.id === id);
+                                return (
+                                    <div key={id} className="bg-slate-900 text-white px-3 py-2 rounded-xl flex items-center gap-2 shrink-0 animate-scaleIn">
+                                        <span className="text-[9px] font-black uppercase italic whitespace-nowrap">{m?.name} x{data.qty}</span>
+                                        <button onClick={() => updateCartItem(id, 0)} className="hover:text-red-400"><X size={12}/></button>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+
+                    <div className="flex gap-2">
+                        <div className="flex-1">
+                            <select value={selectedTableId ?? ''} onChange={e => setSelectedTableId(e.target.value === '' ? null : parseInt(e.target.value))} className="w-full bg-slate-50 border-2 border-slate-100 outline-none font-black text-[10px] uppercase p-3.5 rounded-2xl appearance-none text-slate-800">
+                                <option value="">Chọn Bàn...</option>
+                                {store.tables.filter((t: any) => t.status !== TableStatus.AVAILABLE).map((t: any) => (
+                                    <option key={t.id} value={t.id}>{t.id === 0 ? 'KHÁCH LẺ' : 'BÀN ' + t.id}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <button onClick={() => setCart({})} className="p-3.5 bg-red-50 text-red-500 rounded-2xl hover:bg-red-500 hover:text-white transition-colors"><Eraser size={18}/></button>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                        <button onClick={() => handlePlaceStaffOrder(0)} disabled={Object.keys(cart).length === 0} className={`py-4 rounded-2xl font-black uppercase text-[10px] italic shadow-lg flex items-center justify-center gap-2 transition-all ${Object.keys(cart).length > 0 ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-300'}`}>
+                            <ShoppingBag size={14}/> Khách Lẻ (Bill)
+                        </button>
+                        <button onClick={() => handlePlaceStaffOrder()} disabled={Object.keys(cart).length === 0 || selectedTableId === null} className={`py-4 rounded-2xl font-black uppercase text-[10px] italic shadow-lg flex items-center justify-center gap-2 transition-all ${Object.keys(cart).length > 0 && selectedTableId !== null ? 'bg-orange-500 text-white' : 'bg-slate-100 text-slate-300'}`}>
+                            <Check size={14}/> Đặt theo Bàn
+                        </button>
+                    </div>
                 </div>
             </div>
         )}
