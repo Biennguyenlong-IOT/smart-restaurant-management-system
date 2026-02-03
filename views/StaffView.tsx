@@ -3,7 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { OrderItem, OrderItemStatus, TableStatus, UserRole, Table, OrderType, MenuItem, AppNotification, User } from '../types.ts';
 import { ConfirmModal } from '../App.tsx';
 import { CATEGORIES } from '../constants';
-import { PlusCircle, Utensils, Search, X, Bell, Trash2, ChevronRight, QrCode, LogOut, CheckCheck, MoveHorizontal, Merge, Sparkles, Eraser, Loader2 } from 'lucide-react';
+import { PlusCircle, Utensils, Search, X, Bell, Trash2, ChevronRight, QrCode, LogOut, CheckCheck, MoveHorizontal, Merge, Sparkles, Eraser, Loader2, AlertCircle } from 'lucide-react';
 import { ensureArray } from '../store.ts';
 
 interface StaffViewProps { store: any; currentUser: User; }
@@ -27,8 +27,15 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
   }, [store.tables, currentUser.id]);
 
   const activeTableCount = useMemo(() => 
-    ensureArray<Table>(store.tables).filter((t: Table) => t.claimedBy === currentUser.id && t.id !== 0 && t.status !== TableStatus.AVAILABLE && t.status !== TableStatus.CLEANING).length
+    ensureArray<Table>(store.tables).filter((t: Table) => 
+      t.claimedBy === currentUser.id && 
+      t.id !== 0 && 
+      t.status !== TableStatus.AVAILABLE && 
+      t.status !== TableStatus.CLEANING
+    ).length
   , [store.tables, currentUser.id]);
+
+  const limitReached = activeTableCount >= 3;
 
   const myNotifications = useMemo(() => {
     return ensureArray<AppNotification>(store.notifications).filter((n: AppNotification) => 
@@ -100,9 +107,9 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
              <p className="text-xs font-black text-slate-800 uppercase italic leading-none">{currentUser.fullName}</p>
            </div>
          </div>
-         <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100">
-            <div className={`w-2 h-2 rounded-full ${activeTableCount >= 3 ? 'bg-red-500 animate-pulse' : 'bg-green-500'}`}></div>
-            <span className="text-[9px] font-black uppercase text-slate-600">{activeTableCount}/3 bàn</span>
+         <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all ${limitReached ? 'bg-red-50 border-red-200 text-red-600 animate-pulse' : 'bg-slate-50 border-slate-100 text-slate-600'}`}>
+            {limitReached ? <AlertCircle size={12}/> : <div className={`w-2 h-2 rounded-full ${activeTableCount >= 3 ? 'bg-red-500' : 'bg-green-500'}`}></div>}
+            <span className="text-[9px] font-black uppercase">{activeTableCount}/3 bàn</span>
          </div>
       </div>
 
@@ -117,6 +124,13 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
       <div className="flex-1 overflow-hidden flex flex-col relative bg-slate-50">
         {activeTab === 'TABLES' && (
           <div className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar">
+            {limitReached && (
+              <div className="bg-red-500 text-white p-4 rounded-2xl flex items-center gap-3 shadow-lg animate-slideUp">
+                <AlertCircle size={20}/>
+                <p className="text-[10px] font-black uppercase italic">Đã đạt giới hạn 3 bàn. Vui lòng thanh toán bớt bàn để mở bàn mới.</p>
+              </div>
+            )}
+
             {myNotifications.length > 0 && (
                 <section className="bg-slate-900 text-white rounded-[2rem] p-5 shadow-xl border border-white/5 animate-slideUp">
                     <div className="flex items-center gap-2 mb-4">
@@ -149,26 +163,29 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
                 {visibleTables.map((t: Table) => (
                     <div key={t.id} onClick={() => { 
                         if (t.qrRequested) return;
-                        if (t.status === TableStatus.AVAILABLE) store.requestTableQr(t.id, currentUser.id).catch(() => alert("Bạn đã phục vụ tối đa 3 bàn!"));
+                        if (t.status === TableStatus.AVAILABLE) {
+                            if (limitReached) return;
+                            store.requestTableQr(t.id, currentUser.id).catch(() => alert("Bạn đã phục vụ tối đa 3 bàn!"));
+                        }
                         else if (t.status === TableStatus.CLEANING) store.setTableEmpty(t.id);
                         else setQuickActionTable(t);
                     }} className={`p-4 rounded-3xl border-2 flex flex-col items-center justify-center gap-2 transition-all relative h-28 ${
                       t.qrRequested 
                       ? 'border-orange-500 bg-orange-50 text-orange-600 animate-pulse'
                       : t.status === TableStatus.AVAILABLE 
-                      ? 'border-dashed border-slate-200 bg-white' 
+                      ? `border-dashed border-slate-200 bg-white ${limitReached ? 'opacity-30 cursor-not-allowed' : ''}` 
                       : t.status === TableStatus.CLEANING 
                       ? 'border-emerald-500 bg-emerald-50 text-emerald-600' 
                       : 'border-slate-800 bg-slate-900 text-white shadow-md'
                     }`}>
                         <span className="text-[10px] font-black uppercase italic">{t.id === 0 ? 'LẺ' : 'BÀN '+t.id}</span>
                         {t.qrRequested ? <Loader2 size={20} className="animate-spin" /> :
-                         t.status === TableStatus.AVAILABLE ? <PlusCircle size={20} className="text-slate-300"/> : 
+                         t.status === TableStatus.AVAILABLE ? <PlusCircle size={20} className={limitReached ? 'text-slate-200' : 'text-slate-300'}/> : 
                          t.status === TableStatus.CLEANING ? <Sparkles size={20} className="text-emerald-500"/> :
                          <Utensils size={20} className="text-orange-500"/>}
                         
                         <span className="text-[8px] font-black uppercase tracking-tighter absolute bottom-2">
-                            {t.qrRequested ? 'Đang chờ QR...' : t.status === TableStatus.CLEANING ? 'Bấm để dọn xong' : ''}
+                            {t.qrRequested ? 'Đang chờ QR...' : t.status === TableStatus.CLEANING ? 'Bấm để dọn xong' : (t.status === TableStatus.AVAILABLE && limitReached) ? 'Hết lượt' : ''}
                         </span>
                     </div>
                 ))}
