@@ -7,6 +7,14 @@ import { QrCode, PlusCircle, Loader2, Coffee, Clock, ShoppingBag, Utensils, Sear
 
 interface StaffViewProps { store: any; }
 
+// Helper function to generate full URL for table QR code
+const getFullQrUrl = (tid: number, token?: string | null) => {
+  const baseUrl = window.location.origin + window.location.pathname;
+  // Format for HashRouter: #/table/:tableId/:token
+  const url = `${baseUrl}#/table/${tid}${token ? '/' + token : ''}`;
+  return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(url)}`;
+};
+
 const StaffView: React.FC<StaffViewProps> = ({ store }) => {
   const [activeTab, setActiveTab] = useState<'TABLES' | 'ORDER' | 'PAYMENTS'>('TABLES');
   const [confirmTableId, setConfirmTableId] = useState<number | null>(null);
@@ -28,20 +36,14 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
     } catch { return {}; }
   }, []);
 
-  // Thực thi lệnh chuyển bàn ngay khi chọn đủ 2 bàn
   useEffect(() => {
     if (moveFromId !== null && moveToId !== null) {
       const execMove = async () => {
         try {
           await store.requestTableMove(moveFromId, moveToId, currentUser.id);
-          alert(`Đã gửi yêu cầu chuyển Bàn ${moveFromId} sang Bàn ${moveToId}. Chờ Admin duyệt!`);
-        } catch (e) {
-          console.error(e);
-          alert("Lỗi thực thi!");
-        } finally {
-          setMoveFromId(null);
-          setMoveToId(null);
-        }
+          alert(`Yêu cầu chuyển bàn chờ duyệt!`);
+        } catch (e) { console.error(e); }
+        finally { setMoveFromId(null); setMoveToId(null); }
       };
       execMove();
     }
@@ -77,11 +79,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
   };
 
   const handleRequestTableQr = async (tid: number) => {
-    try {
-        await store.requestTableQr(tid, currentUser.id);
-    } catch (e: any) {
-        if (e.message === "LIMIT_REACHED") alert("Tối đa 3 bàn!");
-    }
+    try { await store.requestTableQr(tid, currentUser.id); } catch (e: any) { alert("Tối đa 3 bàn!"); }
   };
 
   const handlePlaceStaffOrder = async () => {
@@ -115,25 +113,8 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
     });
   };
 
-  const currentBillTable = useMemo(() => 
-    store.tables.find((t:any) => t.id === showBillTableId)
-  , [store.tables, showBillTableId]);
-
-  const billTotal = useMemo(() => 
-    currentBillTable?.currentOrders.reduce((s:number,o:any)=>s+(o.price*o.quantity), 0) || 0
-  , [currentBillTable]);
-
-  const handleTable0Payment = async () => {
-    await store.confirmPayment(0);
-    setShowBillTableId(null);
-  };
-
-  const getFullQrUrl = (id: number, token: string) => {
-    const baseUrl = window.location.origin + window.location.pathname;
-    const configParam = btoa(store.cloudUrl);
-    const tableUrl = `${baseUrl}#/table/${id}/${token}?config=${configParam}`;
-    return `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(tableUrl)}`;
-  };
+  const currentBillTable = useMemo(() => store.tables.find((t:any) => t.id === showBillTableId), [store.tables, showBillTableId]);
+  const billTotal = useMemo(() => currentBillTable?.currentOrders.filter((o:any) => o.status !== OrderItemStatus.CANCELLED).reduce((s:number,o:any)=>s+(o.price*o.quantity), 0) || 0, [currentBillTable]);
 
   const getVietQrUrl = (amount: number, tid: number) => {
     return `https://img.vietqr.io/image/${store.bankConfig.bankId}-${store.bankConfig.accountNo}-compact.png?amount=${amount}&addInfo=Thanh+Toan+Ban+${tid === 0 ? 'Khach+Le' : tid}&accountName=${encodeURIComponent(store.bankConfig.accountName)}`;
@@ -145,7 +126,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
          <p className="text-[10px] font-black uppercase text-slate-400">Trực: <span className={activeTableCount >= 3 ? 'text-red-500' : 'text-slate-900'}>{activeTableCount}/3</span></p>
          <div className="flex items-center gap-2">
             <div className={`w-1.5 h-1.5 rounded-full ${activeTableCount >= 3 ? 'bg-red-500 animate-pulse' : 'bg-green-500'}`}></div>
-            <span className="text-[9px] font-black uppercase text-slate-400">{activeTableCount >= 3 ? 'Hết lượt' : 'Sẵn sàng'}</span>
+            <span className="text-[9px] font-black uppercase text-slate-400">Trạng thái</span>
          </div>
       </div>
 
@@ -178,14 +159,10 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
                                 </div>
                                 <div className="flex gap-1.5 shrink-0">
                                     {n.type === 'order' && (
-                                        <button onClick={() => handleConfirmOrder(n.payload?.tableId, n.id)} className="px-2.5 py-1.5 bg-blue-500 text-white rounded-lg text-[8px] font-black uppercase shadow-lg flex items-center gap-1">
-                                            <CheckCircle2 size={12} /> Duyệt
-                                        </button>
+                                        <button onClick={() => handleConfirmOrder(n.payload?.tableId, n.id)} className="px-2.5 py-1.5 bg-blue-500 text-white rounded-lg text-[8px] font-black uppercase shadow-lg flex items-center gap-1 italic">Duyệt</button>
                                     )}
                                     {n.type === 'kitchen' && (
-                                        <button onClick={() => handleServeItem(n.payload?.tableId, n.payload?.itemId, n.id)} className="px-2.5 py-1.5 bg-green-500 text-white rounded-lg text-[8px] font-black uppercase shadow-lg flex items-center gap-1">
-                                            <Utensils size={12} /> Bưng
-                                        </button>
+                                        <button onClick={() => handleServeItem(n.payload?.tableId, n.payload?.itemId, n.id)} className="px-2.5 py-1.5 bg-green-500 text-white rounded-lg text-[8px] font-black uppercase shadow-lg flex items-center gap-1 italic">Bưng</button>
                                     )}
                                     <button onClick={() => store.deleteNotification(n.id)} className="p-1.5 bg-white/10 rounded-lg"><X size={14} /></button>
                                 </div>
@@ -201,46 +178,26 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
                         const isMine = t.claimedBy === currentUser.id || t.id === 0;
                         const isAvailable = t.status === TableStatus.AVAILABLE;
                         const isCleaning = t.status === TableStatus.CLEANING;
+                        const isBilling = t.status === TableStatus.BILLING;
                         const isRequested = t.qrRequested;
                         const hasOrders = (t.currentOrders || []).length > 0;
-                        const hasDishReady = (t.currentOrders || []).some(o => o.status === OrderItemStatus.READY);
-                        const hasPending = (t.currentOrders || []).some(o => o.status === OrderItemStatus.PENDING);
                         
                         return (
                             <div key={t.id} className={`p-3 rounded-2xl border-2 flex flex-col items-center justify-center gap-2 relative min-h-[95px] transition-all ${
-                                isCleaning ? 'border-red-500 bg-red-50/20 shadow-red-100' :
-                                hasDishReady ? 'border-green-500 bg-green-50/20 shadow-green-100 animate-pulse' :
-                                hasPending ? 'border-blue-400 bg-blue-50/30' :
-                                moveFromId === t.id ? 'ring-2 ring-blue-500 border-blue-500 bg-blue-50' :
-                                moveToId === t.id ? 'ring-2 ring-green-500 border-green-500 bg-green-50' :
+                                isCleaning ? 'border-red-500 bg-red-50/20' :
+                                isBilling ? 'border-indigo-500 bg-indigo-50/20 animate-pulse' :
                                 isMine && !isAvailable ? 'border-orange-500 bg-orange-50/10' : 
                                 isAvailable ? 'border-dashed border-slate-200 opacity-60' : 'border-slate-100 bg-slate-50 opacity-40'
                             }`}>
                                 <span className="font-black text-[10px] uppercase italic text-slate-700">{t.id === 0 ? 'Lẻ' : 'B' + t.id}</span>
-                                
                                 {isAvailable && !isRequested && t.id !== 0 && (
-                                    moveFromId !== null ? (
-                                        <button onClick={() => setMoveToId(t.id)} className="bg-blue-600 text-white p-2 rounded-xl shadow-lg active:scale-90 text-[8px] font-black uppercase">Chọn</button>
-                                    ) : (
-                                        <button onClick={() => handleRequestTableQr(t.id)} className="text-[8px] font-black bg-slate-900 text-white px-2 py-1.5 rounded-lg uppercase">Mở</button>
-                                    )
+                                    <button onClick={() => handleRequestTableQr(t.id)} className="text-[8px] font-black bg-slate-900 text-white px-2 py-1.5 rounded-lg uppercase italic">Mở</button>
                                 )}
-
-                                {isCleaning && (
-                                    <button onClick={() => setConfirmTableId(t.id)} className="text-[8px] font-black bg-red-600 text-white px-2 py-1.5 rounded-lg uppercase shadow-md animate-bounce">Xong</button>
-                                )}
-
-                                {isRequested && <Loader2 size={12} className="animate-spin text-orange-500" />}
-
-                                {isMine && !isRequested && !isAvailable && !isCleaning && (
+                                {isCleaning && <button onClick={() => setConfirmTableId(t.id)} className="text-[8px] font-black bg-red-600 text-white px-2 py-1.5 rounded-lg uppercase shadow-md animate-bounce">Dọn</button>}
+                                {isMine && !isAvailable && !isCleaning && (
                                   <div className="flex flex-wrap justify-center gap-1">
                                     {t.sessionToken && <button onClick={() => setShowQrModalId(t.id)} className="p-1.5 bg-slate-900 text-white rounded-lg"><QrCode size={12} /></button>}
-                                    {hasOrders && <button onClick={() => setShowBillTableId(t.id)} className={`p-1.5 rounded-lg text-white ${hasDishReady ? 'bg-green-600' : hasPending ? 'bg-blue-500' : 'bg-slate-400'}`}><FileText size={12} /></button>}
-                                    {t.status === TableStatus.OCCUPIED && t.id !== 0 && (
-                                        <button onClick={() => moveFromId === t.id ? setMoveFromId(null) : setMoveFromId(t.id)} className={`p-1.5 rounded-lg text-white ${moveFromId === t.id ? 'bg-red-500 animate-pulse' : 'bg-indigo-500'}`}>
-                                            {moveFromId === t.id ? <X size={12}/> : <ArrowRightLeft size={12}/>}
-                                        </button>
-                                    )}
+                                    {hasOrders && <button onClick={() => setShowBillTableId(t.id)} className="p-1.5 rounded-lg bg-indigo-500 text-white"><FileText size={12} /></button>}
                                   </div>
                                 )}
                             </div>
@@ -273,7 +230,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
                             <div className="flex items-center gap-3 min-w-0">
                                 <img src={m.image} className="w-10 h-10 rounded-lg object-cover shrink-0" />
                                 <div className="truncate">
-                                    <h4 className="text-[10px] font-black text-slate-800 uppercase truncate">{m.name}</h4>
+                                    <h4 className="text-[10px] font-black text-slate-800 uppercase truncate italic">{m.name}</h4>
                                     <p className="text-[9px] font-bold text-orange-600 italic">{m.price.toLocaleString()}đ</p>
                                 </div>
                             </div>
@@ -292,7 +249,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
                       <span className="text-sm font-black italic">{cartTotal.toLocaleString()}đ</span>
                       <span className="text-[9px] font-black uppercase italic text-orange-500">{selectedTable === 0 ? 'Khách lẻ' : `Bàn ${selectedTable}`}</span>
                    </div>
-                   <button onClick={handlePlaceStaffOrder} className="w-full py-3 bg-orange-500 rounded-xl font-black uppercase text-[10px] shadow-xl">Gửi đơn</button>
+                   <button onClick={handlePlaceStaffOrder} className="w-full py-3 bg-orange-500 rounded-xl font-black uppercase text-[10px] shadow-xl italic">Gửi đơn</button>
                 </div>
               )}
            </div>
@@ -300,20 +257,17 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
 
         {activeTab === 'PAYMENTS' && (
            <div className="bg-white rounded-[2rem] p-5 border border-slate-100 shadow-sm space-y-4">
-              <h2 className="text-xs font-black italic text-slate-800 uppercase">💰 Thu tiền</h2>
+              <h2 className="text-xs font-black italic text-slate-800 uppercase">💰 Thanh toán</h2>
               <div className="space-y-2">
                  {store.tables.filter((t:Table) => (t.currentOrders || []).length > 0).map((t:Table) => (
-                   <div key={t.id} className={`p-3 rounded-xl flex items-center justify-between gap-3 ${t.status === TableStatus.PAYING ? 'bg-amber-50 border border-amber-200 shadow-sm' : 'bg-slate-50 border border-slate-100'}`}>
+                   <div key={t.id} className={`p-3 rounded-xl flex items-center justify-between gap-3 ${t.status === TableStatus.PAYING || t.status === TableStatus.BILLING ? 'bg-amber-50 border border-amber-200' : 'bg-slate-50 border border-slate-100'}`}>
                       <div className="min-w-0">
-                         <p className="text-[8px] font-black uppercase text-slate-400 italic mb-1">{t.id === 0 ? 'Khách lẻ' : 'Bàn ' + t.id}</p>
-                         <h4 className="font-black text-slate-800 text-[9px] uppercase truncate">{t.status === TableStatus.PAYING ? '🔴 Chờ thu' : 'Đang phục vụ'}</h4>
+                         <p className="text-[8px] font-black uppercase text-slate-400 italic mb-1">{t.id === 0 ? 'Lẻ' : 'Bàn ' + t.id}</p>
+                         <h4 className="font-black text-slate-800 text-[9px] uppercase truncate italic">{t.status === TableStatus.PAYING ? '🔴 Chờ thu' : t.status === TableStatus.BILLING ? '🔵 Đã gán hóa đơn' : 'Đang dùng'}</h4>
                       </div>
-                      <button onClick={() => setShowBillTableId(t.id)} className="bg-slate-900 text-white px-3 py-1.5 rounded-lg text-[9px] font-black uppercase shadow-sm">Chi tiết</button>
+                      <button onClick={() => setShowBillTableId(t.id)} className="bg-slate-900 text-white px-3 py-1.5 rounded-lg text-[9px] font-black uppercase shadow-sm">Hóa đơn</button>
                    </div>
                  ))}
-                 {store.tables.filter((t:Table) => (t.currentOrders || []).length > 0).length === 0 && (
-                     <p className="text-center py-10 text-slate-300 text-[10px] font-black uppercase italic">Trống</p>
-                 )}
               </div>
            </div>
         )}
@@ -323,27 +277,26 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
         <div className="fixed inset-0 z-[200] bg-slate-900/90 backdrop-blur-md flex items-center justify-center p-4">
             <div className="bg-white rounded-[2rem] p-6 max-w-sm w-full shadow-2xl animate-scaleIn border border-slate-100 max-h-[90dvh] flex flex-col">
                 <div className="flex justify-between items-center mb-4 shrink-0">
-                    <h3 className="text-xs font-black italic uppercase">Hóa đơn {showBillTableId === 0 ? 'Lẻ' : 'Bàn ' + showBillTableId}</h3>
+                    <h3 className="text-xs font-black italic uppercase">Hóa đơn bàn {showBillTableId === 0 ? 'Lẻ' : showBillTableId}</h3>
                     <button onClick={() => setShowBillTableId(null)} className="p-1 bg-slate-100 rounded-full"><X size={14}/></button>
                 </div>
                 <div className="flex-1 overflow-y-auto no-scrollbar space-y-2 mb-4 border-y border-slate-50 py-3">
-                    {currentBillTable.currentOrders.map((o:any) => (
+                    {currentBillTable.currentOrders.filter((o:any)=>o.status !== OrderItemStatus.CANCELLED).map((o:any) => (
                         <div key={o.id} className="flex justify-between items-center text-[10px]">
-                            <span className={`font-bold truncate pr-2 ${o.status === OrderItemStatus.CANCELLED ? 'text-slate-300 line-through' : 'text-slate-800'}`}>{o.name} x{o.quantity}</span>
+                            <span className="font-bold truncate pr-2 text-slate-800 italic">{o.name} x{o.quantity}</span>
                             <span className="font-black text-slate-600">{(o.price * o.quantity).toLocaleString()}đ</span>
                         </div>
                     ))}
                     <div className="pt-2 border-t border-slate-100 flex justify-between items-center font-black text-orange-600">
-                        <span className="text-[9px] uppercase italic">Tổng:</span>
+                        <span className="text-[9px] uppercase italic">Tổng bill:</span>
                         <span className="text-sm">{billTotal.toLocaleString()}đ</span>
                     </div>
                 </div>
                 <div className="space-y-3 shrink-0">
-                    {showBillTableId === 0 && currentBillTable.status !== TableStatus.BILLING && (
-                        <button onClick={handleTable0Payment} className="w-full py-3 bg-green-600 text-white rounded-xl font-black uppercase text-[10px] shadow-xl">Xác nhận thu tiền</button>
-                    )}
-                    {showBillTableId !== 0 && currentBillTable.status !== TableStatus.PAYING && currentBillTable.status !== TableStatus.BILLING && (
-                        <button onClick={() => { store.requestPayment(showBillTableId); setShowBillTableId(null); }} className="w-full py-3 bg-orange-500 text-white rounded-xl font-black uppercase text-[10px] shadow-xl">Yêu cầu thanh toán</button>
+                    {currentBillTable.status === TableStatus.BILLING ? (
+                        <button onClick={() => { store.completeBilling(showBillTableId); setShowBillTableId(null); }} className="w-full py-4 bg-green-600 text-white rounded-xl font-black uppercase text-[10px] shadow-xl italic">Hoàn tất & Gửi đánh giá</button>
+                    ) : (
+                        <button onClick={() => { store.confirmPayment(showBillTableId); setShowBillTableId(null); }} className="w-full py-4 bg-orange-500 text-white rounded-xl font-black uppercase text-[10px] shadow-xl italic">Xác nhận & In bill</button>
                     )}
                     <img src={getVietQrUrl(billTotal, showBillTableId)} className="w-24 h-24 mx-auto object-contain rounded-xl shadow-sm border-2 border-white" />
                 </div>
@@ -355,18 +308,18 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
         <div className="fixed inset-0 z-[250] bg-slate-900/90 backdrop-blur-xl flex items-center justify-center p-4">
             <div className="bg-white rounded-[2rem] p-6 max-w-sm w-full text-center shadow-2xl animate-scaleIn">
                 <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-xs font-black italic uppercase">QR Bàn {showQrModalId}</h3>
+                    <h3 className="text-xs font-black italic uppercase">Bàn {showQrModalId}</h3>
                     <button onClick={() => setShowQrModalId(null)} className="p-1 bg-slate-100 rounded-full"><X size={14}/></button>
                 </div>
-                <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100 mb-6 flex flex-col items-center">
-                    <img src={getFullQrUrl(showQrModalId, store.tables.find((t:any)=>t.id === showQrModalId).sessionToken)} className="w-48 h-48 object-contain rounded-xl shadow-md border-4 border-white" />
+                <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100 mb-6">
+                    <img src={getFullQrUrl(showQrModalId, store.tables.find((t:any)=>t.id === showQrModalId).sessionToken)} className="w-48 h-48 object-contain rounded-xl shadow-md border-4 border-white mx-auto" />
                 </div>
-                <button onClick={() => setShowQrModalId(null)} className="w-full py-4 bg-slate-900 text-white rounded-xl font-black uppercase text-[10px] shadow-xl">Đóng</button>
+                <button onClick={() => setShowQrModalId(null)} className="w-full py-4 bg-slate-900 text-white rounded-xl font-black uppercase text-[10px] shadow-xl italic">Đóng</button>
             </div>
         </div>
       )}
 
-      <ConfirmModal isOpen={confirmTableId !== null} title="Dọn bàn xong?" message={`Bàn ${confirmTableId} đã sẵn sàng?`} onConfirm={() => { if(confirmTableId !== null) store.setTableEmpty(confirmTableId); setConfirmTableId(null); }} onCancel={() => setConfirmTableId(null)} />
+      <ConfirmModal isOpen={confirmTableId !== null} title="Dọn bàn xong?" message={`Bàn ${confirmTableId} đã sẵn sàng phục vụ?`} onConfirm={() => { if(confirmTableId !== null) store.setTableEmpty(confirmTableId); setConfirmTableId(null); }} onCancel={() => setConfirmTableId(null)} />
     </div>
   );
 };
