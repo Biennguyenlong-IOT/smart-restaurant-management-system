@@ -144,7 +144,7 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
       timestamp: Date.now()
     };
     store.submitReview(review);
-    alert("Cảm ơn ý kiến của bạn!");
+    alert("Cảm ơn ý kiến của bạn! Chúc bạn một ngày tốt lành.");
     navigate('/', { replace: true });
   };
 
@@ -181,10 +181,18 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
       <div className="flex flex-col items-center justify-center h-full px-6 text-center animate-fadeIn max-w-md mx-auto">
         <div className="bg-white p-10 rounded-[3rem] shadow-2xl border border-slate-50 w-full">
            <div className="w-20 h-20 bg-orange-50 text-orange-500 rounded-[2rem] flex items-center justify-center mx-auto mb-8"><Star size={40} fill="currentColor" /></div>
-           <h2 className="text-2xl font-black text-slate-800 uppercase italic mb-2">Đánh giá dịch vụ</h2>
+           <h2 className="text-2xl font-black text-slate-800 uppercase italic mb-2">Đánh giá trải nghiệm</h2>
            <p className="text-[10px] font-bold text-slate-400 uppercase italic mb-8">Ý kiến của bạn là động lực để chúng tôi phát triển</p>
            
            <div className="space-y-8 mb-10 text-center">
+              <div>
+                <p className="text-[11px] font-black text-slate-400 uppercase mb-4">Chất lượng phục vụ</p>
+                <div className="flex justify-center gap-3">
+                  {[1,2,3,4,5].map(s => (
+                    <button key={s} onClick={() => setReviewForm({...reviewForm, ratingService: s})} className={`transition-all active:scale-90 ${reviewForm.ratingService >= s ? 'text-orange-500 scale-110' : 'text-slate-200'}`}><Star size={32} fill={reviewForm.ratingService >= s ? 'currentColor' : 'none'}/></button>
+                  ))}
+                </div>
+              </div>
               <div>
                 <p className="text-[11px] font-black text-slate-400 uppercase mb-4">Chất lượng món ăn</p>
                 <div className="flex justify-center gap-3">
@@ -193,7 +201,7 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
                   ))}
                 </div>
               </div>
-              <textarea value={reviewForm.comment} onChange={e => setReviewForm({...reviewForm, comment: e.target.value})} placeholder="Bạn có góp ý gì thêm không?..." className="w-full p-5 bg-slate-50 rounded-2xl text-xs font-bold border border-slate-100 h-32 outline-none" />
+              <textarea value={reviewForm.comment} onChange={e => setReviewForm({...reviewForm, comment: e.target.value})} placeholder="Bạn có góp ý gì thêm không?..." className="w-full p-5 bg-slate-50 rounded-2xl text-xs font-bold border border-slate-100 h-24 outline-none" />
            </div>
            <button onClick={submitReview} className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black uppercase text-xs shadow-xl active:scale-95 transition-all">Gửi đánh giá & Hoàn tất</button>
         </div>
@@ -240,14 +248,16 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
                 </div>
               )}
            </div>
+           
            <div className="bg-slate-900 text-white p-6 rounded-[2rem] shadow-xl text-center flex flex-col items-center gap-3">
              <div className="flex items-center justify-center gap-3">
                 <Loader2 size={20} className="animate-spin text-orange-500"/>
                 <span className="font-black italic uppercase text-sm tracking-tight">
-                  {table.status === TableStatus.PAYING ? 'Chờ xác nhận thanh toán...' : 'Đang xử lý hóa đơn...'}
+                  {table.status === TableStatus.PAYING ? 'Chờ phục vụ xác nhận thu tiền...' : 'Đang xử lý hóa đơn...'}
                 </span>
              </div>
            </div>
+           
            {table.status === TableStatus.BILLING && (
               <button onClick={() => store.completeBilling(idNum)} className="w-full mt-6 py-5 bg-orange-500 text-white rounded-2xl font-black uppercase text-xs shadow-xl animate-bounce">Tôi đã thanh toán xong!</button>
            )}
