@@ -213,7 +213,6 @@ export const useRestaurantStore = () => {
         t.id === tid ? { ...t, currentOrders: [...existingOrders, ...items], status: TableStatus.OCCUPIED, orderType: type } : t
       );
       
-      // Thông báo cho Nhân viên Phục vụ (để xác nhận)
       const nnotif: AppNotification = { 
         id: `O-${Date.now()}`, targetRole: UserRole.STAFF, title: '🔔 Khách đặt món mới', 
         message: `Bàn ${tid === 0 ? 'Khách lẻ' : tid} vừa đặt ${items.length} món. Vui lòng xác nhận!`, timestamp: Date.now(), read: false, type: 'order', 
@@ -237,7 +236,6 @@ export const useRestaurantStore = () => {
         } : t
       );
 
-      // Sau khi nhân viên xác nhận, mới thông báo cho Bếp
       const kitchenNotif: AppNotification = {
         id: `K-${Date.now()}`, targetRole: UserRole.KITCHEN, title: '🍳 Món mới (Đã duyệt)',
         message: `Bàn ${tid === 0 ? 'Khách lẻ' : tid} có ${pendingItems.length} món mới được xác nhận.`, timestamp: Date.now(), read: false, type: 'order',
@@ -263,9 +261,9 @@ export const useRestaurantStore = () => {
       if (s === OrderItemStatus.READY) {
         const item = targetTable?.currentOrders.find(o => o.id === oid);
         const staffNotif: AppNotification = {
-            id: `R-${Date.now()}`, targetRole: UserRole.STAFF, title: 'Món đã xong',
-            message: `Bàn ${tid === 0 ? 'Khách lẻ' : tid}: ${item?.name} đã xong.`, timestamp: Date.now(), read: false, type: 'kitchen',
-            payload: { tableId: tid, claimedBy: targetTable?.claimedBy }
+            id: `R-${Date.now()}`, targetRole: UserRole.STAFF, title: '🍳 Món ăn đã xong',
+            message: `Bàn ${tid === 0 ? 'Khách lẻ' : tid}: ${item?.name} đã làm xong. Hãy bưng ra!`, timestamp: Date.now(), read: false, type: 'kitchen',
+            payload: { tableId: tid, claimedBy: targetTable?.claimedBy, itemId: oid }
         };
         await pushToCloud({ tables: nt, notifications: [staffNotif, ...notifications] });
         return;
