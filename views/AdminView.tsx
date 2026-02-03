@@ -7,7 +7,7 @@ import {
   ArrowRightLeft, Monitor, Settings, Plus, UserPlus, Pizza, Shield, 
   Trash2, X, Edit3, LayoutDashboard, Calendar, PowerOff, 
   Search, Save, CreditCard, Star, Award, TrendingUp, ShoppingBag, Utensils,
-  ChevronRight, Users, Hash, ChefHat
+  ChevronRight, Users, Hash, ChefHat, RefreshCcw, Database
 } from 'lucide-react';
 
 interface AdminViewProps { store: any; }
@@ -21,7 +21,7 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
   const [userForm, setUserForm] = useState<Partial<User> | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
-  const [deleteTarget, setDeleteTarget] = useState<{ type: 'menu' | 'user', id: string, name: string } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ type: 'menu' | 'user' | 'history' | 'kpi', id?: string, name: string } | null>(null);
 
   const qrRequests = useMemo(() => (store.notifications || []).filter((n: AppNotification) => n.type === 'qr_request'), [store.notifications]);
   const moveRequests = useMemo(() => (store.notifications || []).filter((n: AppNotification) => n.type === 'move_request'), [store.notifications]);
@@ -68,8 +68,7 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
           ? staffReviews.reduce((sum, r) => sum + r.ratingService, 0) / reviewCount 
           : 5;
       } else if (s.role === UserRole.KITCHEN) {
-        // KITCHEN hưởng điểm Food (Món ăn) - tính chung cho toàn bộ bếp hoặc theo lượt nấu
-        // Ở phiên bản này, tất cả nhân viên bếp được hưởng điểm trung bình món ăn của hệ thống
+        // KITCHEN hưởng điểm Food (Món ăn)
         reviewCount = reviews.length;
         avgRating = reviewCount > 0 
           ? reviews.reduce((sum, r) => sum + r.ratingFood, 0) / reviewCount 
@@ -187,6 +186,13 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
                     ))}
                  </div>
               </div>
+
+              <button 
+                onClick={() => setDeleteTarget({ type: 'history', name: 'Toàn bộ lịch sử doanh thu' })}
+                className="w-full py-4 bg-red-50 text-red-500 rounded-2xl font-black uppercase text-[10px] border-2 border-dashed border-red-200 flex items-center justify-center gap-2"
+              >
+                <Trash2 size={16}/> Xoá lịch sử doanh thu
+              </button>
            </div>
         )}
 
@@ -195,15 +201,16 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
            <div className="space-y-6">
               <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm">
                  <div className="flex justify-between items-center mb-8">
-                    <h4 className="font-black text-sm uppercase italic flex items-center gap-2"><Users className="text-blue-500" size={18}/> Hiệu suất nhân sự</h4>
-                    <div className="flex gap-4">
-                        <div className="flex items-center gap-1.5 text-[9px] font-black text-slate-400 uppercase italic">
-                            <div className="w-2 h-2 rounded-full bg-orange-500"></div> Điểm Phục vụ
-                        </div>
-                        <div className="flex items-center gap-1.5 text-[9px] font-black text-slate-400 uppercase italic">
-                            <div className="w-2 h-2 rounded-full bg-blue-500"></div> Điểm Món ăn
-                        </div>
+                    <div>
+                        <h4 className="font-black text-sm uppercase italic flex items-center gap-2"><Users className="text-blue-500" size={18}/> Hiệu suất nhân sự</h4>
+                        <p className="text-[9px] font-bold text-slate-400 uppercase italic mt-1">Kết quả được tính theo tháng hiện tại</p>
                     </div>
+                    <button 
+                        onClick={() => setDeleteTarget({ type: 'kpi', name: 'Reset toàn bộ KPI tháng này' })}
+                        className="p-3 bg-slate-900 text-white rounded-xl shadow-lg flex items-center gap-2 text-[9px] font-black uppercase italic"
+                    >
+                        <RefreshCcw size={14}/> Reset KPI tháng mới
+                    </button>
                  </div>
                  <div className="overflow-x-auto">
                     <table className="w-full text-left">
@@ -434,6 +441,25 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
                     }} className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black uppercase text-xs shadow-xl active:scale-95 transition-all">Kết nối Database mới</button>
                  </div>
               </div>
+
+              <div className="bg-red-50 p-10 rounded-[3rem] border-2 border-dashed border-red-100">
+                 <div className="w-16 h-16 bg-white text-red-500 rounded-[1.5rem] flex items-center justify-center mx-auto mb-8 shadow-sm"><Database size={32} /></div>
+                 <h4 className="text-center font-black text-lg uppercase italic mb-8 text-red-600">Bảo trì dữ liệu</h4>
+                 <div className="space-y-3">
+                    <button 
+                        onClick={() => setDeleteTarget({ type: 'history', name: 'Toàn bộ doanh thu' })}
+                        className="w-full py-4 bg-white text-red-500 border border-red-100 rounded-2xl font-black uppercase text-[10px] shadow-sm hover:bg-red-50 transition-all"
+                    >
+                        Xoá toàn bộ lịch sử doanh thu
+                    </button>
+                    <button 
+                        onClick={() => setDeleteTarget({ type: 'kpi', name: 'Toàn bộ đánh giá KPI' })}
+                        className="w-full py-4 bg-white text-red-500 border border-red-100 rounded-2xl font-black uppercase text-[10px] shadow-sm hover:bg-red-50 transition-all"
+                    >
+                        Xoá toàn bộ đánh giá (Reset KPI)
+                    </button>
+                 </div>
+              </div>
            </div>
         )}
       </div>
@@ -499,8 +525,10 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
         title="Xác nhận xóa?" 
         message={`Bạn có chắc chắn muốn xóa "${deleteTarget?.name}" không? Thao tác này không thể hoàn tác.`} 
         onConfirm={() => {
-           if(deleteTarget?.type === 'menu') store.deleteMenuItem(deleteTarget.id);
-           if(deleteTarget?.type === 'user') store.deleteUser(deleteTarget.id);
+           if(deleteTarget?.type === 'menu' && deleteTarget.id) store.deleteMenuItem(deleteTarget.id);
+           if(deleteTarget?.type === 'user' && deleteTarget.id) store.deleteUser(deleteTarget.id);
+           if(deleteTarget?.type === 'history') store.clearHistory();
+           if(deleteTarget?.type === 'kpi') store.clearReviews();
            setDeleteTarget(null);
         }} 
         onCancel={() => setDeleteTarget(null)} 
