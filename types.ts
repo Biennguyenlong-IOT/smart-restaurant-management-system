@@ -19,7 +19,13 @@ export enum TableStatus {
   AVAILABLE = 'AVAILABLE',
   OCCUPIED = 'OCCUPIED',
   PAYING = 'PAYING',
-  BILLING = 'BILLING'
+  BILLING = 'BILLING',
+  REVIEWING = 'REVIEWING' 
+}
+
+export enum OrderType {
+  DINE_IN = 'DINE_IN',
+  TAKEAWAY = 'TAKEAWAY'
 }
 
 export interface MenuItem {
@@ -29,6 +35,7 @@ export interface MenuItem {
   category: string;
   image: string;
   description: string;
+  isAvailable: boolean;
 }
 
 export interface OrderItem {
@@ -39,32 +46,38 @@ export interface OrderItem {
   quantity: number;
   status: OrderItemStatus;
   timestamp: number;
+  note?: string;
 }
 
 export interface Table {
   id: number;
   status: TableStatus;
   currentOrders: OrderItem[];
+  orderType: OrderType;
   needsCleaning?: boolean;
   sessionToken?: string | null;
   qrRequested?: boolean;
-  claimedBy?: string | null; // ID of the staff serving this table
+  claimedBy?: string | null;
+}
+
+export interface Review {
+  id: string;
+  tableId: number;
+  staffId: string;
+  ratingFood: number;
+  ratingService: number;
+  comment: string;
+  timestamp: number;
 }
 
 export interface HistoryEntry {
   id: string;
   tableId: number;
+  staffId?: string; // ID nhân viên phục vụ đơn này
   items: OrderItem[];
   total: number;
   date: string;
-}
-
-export interface TableMoveRequest {
-  fromId: number;
-  toId: number;
-  type: 'SWAP' | 'MERGE';
-  staffId: string;
-  status: 'PENDING' | 'APPROVED' | 'DENIED';
+  orderType: OrderType;
 }
 
 export interface AppNotification {
