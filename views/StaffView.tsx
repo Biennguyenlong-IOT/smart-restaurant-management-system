@@ -66,6 +66,16 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
     }, 0);
   }, [cart, store.menu]);
 
+  const handleConfirmOrder = async (tid: number, nid: string) => {
+    await store.confirmTableOrders(tid);
+    await store.deleteNotification(nid);
+  };
+
+  const handleServeItem = async (tid: number, oid: string, nid: string) => {
+    await store.updateOrderItemStatus(tid, oid, OrderItemStatus.SERVED);
+    store.deleteNotification(nid);
+  };
+
   const handleRequestTableQr = async (tid: number) => {
     try {
         await store.requestTableQr(tid, currentUser.id);
@@ -91,11 +101,6 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
       await store.placeOrder(selectedTable, newItems, orderType);
       setCart({}); setSelectedTable(null); setActiveTab('TABLES');
     } catch (e) { alert("Lỗi đặt đơn!"); }
-  };
-
-  const handleServeItem = async (tid: number, oid: string, nid: string) => {
-    await store.updateOrderItemStatus(tid, oid, OrderItemStatus.SERVED);
-    store.deleteNotification(nid);
   };
 
   const updateCartItem = (id: string, qty: number) => {
@@ -140,7 +145,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
          <p className="text-[10px] font-black uppercase text-slate-400">Trực: <span className={activeTableCount >= 3 ? 'text-red-500' : 'text-slate-900'}>{activeTableCount}/3</span></p>
          <div className="flex items-center gap-2">
             <div className={`w-1.5 h-1.5 rounded-full ${activeTableCount >= 3 ? 'bg-red-500 animate-pulse' : 'bg-green-500'}`}></div>
-            <span className="text-[9px] font-black uppercase text-slate-400">{activeTableCount >= 3 ? 'Hết lượt' : 'OK'}</span>
+            <span className="text-[9px] font-black uppercase text-slate-400">{activeTableCount >= 3 ? 'Hết lượt' : 'Sẵn sàng'}</span>
          </div>
       </div>
 
@@ -157,17 +162,31 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
                 <section className="bg-slate-900 text-white rounded-[2rem] p-4 shadow-xl">
                     <div className="flex items-center gap-2 mb-3">
                         <Bell size={14} className="text-orange-500 animate-bounce" />
-                        <h4 className="text-[9px] font-black uppercase italic tracking-widest text-slate-400">Thông báo ({myNotifications.length})</h4>
+                        <h4 className="text-[9px] font-black uppercase italic tracking-widest text-slate-400">Yêu cầu ({myNotifications.length})</h4>
                     </div>
                     <div className="space-y-2">
                         {myNotifications.map((n: AppNotification) => (
-                            <div key={n.id} className="flex items-center justify-between p-2.5 rounded-xl bg-white/5 border border-white/10">
+                            <div key={n.id} className="flex items-center justify-between p-2.5 rounded-xl bg-white/5 border border-white/10 gap-2">
                                 <div className="flex items-center gap-3 min-w-0">
-                                    <div className="w-7 h-7 rounded-lg bg-orange-500 flex items-center justify-center text-[9px] font-black shrink-0">{n.payload?.tableId === 0 ? 'L' : n.payload?.tableId}</div>
-                                    <p className="text-[10px] font-black uppercase truncate">{n.title}</p>
+                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-black shrink-0 ${n.type === 'kitchen' ? 'bg-green-500' : 'bg-orange-500'}`}>
+                                        {n.payload?.tableId === 0 ? 'L' : n.payload?.tableId}
+                                    </div>
+                                    <div className="truncate">
+                                        <p className="text-[10px] font-black uppercase truncate">{n.title}</p>
+                                        <p className="text-[8px] text-slate-400 italic truncate">{n.message}</p>
+                                    </div>
                                 </div>
-                                <div className="flex gap-2">
-                                    {n.type === 'kitchen' && <button onClick={() => handleServeItem(n.payload?.tableId, n.payload?.itemId, n.id)} className="px-2 py-1 bg-green-500 text-white rounded-lg text-[8px] font-black uppercase shadow-lg">Bưng</button>}
+                                <div className="flex gap-1.5 shrink-0">
+                                    {n.type === 'order' && (
+                                        <button onClick={() => handleConfirmOrder(n.payload?.tableId, n.id)} className="px-2.5 py-1.5 bg-blue-500 text-white rounded-lg text-[8px] font-black uppercase shadow-lg flex items-center gap-1">
+                                            <CheckCircle2 size={12} /> Duyệt
+                                        </button>
+                                    )}
+                                    {n.type === 'kitchen' && (
+                                        <button onClick={() => handleServeItem(n.payload?.tableId, n.payload?.itemId, n.id)} className="px-2.5 py-1.5 bg-green-500 text-white rounded-lg text-[8px] font-black uppercase shadow-lg flex items-center gap-1">
+                                            <Utensils size={12} /> Bưng
+                                        </button>
+                                    )}
                                     <button onClick={() => store.deleteNotification(n.id)} className="p-1.5 bg-white/10 rounded-lg"><X size={14} /></button>
                                 </div>
                             </div>
@@ -177,7 +196,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
             )}
 
             <section className="bg-white rounded-[2rem] p-3 border border-slate-100 shadow-sm">
-                <div className="grid grid-cols-3 xs:grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 gap-2 md:gap-4">
+                <div className="grid grid-cols-3 xs:grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-2">
                     {store.tables.map((t: Table) => {
                         const isMine = t.claimedBy === currentUser.id || t.id === 0;
                         const isAvailable = t.status === TableStatus.AVAILABLE;
@@ -185,15 +204,17 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
                         const isRequested = t.qrRequested;
                         const hasOrders = (t.currentOrders || []).length > 0;
                         const hasDishReady = (t.currentOrders || []).some(o => o.status === OrderItemStatus.READY);
+                        const hasPending = (t.currentOrders || []).some(o => o.status === OrderItemStatus.PENDING);
                         
                         return (
-                            <div key={t.id} className={`p-3 rounded-2xl border-2 flex flex-col items-center justify-center gap-2 relative min-h-[90px] md:min-h-[120px] transition-all ${
+                            <div key={t.id} className={`p-3 rounded-2xl border-2 flex flex-col items-center justify-center gap-2 relative min-h-[95px] transition-all ${
                                 isCleaning ? 'border-red-500 bg-red-50/20 shadow-red-100' :
                                 hasDishReady ? 'border-green-500 bg-green-50/20 shadow-green-100 animate-pulse' :
+                                hasPending ? 'border-blue-400 bg-blue-50/30' :
                                 moveFromId === t.id ? 'ring-2 ring-blue-500 border-blue-500 bg-blue-50' :
                                 moveToId === t.id ? 'ring-2 ring-green-500 border-green-500 bg-green-50' :
                                 isMine && !isAvailable ? 'border-orange-500 bg-orange-50/10' : 
-                                isAvailable ? 'border-dashed border-slate-200' : 'border-slate-100 bg-slate-50 opacity-40'
+                                isAvailable ? 'border-dashed border-slate-200 opacity-60' : 'border-slate-100 bg-slate-50 opacity-40'
                             }`}>
                                 <span className="font-black text-[10px] uppercase italic text-slate-700">{t.id === 0 ? 'Lẻ' : 'B' + t.id}</span>
                                 
@@ -214,7 +235,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
                                 {isMine && !isRequested && !isAvailable && !isCleaning && (
                                   <div className="flex flex-wrap justify-center gap-1">
                                     {t.sessionToken && <button onClick={() => setShowQrModalId(t.id)} className="p-1.5 bg-slate-900 text-white rounded-lg"><QrCode size={12} /></button>}
-                                    {hasOrders && <button onClick={() => setShowBillTableId(t.id)} className={`p-1.5 rounded-lg text-white ${hasDishReady ? 'bg-green-600' : 'bg-blue-500'}`}><FileText size={12} /></button>}
+                                    {hasOrders && <button onClick={() => setShowBillTableId(t.id)} className={`p-1.5 rounded-lg text-white ${hasDishReady ? 'bg-green-600' : hasPending ? 'bg-blue-500' : 'bg-slate-400'}`}><FileText size={12} /></button>}
                                     {t.status === TableStatus.OCCUPIED && t.id !== 0 && (
                                         <button onClick={() => moveFromId === t.id ? setMoveFromId(null) : setMoveFromId(t.id)} className={`p-1.5 rounded-lg text-white ${moveFromId === t.id ? 'bg-red-500 animate-pulse' : 'bg-indigo-500'}`}>
                                             {moveFromId === t.id ? <X size={12}/> : <ArrowRightLeft size={12}/>}
@@ -233,16 +254,14 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
         {activeTab === 'ORDER' && (
            <div className="flex flex-col h-full bg-white rounded-[2rem] border border-slate-100 overflow-hidden shadow-sm">
               <div className="p-4 border-b border-slate-100 space-y-3">
-                  <div className="flex items-center gap-2">
-                     <div className="flex-1 bg-slate-50 rounded-xl flex items-center px-3 py-2 border border-slate-100">
-                        <Search size={14} className="text-slate-300 mr-2 shrink-0"/>
-                        <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Tìm món..." className="bg-transparent w-full outline-none font-bold text-xs" />
-                     </div>
+                  <div className="flex bg-slate-50 rounded-xl flex items-center px-3 py-2 border border-slate-100">
+                     <Search size={14} className="text-slate-300 mr-2 shrink-0"/>
+                     <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Tìm món..." className="bg-transparent w-full outline-none font-bold text-xs" />
                   </div>
-                  <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5">
-                      <button onClick={() => setSelectedTable(0)} className={`px-4 py-2 rounded-lg text-[9px] font-black whitespace-nowrap border-2 ${selectedTable === 0 ? 'bg-orange-500 text-white border-orange-500 shadow-md' : 'bg-slate-50 border-slate-100 text-slate-400'}`}>Lẻ</button>
+                  <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+                      <button onClick={() => setSelectedTable(0)} className={`px-4 py-2 rounded-lg text-[9px] font-black whitespace-nowrap border-2 ${selectedTable === 0 ? 'bg-orange-500 text-white border-orange-500' : 'bg-slate-50 border-slate-100 text-slate-400'}`}>Lẻ</button>
                       {store.tables.filter((t:any) => t.id !== 0).map((t:Table) => (
-                        <button key={t.id} onClick={() => setSelectedTable(t.id)} className={`px-4 py-2 rounded-lg text-[9px] font-black whitespace-nowrap border-2 ${selectedTable === t.id ? 'bg-slate-900 text-white border-slate-900 shadow-md' : 'bg-slate-50 border-slate-100 text-slate-400'}`}>B{t.id}</button>
+                        <button key={t.id} onClick={() => setSelectedTable(t.id)} className={`px-4 py-2 rounded-lg text-[9px] font-black whitespace-nowrap border-2 ${selectedTable === t.id ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 border-slate-100 text-slate-400'}`}>B{t.id}</button>
                       ))}
                   </div>
               </div>
@@ -250,7 +269,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
                   {store.menu.filter((m:MenuItem) => m.name.toLowerCase().includes(searchTerm.toLowerCase())).map((m:MenuItem) => {
                     const cartItem = cart[m.id];
                     return (
-                        <div key={m.id} className="p-2.5 bg-slate-50 rounded-xl border border-white flex items-center justify-between gap-3">
+                        <div key={m.id} className="p-3 bg-slate-50 rounded-xl border border-white flex items-center justify-between gap-3">
                             <div className="flex items-center gap-3 min-w-0">
                                 <img src={m.image} className="w-10 h-10 rounded-lg object-cover shrink-0" />
                                 <div className="truncate">
@@ -284,7 +303,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
               <h2 className="text-xs font-black italic text-slate-800 uppercase">💰 Thu tiền</h2>
               <div className="space-y-2">
                  {store.tables.filter((t:Table) => (t.currentOrders || []).length > 0).map((t:Table) => (
-                   <div key={t.id} className={`p-3 rounded-xl flex items-center justify-between gap-3 ${t.status === TableStatus.PAYING ? 'bg-amber-50 border border-amber-100 shadow-sm' : 'bg-slate-50 border border-slate-100'}`}>
+                   <div key={t.id} className={`p-3 rounded-xl flex items-center justify-between gap-3 ${t.status === TableStatus.PAYING ? 'bg-amber-50 border border-amber-200 shadow-sm' : 'bg-slate-50 border border-slate-100'}`}>
                       <div className="min-w-0">
                          <p className="text-[8px] font-black uppercase text-slate-400 italic mb-1">{t.id === 0 ? 'Khách lẻ' : 'Bàn ' + t.id}</p>
                          <h4 className="font-black text-slate-800 text-[9px] uppercase truncate">{t.status === TableStatus.PAYING ? '🔴 Chờ thu' : 'Đang phục vụ'}</h4>
@@ -292,6 +311,9 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
                       <button onClick={() => setShowBillTableId(t.id)} className="bg-slate-900 text-white px-3 py-1.5 rounded-lg text-[9px] font-black uppercase shadow-sm">Chi tiết</button>
                    </div>
                  ))}
+                 {store.tables.filter((t:Table) => (t.currentOrders || []).length > 0).length === 0 && (
+                     <p className="text-center py-10 text-slate-300 text-[10px] font-black uppercase italic">Trống</p>
+                 )}
               </div>
            </div>
         )}
@@ -307,7 +329,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
                 <div className="flex-1 overflow-y-auto no-scrollbar space-y-2 mb-4 border-y border-slate-50 py-3">
                     {currentBillTable.currentOrders.map((o:any) => (
                         <div key={o.id} className="flex justify-between items-center text-[10px]">
-                            <span className="font-bold text-slate-800 truncate pr-2">{o.name} x{o.quantity}</span>
+                            <span className={`font-bold truncate pr-2 ${o.status === OrderItemStatus.CANCELLED ? 'text-slate-300 line-through' : 'text-slate-800'}`}>{o.name} x{o.quantity}</span>
                             <span className="font-black text-slate-600">{(o.price * o.quantity).toLocaleString()}đ</span>
                         </div>
                     ))}
@@ -333,7 +355,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
         <div className="fixed inset-0 z-[250] bg-slate-900/90 backdrop-blur-xl flex items-center justify-center p-4">
             <div className="bg-white rounded-[2rem] p-6 max-w-sm w-full text-center shadow-2xl animate-scaleIn">
                 <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-xs font-black italic uppercase">Mở QR Bàn {showQrModalId}</h3>
+                    <h3 className="text-xs font-black italic uppercase">QR Bàn {showQrModalId}</h3>
                     <button onClick={() => setShowQrModalId(null)} className="p-1 bg-slate-100 rounded-full"><X size={14}/></button>
                 </div>
                 <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100 mb-6 flex flex-col items-center">
