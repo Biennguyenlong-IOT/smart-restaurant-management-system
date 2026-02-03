@@ -339,12 +339,19 @@ export const useRestaurantStore = () => {
         total: table.currentOrders.filter(o => o.status !== OrderItemStatus.CANCELLED).reduce((s, o) => s + (o.price * o.quantity), 0), 
         items: table.currentOrders, date: new Date().toISOString(), orderType: table.orderType
       };
-      const nt = tables.map(t => t.id === tid ? { ...t, status: TableStatus.BILLING } : t);
-      await pushToCloud({ tables: nt, history: [h, ...history], notifications: notifications });
+      
+      // Chuyển sang REVIEWING cho bàn dine-in, reset cho bàn takeaway (tid 0)
+      if (tid === 0) {
+        const nt = tables.map(t => t.id === 0 ? { ...t, status: TableStatus.AVAILABLE, currentOrders: [], claimedBy: null, sessionToken: null, qrRequested: false } : t);
+        await pushToCloud({ tables: nt, history: [h, ...history] });
+        return;
+      }
+
+      const nt = tables.map(t => t.id === tid ? { ...t, status: TableStatus.REVIEWING } : t);
+      await pushToCloud({ tables: nt, history: [h, ...history] });
     },
 
     completeBilling: async (tid: number) => {
-      // Nếu là khách lẻ (tid === 0), reset bàn về AVAILABLE ngay lập tức
       if (tid === 0) {
         const nt = tables.map(t => t.id === 0 ? { ...t, status: TableStatus.AVAILABLE, currentOrders: [], claimedBy: null, sessionToken: null, qrRequested: false } : t);
         await pushToCloud({ tables: nt });
@@ -361,7 +368,6 @@ export const useRestaurantStore = () => {
 
     submitReview: async (review: Review) => {
       const nr = [review, ...reviews];
-      // Chuyển sang trạng thái CLEANING để nhân viên dọn bàn
       const nt = tables.map(t => t.id === review.tableId ? { ...t, status: TableStatus.CLEANING } : t);
       await pushToCloud({ reviews: nr, tables: nt });
     },
