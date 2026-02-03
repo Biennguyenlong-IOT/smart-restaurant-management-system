@@ -144,7 +144,11 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
                         <span className="text-[10px] font-black uppercase italic">{t.id === 0 ? 'LẺ' : 'BÀN '+t.id}</span>
                         {t.status === TableStatus.AVAILABLE ? <PlusCircle size={20} className="text-slate-300"/> : <Utensils size={20} className="text-orange-500"/>}
                         {t.status === TableStatus.PAYING && <div className="absolute top-1 right-1"><Bell size={12} className="text-red-500 animate-bounce"/></div>}
-                        {t.status === TableStatus.OCCUPIED && <div className="absolute bottom-1 right-1 opacity-20"><QrCode size={10}/></div>}
+                        {t.status === TableStatus.OCCUPIED && (
+                          <div className="absolute top-1 right-1 flex flex-col gap-1">
+                             <button onClick={(e) => { e.stopPropagation(); setShowQrModal(t); }} className="p-1.5 bg-white/10 rounded-lg text-white hover:bg-white/20"><QrCode size={10}/></button>
+                          </div>
+                        )}
                     </div>
                 ))}
             </div>
@@ -154,7 +158,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
         {/* Modal hành động nhanh */}
         {quickActionTable && (
            <div className="fixed inset-0 z-[250] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 animate-fadeIn">
-              <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl animate-scaleIn">
+              <div className="bg-white w-full max-sm:max-w-[90%] max-w-sm rounded-[2.5rem] p-8 shadow-2xl animate-scaleIn">
                  <h3 className="text-lg font-black uppercase italic mb-6 text-center">Bàn số {quickActionTable.id}</h3>
                  <div className="grid grid-cols-1 gap-3">
                     <button onClick={() => { setShowQrModal(quickActionTable); setQuickActionTable(null); }} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-2 italic"><QrCode size={16}/> Xem mã QR</button>
@@ -171,7 +175,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
         {/* Modal xem QR */}
         {showQrModal && (
           <div className="fixed inset-0 z-[300] bg-slate-900/90 backdrop-blur-xl flex items-center justify-center p-6 animate-fadeIn">
-            <div className="bg-white w-full max-w-sm rounded-[3rem] p-10 text-center shadow-2xl animate-scaleIn">
+            <div className="bg-white w-full max-sm:max-w-[95%] max-w-sm rounded-[3rem] p-10 text-center shadow-2xl animate-scaleIn">
                <h3 className="text-xl font-black uppercase italic text-slate-800 mb-6">Mã QR Bàn {showQrModal.id}</h3>
                <div className="bg-slate-50 p-6 rounded-3xl mb-8 flex flex-col items-center gap-4 border-2 border-dashed border-slate-200">
                   <QrCode size={140} className="text-slate-800" />
