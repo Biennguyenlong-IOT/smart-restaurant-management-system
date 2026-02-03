@@ -344,6 +344,12 @@ export const useRestaurantStore = () => {
     },
 
     completeBilling: async (tid: number) => {
+      // Nếu là khách lẻ (tid === 0), reset bàn về AVAILABLE ngay lập tức
+      if (tid === 0) {
+        const nt = tables.map(t => t.id === 0 ? { ...t, status: TableStatus.AVAILABLE, currentOrders: [], claimedBy: null, sessionToken: null, qrRequested: false } : t);
+        await pushToCloud({ tables: nt });
+        return;
+      }
       const nt = tables.map(t => t.id === tid ? { ...t, status: TableStatus.REVIEWING } : t);
       await pushToCloud({ tables: nt });
     },
