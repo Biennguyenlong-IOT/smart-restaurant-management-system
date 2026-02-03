@@ -48,6 +48,7 @@ export interface OrderItem {
   status: OrderItemStatus;
   timestamp: number;
   note?: string;
+  kitchenStaffId?: string; // Track who prepared this item
 }
 
 export interface Table {
@@ -74,7 +75,7 @@ export interface Review {
 export interface HistoryEntry {
   id: string;
   tableId: number;
-  staffId?: string; // ID nhân viên phục vụ đơn này
+  staffId?: string;
   items: OrderItem[];
   total: number;
   date: string;
