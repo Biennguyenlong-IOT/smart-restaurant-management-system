@@ -133,36 +133,38 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
     navigate('/', { replace: true });
   };
 
-  // Trang chủ vãng lai - Giao diện chào mừng thay vì thực đơn
+  // Trang chủ vãng lai - Giao diện chào mừng chuyên nghiệp
   if (isPublicView) {
     return (
       <div className="flex flex-col items-center justify-center h-full px-6 text-center animate-fadeIn max-w-2xl mx-auto w-full pb-20">
         <div className="w-24 h-24 bg-orange-500 text-white rounded-[2.5rem] flex items-center justify-center mb-8 text-4xl font-black italic shadow-2xl animate-bounce">S</div>
         <h1 className="text-4xl font-black text-slate-800 uppercase italic mb-4 tracking-tighter">Smart Resto</h1>
-        <p className="text-slate-400 font-bold uppercase text-[10px] tracking-[0.4em] mb-12">Hệ thống gọi món thông minh</p>
+        <p className="text-slate-400 font-bold uppercase text-[10px] tracking-[0.4em] mb-12">Hệ thống quản lý & Gọi món Realtime</p>
         
         <div className="bg-white p-10 rounded-[3rem] shadow-xl border border-slate-100 w-full mb-10">
            <div className="w-16 h-16 bg-blue-50 text-blue-500 rounded-2xl flex items-center justify-center mx-auto mb-6"><QrCode size={32} /></div>
-           <h2 className="text-xl font-black text-slate-800 uppercase italic mb-3">Vui lòng quét mã QR</h2>
-           <p className="text-slate-400 text-sm leading-relaxed mb-8">Quý khách vui lòng quét mã QR đặt tại bàn để xem thực đơn và gọi món trực tiếp.</p>
-           <div className="flex flex-col gap-3">
-             <div className="flex items-center gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-100 text-left">
-                <span className="w-6 h-6 bg-slate-900 text-white rounded-full flex items-center justify-center text-[10px] font-black italic">1</span>
-                <p className="text-[10px] font-black uppercase text-slate-600">Mở camera điện thoại</p>
+           <h2 className="text-xl font-black text-slate-800 uppercase italic mb-3">Vui lòng quét mã QR tại bàn</h2>
+           <p className="text-slate-400 text-sm leading-relaxed mb-8">Để xem thực đơn và thực hiện gọi món, quý khách vui lòng sử dụng camera điện thoại quét mã QR được dán tại bàn của mình.</p>
+           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-center">
+                <span className="w-8 h-8 bg-slate-900 text-white rounded-full flex items-center justify-center text-xs font-black mx-auto mb-2 italic">1</span>
+                <p className="text-[9px] font-black uppercase text-slate-600">Quét mã QR</p>
              </div>
-             <div className="flex items-center gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-100 text-left">
-                <span className="w-6 h-6 bg-slate-900 text-white rounded-full flex items-center justify-center text-[10px] font-black italic">2</span>
-                <p className="text-[10px] font-black uppercase text-slate-600">Quét mã tại bàn của bạn</p>
+             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-center">
+                <span className="w-8 h-8 bg-slate-900 text-white rounded-full flex items-center justify-center text-xs font-black mx-auto mb-2 italic">2</span>
+                <p className="text-[9px] font-black uppercase text-slate-600">Chọn món yêu thích</p>
              </div>
-             <div className="flex items-center gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-100 text-left">
-                <span className="w-6 h-6 bg-slate-900 text-white rounded-full flex items-center justify-center text-[10px] font-black italic">3</span>
-                <p className="text-[10px] font-black uppercase text-slate-600">Chọn món & Gửi yêu cầu</p>
+             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-center">
+                <span className="w-8 h-8 bg-slate-900 text-white rounded-full flex items-center justify-center text-xs font-black mx-auto mb-2 italic">3</span>
+                <p className="text-[9px] font-black uppercase text-slate-600">Thưởng thức món ăn</p>
              </div>
            </div>
         </div>
         
         <div className="flex gap-4">
-           <Link to="/login" className="bg-slate-900 text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase shadow-2xl flex items-center gap-2 active:scale-95 transition-all">Đăng nhập Nhân viên</Link>
+           <Link to="/login" className="bg-slate-900 text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase shadow-2xl flex items-center gap-2 active:scale-95 transition-all">
+             Đăng nhập Hệ thống
+           </Link>
         </div>
       </div>
     );
