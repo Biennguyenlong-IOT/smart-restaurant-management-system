@@ -3,7 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { OrderItem, OrderItemStatus, TableStatus, UserRole, Table, OrderType, MenuItem, AppNotification, User } from '../types.ts';
 import { ConfirmModal } from '../App.tsx';
 import { CATEGORIES } from '../constants';
-import { PlusCircle, Utensils, Search, X, Bell, Trash2, ChevronRight, QrCode, LogOut, CheckCheck, MoveHorizontal, Merge } from 'lucide-react';
+import { PlusCircle, Utensils, Search, X, Bell, Trash2, ChevronRight, QrCode, LogOut, CheckCheck, MoveHorizontal, Merge, Sparkles, Eraser } from 'lucide-react';
 import { ensureArray } from '../store.ts';
 
 interface StaffViewProps { store: any; currentUser: User; }
@@ -23,12 +23,12 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
     return ensureArray<Table>(store.tables).filter((t: Table) => {
       if (t.id === 0) return true; // Luôn hiện bàn lẻ (Khách takeaway)
       if (t.status === TableStatus.AVAILABLE) return true; // Hiện bàn trống
-      return t.claimedBy === currentUser.id; // Hiện bàn của mình
+      return t.claimedBy === currentUser.id; // Hiện bàn của mình (Bao gồm cả bàn đang dọn dẹp)
     });
   }, [store.tables, currentUser.id]);
 
   const activeTableCount = useMemo(() => 
-    ensureArray<Table>(store.tables).filter((t: Table) => t.claimedBy === currentUser.id && t.id !== 0 && t.status !== TableStatus.AVAILABLE).length
+    ensureArray<Table>(store.tables).filter((t: Table) => t.claimedBy === currentUser.id && t.id !== 0 && t.status !== TableStatus.AVAILABLE && t.status !== TableStatus.CLEANING).length
   , [store.tables, currentUser.id]);
 
   const myNotifications = useMemo(() => {
@@ -86,7 +86,6 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
 
   const getQrUrl = (t: Table) => {
     const link = getTableLink(t);
-    // Sử dụng API tạo QR Code quét được thật sự
     return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(link)}`;
   };
 
@@ -155,10 +154,21 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
                 {visibleTables.map((t: Table) => (
                     <div key={t.id} onClick={() => { 
                         if (t.status === TableStatus.AVAILABLE) store.requestTableQr(t.id, currentUser.id).catch(() => alert("Bạn đã phục vụ tối đa 3 bàn!"));
+                        else if (t.status === TableStatus.CLEANING) store.setTableEmpty(t.id); // Click nhanh để dọn bàn
                         else setQuickActionTable(t);
-                    }} className={`p-4 rounded-3xl border-2 flex flex-col items-center justify-center gap-2 transition-all relative h-28 ${t.status === TableStatus.AVAILABLE ? 'border-dashed border-slate-200 bg-white' : 'border-slate-800 bg-slate-900 text-white shadow-md'}`}>
+                    }} className={`p-4 rounded-3xl border-2 flex flex-col items-center justify-center gap-2 transition-all relative h-28 ${
+                      t.status === TableStatus.AVAILABLE 
+                      ? 'border-dashed border-slate-200 bg-white' 
+                      : t.status === TableStatus.CLEANING 
+                      ? 'border-emerald-500 bg-emerald-50 text-emerald-600 animate-pulse' 
+                      : 'border-slate-800 bg-slate-900 text-white shadow-md'
+                    }`}>
                         <span className="text-[10px] font-black uppercase italic">{t.id === 0 ? 'LẺ' : 'BÀN '+t.id}</span>
-                        {t.status === TableStatus.AVAILABLE ? <PlusCircle size={20} className="text-slate-300"/> : <Utensils size={20} className="text-orange-500"/>}
+                        {t.status === TableStatus.AVAILABLE ? <PlusCircle size={20} className="text-slate-300"/> : 
+                         t.status === TableStatus.CLEANING ? <Sparkles size={20} className="text-emerald-500"/> :
+                         <Utensils size={20} className="text-orange-500"/>}
+                        
+                        {t.status === TableStatus.CLEANING && <span className="text-[8px] font-black uppercase tracking-tighter absolute bottom-2">Dọn xong?</span>}
                         {t.status === TableStatus.PAYING && <div className="absolute top-1 right-1"><Bell size={12} className="text-red-500 animate-bounce"/></div>}
                         {t.status === TableStatus.OCCUPIED && (
                           <div className="absolute top-1 right-1">
@@ -182,16 +192,22 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
               <div className="bg-white w-full max-sm:max-w-[90%] max-w-sm rounded-[2.5rem] p-8 shadow-2xl animate-scaleIn">
                  <h3 className="text-lg font-black uppercase italic mb-6 text-center">Bàn số {quickActionTable.id}</h3>
                  <div className="grid grid-cols-1 gap-3">
-                    <button onClick={() => { setShowQrModal(quickActionTable); setQuickActionTable(null); }} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-2 italic"><QrCode size={16}/> Xem mã QR</button>
-                    <button onClick={() => { setSelectedTableId(quickActionTable.id); setActiveTab('ORDER'); setQuickActionTable(null); }} className="w-full py-4 bg-orange-500 text-white rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-2 italic"><PlusCircle size={16}/> Thêm món mới</button>
-                    
-                    <div className="grid grid-cols-2 gap-3">
-                       <button onClick={() => { setMoveRequest({fromId: quickActionTable.id, mode: 'MOVE'}); setQuickActionTable(null); }} className="py-4 bg-blue-500 text-white rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-2 italic"><MoveHorizontal size={16}/> Chuyển bàn</button>
-                       <button onClick={() => { setMoveRequest({fromId: quickActionTable.id, mode: 'MERGE'}); setQuickActionTable(null); }} className="py-4 bg-purple-500 text-white rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-2 italic"><Merge size={16}/> Gộp bàn</button>
-                    </div>
+                    {quickActionTable.status === TableStatus.CLEANING ? (
+                        <button onClick={() => { store.setTableEmpty(quickActionTable.id); setQuickActionTable(null); }} className="w-full py-4 bg-emerald-500 text-white rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-2 italic shadow-lg shadow-emerald-200"><Sparkles size={16}/> Hoàn tất dọn dẹp</button>
+                    ) : (
+                      <>
+                        <button onClick={() => { setShowQrModal(quickActionTable); setQuickActionTable(null); }} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-2 italic"><QrCode size={16}/> Xem mã QR</button>
+                        <button onClick={() => { setSelectedTableId(quickActionTable.id); setActiveTab('ORDER'); setQuickActionTable(null); }} className="w-full py-4 bg-orange-500 text-white rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-2 italic"><PlusCircle size={16}/> Thêm món mới</button>
+                        
+                        <div className="grid grid-cols-2 gap-3">
+                           <button onClick={() => { setMoveRequest({fromId: quickActionTable.id, mode: 'MOVE'}); setQuickActionTable(null); }} className="py-4 bg-blue-500 text-white rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-2 italic"><MoveHorizontal size={16}/> Chuyển bàn</button>
+                           <button onClick={() => { setMoveRequest({fromId: quickActionTable.id, mode: 'MERGE'}); setQuickActionTable(null); }} className="py-4 bg-purple-500 text-white rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-2 italic"><Merge size={16}/> Gộp bàn</button>
+                        </div>
 
-                    {quickActionTable.status === TableStatus.PAYING && (
-                       <button onClick={() => { setShowBillTableId(quickActionTable.id); setQuickActionTable(null); }} className="w-full py-4 bg-green-500 text-white rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-2 italic"><CheckCheck size={16}/> Xác nhận tính tiền</button>
+                        {quickActionTable.status === TableStatus.PAYING && (
+                           <button onClick={() => { setShowBillTableId(quickActionTable.id); setQuickActionTable(null); }} className="w-full py-4 bg-green-500 text-white rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-2 italic"><CheckCheck size={16}/> Xác nhận tính tiền</button>
+                        )}
+                      </>
                     )}
                     <button onClick={() => setQuickActionTable(null)} className="w-full py-4 bg-slate-50 text-slate-400 rounded-2xl font-black uppercase text-[10px]">Đóng</button>
                  </div>
@@ -273,7 +289,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
 
         {activeTab === 'PAYMENTS' && (
             <div className="p-4 space-y-4 overflow-y-auto no-scrollbar">
-                {visibleTables.filter(t => t.status !== TableStatus.AVAILABLE).map(t => (
+                {visibleTables.filter(t => t.status !== TableStatus.AVAILABLE && t.status !== TableStatus.CLEANING).map(t => (
                     <div key={t.id} onClick={() => setShowBillTableId(t.id)} className="bg-white p-4 rounded-2xl border border-slate-200 flex justify-between items-center cursor-pointer">
                         <div>
                             <p className="text-[10px] font-black uppercase text-slate-800 italic">Bàn {t.id === 0 ? 'Lẻ' : t.id}</p>
@@ -285,8 +301,8 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
                         </div>
                     </div>
                 ))}
-                {visibleTables.filter(t => t.status !== TableStatus.AVAILABLE).length === 0 && (
-                   <p className="text-center py-20 text-slate-300 font-black uppercase text-[10px] italic">Chưa có bàn nào do bạn phụ trách</p>
+                {visibleTables.filter(t => t.status !== TableStatus.AVAILABLE && t.status !== TableStatus.CLEANING).length === 0 && (
+                   <p className="text-center py-20 text-slate-300 font-black uppercase text-[10px] italic">Chưa có bàn nào đang phục vụ</p>
                 )}
             </div>
         )}
