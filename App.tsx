@@ -106,7 +106,6 @@ const AppContent: React.FC = () => {
       
       if (currentUser.role === UserRole.STAFF) {
         if (n.targetRole !== UserRole.STAFF) return false;
-        // Nhân viên chỉ nhận thông báo từ bàn do mình phụ trách (hoặc khách lẻ tid=0)
         return !n.payload || n.payload.claimedBy === currentUser.id || n.payload.tableId === 0;
       }
       return false;
@@ -180,7 +179,7 @@ const AppContent: React.FC = () => {
                 <Route path="/view-menu" element={<CustomerMenu store={store} currentRole={UserRole.CUSTOMER} />} />
                 <Route path="/table/:tableId" element={<CustomerMenu store={store} currentRole={UserRole.CUSTOMER} />} />
                 <Route path="/table/:tableId/:token" element={<CustomerMenu store={store} currentRole={UserRole.CUSTOMER} />} />
-                <Route path="/staff" element={renderProtectedRoute(UserRole.STAFF, <StaffView store={store} />)} />
+                <Route path="/staff" element={renderProtectedRoute(UserRole.STAFF, <StaffView store={store} currentUser={currentUser!} />)} />
                 <Route path="/kitchen" element={renderProtectedRoute(UserRole.KITCHEN, <KitchenView store={store} />)} />
                 <Route path="/admin" element={renderProtectedRoute(UserRole.ADMIN, <AdminView store={store} />)} />
                 <Route path="/login" element={<LoginOverlay users={store.users} onSuccess={handleLoginSuccess} onCancel={() => navigate('/')} />} />
