@@ -326,12 +326,12 @@ export const useRestaurantStore = () => {
     },
     requestTableQr: async (tid: number, sid: string) => {
       if (tid === 0) return;
-      // Refined check: Only count active tables (excluding AVAILABLE and CLEANING)
+      
+      // Strict Check: Count tables that are actively in service (Occupied or Paying)
       const staffActiveTables = tables.filter(t => 
         t.claimedBy === sid && 
         t.id !== 0 && 
-        t.status !== TableStatus.AVAILABLE && 
-        t.status !== TableStatus.CLEANING
+        (t.status === TableStatus.OCCUPIED || t.status === TableStatus.PAYING || t.status === TableStatus.BILLING)
       ).length;
       
       if (staffActiveTables >= 3) throw new Error("LIMIT_REACHED");
