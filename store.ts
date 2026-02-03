@@ -234,7 +234,8 @@ export const useRestaurantStore = () => {
         await pushToCloud({ tables: nt, notifications: [staffNotif, ...notifications] });
         return;
       }
-      await pushToCloud({ nt });
+      // Fixed: Changed { nt } to { tables: nt } to correctly update cloud data
+      await pushToCloud({ tables: nt });
     },
 
     cancelOrderItem: async (tid: number, oid: string) => {
