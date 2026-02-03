@@ -6,7 +6,7 @@ import { ConfirmModal } from '../App';
 import { 
   Monitor, Settings, Plus, UserPlus, Pizza, Shield, 
   Trash2, X, Edit3, LayoutDashboard, CreditCard, Star, Award, TrendingUp,
-  ChefHat, Database, CheckCircle, RotateCcw, Save
+  ChefHat, Database, CheckCircle, RotateCcw, Save, DollarSign
 } from 'lucide-react';
 import { ensureArray } from '../store.ts';
 
@@ -205,8 +205,19 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
         {activeTab === 'REQUESTS' && (
            <div className="space-y-6 animate-slideUp">
               <section className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm">
-                 <h4 className="font-black text-[10px] uppercase italic mb-6">Yêu cầu từ nhân viên</h4>
+                 <h4 className="font-black text-[10px] uppercase italic mb-6">Duyệt thanh toán & Yêu cầu</h4>
                  <div className="space-y-4">
+                    {/* Danh sách thanh toán chờ duyệt */}
+                    {paymentRequests.map((t: Table) => (
+                        <div key={`pay-${t.id}`} className="p-5 rounded-2xl bg-green-50 border border-green-100 flex items-center justify-between">
+                            <div>
+                                <p className="text-[11px] font-black uppercase text-slate-800 italic">Bàn {t.id === 0 ? 'Lẻ' : t.id} yêu cầu tính tiền</p>
+                                <p className="text-[10px] font-black text-green-600">Tổng: {ensureArray<OrderItem>(t.currentOrders).filter(o => o.status !== OrderItemStatus.CANCELLED).reduce((s,o) => s + (o.price * o.quantity), 0).toLocaleString()}đ</p>
+                            </div>
+                            <button onClick={() => store.confirmPayment(t.id)} className="bg-green-600 text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase italic shadow-lg flex items-center gap-2"><DollarSign size={14}/> Chốt HĐ</button>
+                        </div>
+                    ))}
+
                     {qrRequests.map((n: AppNotification) => (
                         <div key={n.id} className="p-5 rounded-2xl bg-orange-50 border border-orange-100 flex items-center justify-between">
                             <div>
@@ -219,12 +230,14 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
                     {moveRequests.map((n: AppNotification) => (
                         <div key={n.id} className="p-5 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-between">
                             <div>
-                                <p className="text-[11px] font-black uppercase text-slate-800 italic">Gộp bàn: {n.payload.fromId} {'->'} {n.payload.toId}</p>
+                                <p className="text-[11px] font-black uppercase text-slate-800 italic">Di chuyển: Bàn {n.payload.fromId} {'->'} {n.payload.toId}</p>
                             </div>
-                            <button onClick={() => store.approveTableMove(n.id)} className="bg-blue-500 text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase italic shadow-lg">Duyệt gộp</button>
+                            <button onClick={() => store.approveTableMove(n.id)} className="bg-blue-500 text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase italic shadow-lg">Duyệt lệnh</button>
                         </div>
                     ))}
-                    {qrRequests.length === 0 && moveRequests.length === 0 && <p className="text-center py-10 text-slate-300 font-black uppercase text-[10px] italic">Không có yêu cầu nào</p>}
+                    {qrRequests.length === 0 && moveRequests.length === 0 && paymentRequests.length === 0 && (
+                        <p className="text-center py-10 text-slate-300 font-black uppercase text-[10px] italic">Không có yêu cầu nào cần duyệt</p>
+                    )}
                  </div>
               </section>
            </div>
