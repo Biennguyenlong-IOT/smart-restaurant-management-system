@@ -20,7 +20,8 @@ export enum TableStatus {
   OCCUPIED = 'OCCUPIED',
   PAYING = 'PAYING',
   BILLING = 'BILLING',
-  REVIEWING = 'REVIEWING' 
+  REVIEWING = 'REVIEWING',
+  CLEANING = 'CLEANING'
 }
 
 export enum OrderType {
