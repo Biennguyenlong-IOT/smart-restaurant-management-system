@@ -8,7 +8,7 @@ import {
   Trash2, X, Edit3, LayoutDashboard, Calendar, PowerOff, 
   Search, Save, CreditCard, Star, Award, TrendingUp, ShoppingBag, Utensils,
   ChevronRight, Users, Hash, ChefHat, RefreshCcw, Database, CheckCircle, 
-  Clock, Filter, Download, Info, Package, User as UserIcon
+  Clock, Filter, Download, Info, Package, User as UserIcon, QrCode
 } from 'lucide-react';
 
 interface AdminViewProps { store: any; }
@@ -88,7 +88,7 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
 
   return (
     <div className="h-full flex flex-col animate-fadeIn overflow-hidden">
-      {/* Tab Navigation - Professional Sidebar style for desktop, horizontal for mobile */}
+      {/* Tab Navigation */}
       <div className="flex bg-white p-1 rounded-2xl mb-4 w-full overflow-x-auto no-scrollbar border border-slate-200 shadow-sm sticky top-0 z-30 shrink-0">
         {[
           { id: 'DASHBOARD', label: 'Báo cáo', icon: <LayoutDashboard size={16}/> },
@@ -108,7 +108,7 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
       </div>
 
       <div className="flex-1 overflow-y-auto no-scrollbar pb-24 px-1 space-y-6">
-        {/* DASHBOARD TAB - DETAILED REVENUE */}
+        {/* DASHBOARD TAB */}
         {activeTab === 'DASHBOARD' && (
            <div className="space-y-6 animate-slideUp">
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -185,7 +185,7 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
            </div>
         )}
 
-        {/* KPI TAB - STAFF PERFORMANCE */}
+        {/* KPI TAB */}
         {activeTab === 'KPI' && (
            <div className="space-y-6 animate-slideUp">
               <div className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm overflow-x-auto">
@@ -250,36 +250,55 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
               )}
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Yêu cầu mở bàn QR */}
+                <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
+                   <h4 className="font-black text-xs uppercase italic mb-6 flex items-center gap-2 text-orange-500"><QrCode size={18}/> Yêu cầu mở bàn (QR)</h4>
+                   <div className="space-y-3">
+                      {qrRequests.map((n:any) => (
+                         <div key={n.id} className="flex flex-col sm:flex-row items-center justify-between p-4 bg-orange-50/50 rounded-2xl border border-white gap-3">
+                            <div className="min-w-0">
+                               <p className="text-[10px] font-black uppercase italic leading-tight">Bàn {n.payload?.tableId}</p>
+                               <p className="text-[8px] font-bold text-slate-400 uppercase italic">NV: {n.payload?.staffId}</p>
+                            </div>
+                            <button onClick={() => store.approveTableQr(n.id)} className="w-full sm:w-auto bg-orange-500 text-white px-6 py-2 rounded-xl text-[10px] font-black uppercase italic shadow-lg active:scale-95 transition-all">Duyệt mở bàn</button>
+                         </div>
+                      ))}
+                      {qrRequests.length === 0 && <p className="text-center py-6 text-slate-300 text-[10px] font-black uppercase italic">Không có yêu cầu</p>}
+                   </div>
+                </div>
+
+                {/* Yêu cầu chuyển bàn */}
                 <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
                    <h4 className="font-black text-xs uppercase italic mb-6 flex items-center gap-2 text-blue-500"><ArrowRightLeft size={18}/> Chuyển bàn</h4>
                    <div className="space-y-3">
                       {moveRequests.map((n:any) => (
                          <div key={n.id} className="flex flex-col sm:flex-row items-center justify-between p-4 bg-blue-50/50 rounded-2xl border border-white gap-3">
                             <div><p className="text-[10px] font-black uppercase italic leading-tight">{n.message}</p></div>
-                            <button onClick={() => store.approveTableMove(n.id)} className="w-full sm:w-auto bg-blue-600 text-white px-6 py-2 rounded-xl text-[10px] font-black uppercase italic shadow-lg">Duyệt</button>
+                            <button onClick={() => store.approveTableMove(n.id)} className="w-full sm:w-auto bg-blue-600 text-white px-6 py-2 rounded-xl text-[10px] font-black uppercase italic shadow-lg active:scale-95 transition-all">Duyệt chuyển</button>
                          </div>
                       ))}
                       {moveRequests.length === 0 && <p className="text-center py-6 text-slate-300 text-[10px] font-black uppercase italic">Không có yêu cầu</p>}
                    </div>
                 </div>
 
-                <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
+                {/* Xác nhận thu tiền */}
+                <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm lg:col-span-2">
                    <h4 className="font-black text-xs uppercase italic mb-6 flex items-center gap-2 text-amber-500"><CreditCard size={18}/> Xác nhận thu tiền ({paymentRequests.length})</h4>
-                   <div className="space-y-3">
+                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {paymentRequests.map((t:any) => (
                          <div key={t.id} className="flex items-center justify-between p-4 bg-amber-50/50 rounded-2xl border border-amber-100">
                             <p className="text-[11px] font-black uppercase italic">Bàn {t.id === 0 ? 'Khách lẻ' : t.id}</p>
-                            <button onClick={() => store.confirmPayment(t.id)} className="bg-amber-600 text-white px-6 py-2 rounded-xl text-[10px] font-black uppercase italic shadow-lg">Đã nhận tiền</button>
+                            <button onClick={() => store.confirmPayment(t.id)} className="bg-amber-600 text-white px-6 py-2 rounded-xl text-[10px] font-black uppercase italic shadow-lg active:scale-95 transition-all">Đã nhận tiền</button>
                          </div>
                       ))}
-                      {paymentRequests.length === 0 && <p className="text-center py-6 text-slate-300 text-[10px] font-black uppercase italic">Trống</p>}
-                 </div>
+                      {paymentRequests.length === 0 && <p className="text-center py-6 text-slate-300 text-[10px] font-black uppercase italic lg:col-span-2">Chưa có yêu cầu thanh toán</p>}
+                   </div>
                 </div>
               </div>
            </div>
         )}
 
-        {/* MONITOR TAB - TABLE GRAPH */}
+        {/* MONITOR TAB */}
         {activeTab === 'MONITOR' && (
            <div className="grid grid-cols-2 xs:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 animate-slideUp">
             {store.tables.map((t: Table) => (
@@ -353,7 +372,7 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
            </div>
         )}
 
-        {/* BANK TAB - REFINED */}
+        {/* BANK TAB */}
         {activeTab === 'BANK' && (
            <div className="max-w-xl mx-auto animate-slideUp">
               <div className="bg-white p-10 rounded-[3rem] border border-slate-100 shadow-xl relative overflow-hidden">
@@ -383,7 +402,7 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
            </div>
         )}
 
-        {/* CLOUD TAB - SYSTEM CONFIG */}
+        {/* CLOUD TAB */}
         {activeTab === 'CLOUD' && (
            <div className="max-w-2xl mx-auto space-y-6 animate-slideUp">
               <div className="bg-white p-10 rounded-[3rem] border border-slate-100 shadow-xl text-center relative overflow-hidden">
