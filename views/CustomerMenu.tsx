@@ -4,9 +4,7 @@ import * as ReactRouterDOM from 'react-router-dom';
 const { useParams, Link, useNavigate, useSearchParams, useLocation } = ReactRouterDOM;
 
 import { CATEGORIES } from '../constants';
-// Added User to imports to resolve line 220 error
 import { OrderItem, OrderItemStatus, MenuItem, TableStatus, UserRole, Table, OrderType, Review, User } from '../types';
-// Added ensureArray import from store.ts to resolve line 220 error
 import { ensureArray } from '../store.ts';
 import { ConfirmModal } from '../App';
 import { ShoppingCart, History, ChefHat, Loader2, CreditCard, Bell, X, Trash2, Send, ChevronRight, Star, MessageSquare, CheckCircle2 } from 'lucide-react';
@@ -59,7 +57,6 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
   const [cancelTarget, setCancelTarget] = useState<{id: string, name: string} | null>(null);
   const [isOrdering, setIsOrdering] = useState(false);
 
-  // Review states
   const [ratingFood, setRatingFood] = useState(5);
   const [ratingService, setRatingService] = useState(5);
   const [comment, setComment] = useState('');
@@ -139,7 +136,6 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
     </div>
   );
 
-  // PAYMENT VIEW
   if (table.status === TableStatus.PAYING) {
     return (
         <div className="flex flex-col h-full max-w-md mx-auto w-full p-4 animate-fadeIn overflow-y-auto no-scrollbar pb-10">
@@ -149,10 +145,7 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
                     <Loader2 size={32} className="animate-spin" />
                 </div>
                 <h2 className="text-xl font-black text-slate-800 uppercase italic mb-2">Đang chờ thanh toán</h2>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-8">Vui lòng chuyển khoản hoặc thanh toán tại quầy</p>
-
                 <div className="bg-slate-50 rounded-2xl p-6 mb-8 text-left space-y-3">
-                    <p className="text-[10px] font-black uppercase text-slate-400 italic mb-2">Chi tiết Bàn {idNum}</p>
                     {activeOrders.map((item, idx) => (
                         <div key={idx} className="flex justify-between items-center text-[11px]">
                             <span className="font-black text-slate-700 uppercase italic truncate pr-2">{item.name} x{item.quantity}</span>
@@ -160,16 +153,13 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
                         </div>
                     ))}
                     <div className="pt-4 border-t border-slate-200 flex justify-between items-center">
-                        <span className="text-xs font-black uppercase text-slate-800 italic">Tổng hóa đơn:</span>
+                        <span className="text-xs font-black uppercase text-slate-800 italic">Tổng cộng:</span>
                         <span className="text-xl font-black text-emerald-600 italic">{totalAmount.toLocaleString()}đ</span>
                     </div>
                 </div>
-
                 {bankQrUrl && (
                     <div className="space-y-4">
-                        <div className="bg-white p-3 rounded-2xl shadow-inner border-2 border-slate-50 mx-auto w-fit">
-                            <img src={bankQrUrl} alt="Bank QR" className="w-48 h-48 rounded-lg" />
-                        </div>
+                        <img src={bankQrUrl} alt="Bank QR" className="w-48 h-48 rounded-lg mx-auto border-2 border-slate-50 p-2" />
                         <p className="text-[9px] font-black text-slate-500 uppercase italic">{store.bankConfig.accountName} - {store.bankConfig.accountNo}</p>
                     </div>
                 )}
@@ -178,7 +168,6 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
     );
   }
 
-  // REVIEW VIEW
   if (table.status === TableStatus.REVIEWING) {
     return (
         <div className="flex flex-col h-full max-w-md mx-auto w-full p-4 animate-fadeIn overflow-y-auto no-scrollbar pb-10">
@@ -186,23 +175,34 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
                 <div className="w-20 h-20 bg-orange-50 text-orange-500 rounded-[2.5rem] flex items-center justify-center mx-auto mb-8">
                     <CheckCircle2 size={40} />
                 </div>
-                <h2 className="text-2xl font-black text-slate-800 uppercase italic mb-2">Cảm ơn bạn!</h2>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-10">Bữa ăn của bạn như thế nào?</p>
-
-                <div className="space-y-8 text-left">
+                <h2 className="text-2xl font-black text-slate-800 uppercase italic mb-2 text-center">Đánh giá bữa ăn</h2>
+                
+                <div className="space-y-8 text-left mt-8">
                     <div>
-                        <label className="text-[10px] font-black uppercase text-slate-400 italic mb-4 block">Món ăn & Phục vụ</label>
-                        <div className="flex justify-between gap-2">
+                        <label className="text-[10px] font-black uppercase text-slate-400 italic mb-3 block">1. Chất lượng món ăn</label>
+                        <div className="flex justify-between gap-1.5">
                             {[1,2,3,4,5].map(star => (
-                                <button key={star} onClick={() => setRatingFood(star)} className={`flex-1 py-4 rounded-2xl flex items-center justify-center transition-all ${ratingFood >= star ? 'bg-orange-500 text-white shadow-lg' : 'bg-slate-50 text-slate-300'}`}>
-                                    <Star size={20} fill={ratingFood >= star ? 'currentColor' : 'none'} />
+                                <button key={star} onClick={() => setRatingFood(star)} className={`flex-1 py-4 rounded-xl flex items-center justify-center transition-all ${ratingFood >= star ? 'bg-orange-500 text-white' : 'bg-slate-50 text-slate-300'}`}>
+                                    <Star size={18} fill={ratingFood >= star ? 'currentColor' : 'none'} />
                                 </button>
                             ))}
                         </div>
                     </div>
-                    <textarea value={comment} onChange={e => setComment(e.target.value)} placeholder="Góp ý cho nhà hàng..." className="w-full px-6 py-5 bg-slate-50 rounded-[1.5rem] outline-none font-bold text-sm h-32 no-scrollbar border-2 border-transparent focus:border-orange-500 transition-all" />
-                    <button onClick={() => store.submitReview({ id: `REV-${Date.now()}`, tableId: idNum, staffId: table.claimedBy || 'system', ratingFood, ratingService: ratingFood, comment, timestamp: Date.now() })} disabled={isSubmittingReview} className="w-full py-5 bg-slate-900 text-white rounded-[2rem] font-black uppercase text-[11px] shadow-2xl italic flex items-center justify-center gap-3">
-                        <Send size={18}/> Gửi & Kết thúc
+
+                    <div>
+                        <label className="text-[10px] font-black uppercase text-slate-400 italic mb-3 block">2. Thái độ phục vụ</label>
+                        <div className="flex justify-between gap-1.5">
+                            {[1,2,3,4,5].map(star => (
+                                <button key={star} onClick={() => setRatingService(star)} className={`flex-1 py-4 rounded-xl flex items-center justify-center transition-all ${ratingService >= star ? 'bg-blue-500 text-white' : 'bg-slate-50 text-slate-300'}`}>
+                                    <Star size={18} fill={ratingService >= star ? 'currentColor' : 'none'} />
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <textarea value={comment} onChange={e => setComment(e.target.value)} placeholder="Nhà hàng cần cải thiện điều gì không?" className="w-full px-6 py-5 bg-slate-50 rounded-[1.5rem] outline-none font-bold text-sm h-32 no-scrollbar border-2 border-transparent focus:border-orange-500 transition-all" />
+                    <button onClick={() => store.submitReview({ id: `REV-${Date.now()}`, tableId: idNum, staffId: table.claimedBy || 'system', ratingFood, ratingService, comment, timestamp: Date.now() })} disabled={isSubmittingReview} className="w-full py-5 bg-slate-900 text-white rounded-[2rem] font-black uppercase text-[11px] shadow-2xl italic flex items-center justify-center gap-3">
+                        <Send size={18}/> Gửi đánh giá
                     </button>
                 </div>
             </div>
@@ -220,8 +220,7 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
           <div className="w-8 h-8 bg-orange-500 text-white rounded-lg flex items-center justify-center font-black text-sm italic shadow-md">B{idNum}</div>
           <div>
             <h2 className="text-slate-800 font-black text-[10px] uppercase leading-none">Bàn {idNum}</h2>
-            {/* Using ensureArray and User type defined above */}
-            <span className="text-[7px] font-black text-slate-400 uppercase">Phục vụ bởi: {ensureArray<User>(store.users).find(u => u.id === table?.claimedBy)?.fullName || '...'}</span>
+            <span className="text-[7px] font-black text-slate-400 uppercase">NV phục vụ: {ensureArray<User>(store.users).find(u => u.id === table?.claimedBy)?.fullName || '...'}</span>
           </div>
         </div>
         <div className="flex gap-1.5 p-1 bg-slate-100 rounded-xl">
