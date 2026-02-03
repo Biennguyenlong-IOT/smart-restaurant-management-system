@@ -115,7 +115,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
 
   const handleTable0Payment = async () => {
     await store.confirmPayment(0);
-    // Tự động đóng bill cho khách lẻ sau khi thanh toán
+    // Tự động đóng bill cho khách lẻ ngay sau khi thanh toán
     setShowBillTableId(null);
   };
 
@@ -149,7 +149,6 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
       <div className="flex-1 overflow-y-auto no-scrollbar">
         {activeTab === 'TABLES' && (
           <div className="space-y-4 md:space-y-6">
-            {/* Live Notifications Panel for Staff */}
             {myNotifications.length > 0 && (
                 <section className="bg-slate-900 text-white rounded-[2rem] p-6 shadow-xl animate-slideUp">
                     <div className="flex items-center gap-2 mb-4">
@@ -324,7 +323,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
                       <div>
                          <p className="text-[9px] font-black uppercase text-slate-400 italic">{t.id === 0 ? 'Khách lẻ' : 'Bàn ' + t.id}</p>
                          <h4 className="font-black text-slate-800 text-[11px] uppercase truncate max-w-[150px]">
-                            {t.status === TableStatus.PAYING ? '🔴 Chờ thu tiền' : t.status === TableStatus.BILLING ? 'Chờ khách xác nhận' : 'Đang phục vụ'}
+                            {t.status === TableStatus.PAYING ? '🔴 Chờ thu tiền' : t.status === TableStatus.BILLING ? 'Chờ xác nhận' : 'Đang phục vụ'}
                          </h4>
                       </div>
                       <button onClick={() => setShowBillTableId(t.id)} className="bg-slate-900 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase shadow-sm">Chi tiết bill</button>
@@ -338,7 +337,6 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
         )}
       </div>
 
-      {/* Bill & Table Detail Modal */}
       {showBillTableId !== null && currentBillTable && (
         <div className="fixed inset-0 z-[200] bg-slate-900/90 backdrop-blur-md flex items-center justify-center p-4">
             <div className="bg-white rounded-[2.5rem] p-6 md:p-8 max-w-sm w-full shadow-2xl animate-scaleIn border border-slate-100 max-h-[90dvh] overflow-y-auto no-scrollbar text-center">
@@ -352,7 +350,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
                         <div key={o.id} className={`flex justify-between items-center p-2 rounded-lg ${o.status === OrderItemStatus.CANCELLED ? 'opacity-30 line-through' : 'bg-slate-50'}`}>
                             <div className="flex flex-col">
                                 <span className="text-[10px] font-bold text-slate-800 truncate max-w-[150px]">{o.name} x{o.quantity}</span>
-                                <span className="text-[8px] font-black uppercase italic text-slate-400">{o.status}</span>
+                                <span className={`text-[8px] font-black uppercase italic text-slate-400`}>{o.status}</span>
                             </div>
                             <span className="text-[10px] font-black text-slate-600">{(o.price * o.quantity).toLocaleString()}đ</span>
                         </div>
@@ -364,21 +362,14 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
                 </div>
 
                 <div className="space-y-3">
-                    {/* KHÁCH LẺ (Table 0): Xác nhận xong là ẩn luôn */}
-                    {showBillTableId === 0 && (
-                        <button onClick={handleTable0Payment} className="w-full py-4 bg-green-600 text-white rounded-xl font-black uppercase text-[10px] shadow-xl flex items-center justify-center gap-2">
+                    {/* KHÁCH LẺ (Table 0): CHỈ STAFF mới được xác nhận, xác nhận xong ẩn nút ngay bằng cách check status */}
+                    {showBillTableId === 0 && currentBillTable.status !== TableStatus.BILLING && (
+                        <button onClick={handleTable0Payment} className="w-full py-4 bg-green-600 text-white rounded-xl font-black uppercase text-[10px] shadow-xl flex items-center justify-center gap-2 active:scale-95 transition-all">
                            <CheckCircle2 size={16} /> Xác nhận đã thu tiền
                         </button>
                     )}
 
-                    {/* BÀN THƯỜNG: Xác nhận thu tiền */}
-                    {showBillTableId !== 0 && currentBillTable.status === TableStatus.PAYING && (
-                        <button onClick={() => { store.confirmPayment(showBillTableId); setShowBillTableId(null); }} className="w-full py-4 bg-amber-500 text-white rounded-xl font-black uppercase text-[10px] shadow-xl flex items-center justify-center gap-2">
-                           <CheckCircle2 size={16} /> Xác nhận thu tiền
-                        </button>
-                    )}
-                    
-                    {/* BÀN THƯỜNG: Nhân viên gửi yêu cầu thanh toán thủ công */}
+                    {/* BÀN THƯỜNG: Nhân viên CHỈ được gửi yêu cầu, Admin mới được xác nhận thu tiền */}
                     {showBillTableId !== 0 && currentBillTable.status !== TableStatus.PAYING && currentBillTable.status !== TableStatus.BILLING && currentBillTable.status !== TableStatus.REVIEWING && currentBillTable.status !== TableStatus.CLEANING && (
                         <button onClick={() => { store.requestPayment(showBillTableId); setShowBillTableId(null); }} className="w-full py-4 bg-orange-500 text-white rounded-xl font-black uppercase text-[10px] shadow-xl flex items-center justify-center gap-2">
                            <CreditCard size={16} /> Gửi yêu cầu thanh toán
@@ -394,7 +385,6 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
         </div>
       )}
 
-      {/* QR Code Modal */}
       {showQrModalId !== null && (
         <div className="fixed inset-0 z-[250] bg-slate-900/90 backdrop-blur-xl flex items-center justify-center p-4">
             <div className="bg-white rounded-[3rem] p-8 md:p-10 max-w-sm w-full text-center shadow-2xl animate-scaleIn border border-slate-100">
