@@ -29,6 +29,15 @@ const sanitizeForFirebase = (obj: any): any => {
   return obj;
 }
 
+/**
+ * Đảm bảo dữ liệu từ Firebase (đôi khi là object với key số) luôn được xử lý như mảng.
+ */
+export const ensureArray = <T>(val: any): T[] => {
+  if (!val) return [];
+  if (Array.isArray(val)) return val;
+  return Object.values(val) as T[];
+};
+
 export const useRestaurantStore = () => {
   const [tables, setTables] = useState<Table[]>([]);
   const [menu, setMenu] = useState<MenuItem[]>([]);
@@ -77,21 +86,23 @@ export const useRestaurantStore = () => {
       const unsubscribe = onValue(dataRef, (snapshot) => {
         const data = snapshot.val();
         if (data) {
-          const rawTables = data.tables || [];
+          const rawTables = ensureArray<Table>(data.tables);
           if (!rawTables.find((t:any) => t.id === 0)) {
             rawTables.unshift({ id: 0, status: TableStatus.AVAILABLE, currentOrders: [], orderType: OrderType.TAKEAWAY });
           }
-          setTables(rawTables);
-          const syncedMenu = (data.menu || INITIAL_MENU).map((m: any) => ({
-            ...m,
-            isAvailable: m.isAvailable !== undefined ? m.isAvailable : true
+          // Đảm bảo currentOrders trong mỗi bàn cũng là mảng
+          const processedTables = rawTables.map(t => ({
+            ...t,
+            currentOrders: ensureArray<OrderItem>(t.currentOrders)
           }));
-          setMenu(syncedMenu);
-          setHistory(data.history || []);
-          setNotifications(data.notifications || []);
-          setUsers(data.users || DEFAULT_USERS);
+          
+          setTables(processedTables);
+          setMenu(ensureArray<MenuItem>(data.menu || INITIAL_MENU));
+          setHistory(ensureArray<HistoryEntry>(data.history));
+          setNotifications(ensureArray<AppNotification>(data.notifications));
+          setUsers(ensureArray<User>(data.users || DEFAULT_USERS));
           setBankConfig(data.bankConfig || DEFAULT_BANK);
-          setReviews(data.reviews || []);
+          setReviews(ensureArray<Review>(data.reviews));
           setSyncStatus('SUCCESS');
         } else if (isInitialLoad.current) {
           const initialData = {
@@ -162,7 +173,7 @@ export const useRestaurantStore = () => {
 
         const nt = tables.map(t => {
             if (t.id === toId) {
-                const mergedOrders = [...(toTable.currentOrders || []), ...(fromTable.currentOrders || [])];
+                const mergedOrders = [...(ensureArray<OrderItem>(toTable.currentOrders)), ...(ensureArray<OrderItem>(fromTable.currentOrders))];
                 return { 
                     ...t, 
                     status: TableStatus.OCCUPIED, 
@@ -200,18 +211,56 @@ export const useRestaurantStore = () => {
     placeOrder: async (tid: number, items: OrderItem[], type: OrderType = OrderType.DINE_IN) => {
       const targetTable = tables.find(t => t.id === tid);
       if (!targetTable) throw new Error("Table not found");
-      const updatedTables = tables.map(t => t.id === tid ? { ...t, currentOrders: [...(t.currentOrders || []), ...items], status: TableStatus.OCCUPIED, orderType: type } : t);
-      const nnotif: AppNotification = { id: `O-${Date.now()}`, targetRole: UserRole.STAFF, title: '🔔 Khách đặt món mới', message: `Bàn ${tid === 0 ? 'Khách lẻ' : tid} vừa đặt ${items.length} món.`, timestamp: Date.now(), read: false, type: 'order', payload: { tableId: tid, claimedBy: targetTable.claimedBy } };
-      await pushToCloud({ tables: updatedTables, notifications: [nnotif, ...notifications] });
+      
+      const updatedTables = tables.map(t => t.id === tid ? { 
+        ...t, 
+        currentOrders: [...(ensureArray<OrderItem>(t.currentOrders)), ...items], 
+        status: TableStatus.OCCUPIED, 
+        orderType: type 
+      } : t);
+
+      // Nếu có món đã CONFIRMED (do Staff đặt), thông báo trực tiếp cho Kitchen
+      const confirmedCount = items.filter(i => i.status === OrderItemStatus.CONFIRMED).length;
+      const newNotifs = [...notifications];
+
+      if (confirmedCount > 0) {
+        newNotifs.unshift({
+            id: `K-DIR-${Date.now()}`,
+            targetRole: UserRole.KITCHEN,
+            title: '🍳 Món mới từ Phục vụ',
+            message: `Bàn ${tid === 0 ? 'Khách lẻ' : tid} có ${confirmedCount} món mới trực tiếp.`,
+            timestamp: Date.now(),
+            read: false,
+            type: 'kitchen',
+            payload: { tableId: tid }
+        });
+      }
+
+      // Thông báo cho Staff nếu có món PENDING (khách đặt)
+      const pendingCount = items.filter(i => i.status === OrderItemStatus.PENDING).length;
+      if (pendingCount > 0) {
+        newNotifs.unshift({ 
+            id: `O-${Date.now()}`, 
+            targetRole: UserRole.STAFF, 
+            title: '🔔 Khách đặt món mới', 
+            message: `Bàn ${tid === 0 ? 'Khách lẻ' : tid} vừa đặt ${pendingCount} món.`, 
+            timestamp: Date.now(), 
+            read: false, 
+            type: 'order', 
+            payload: { tableId: tid, claimedBy: targetTable.claimedBy } 
+        });
+      }
+
+      await pushToCloud({ tables: updatedTables, notifications: newNotifs });
     },
 
     confirmTableOrders: async (tid: number) => {
       const targetTable = tables.find(t => t.id === tid);
       if (!targetTable) return;
-      const pendingItems = targetTable.currentOrders.filter(o => o.status === OrderItemStatus.PENDING);
+      const pendingItems = ensureArray<OrderItem>(targetTable.currentOrders).filter(o => o.status === OrderItemStatus.PENDING);
       if (pendingItems.length === 0) return;
       
-      const updatedTables = tables.map(t => t.id === tid ? { ...t, currentOrders: t.currentOrders.map(o => o.status === OrderItemStatus.PENDING ? { ...o, status: OrderItemStatus.CONFIRMED } : o) } : t);
+      const updatedTables = tables.map(t => t.id === tid ? { ...t, currentOrders: ensureArray<OrderItem>(t.currentOrders).map(o => o.status === OrderItemStatus.PENDING ? { ...o, status: OrderItemStatus.CONFIRMED } : o) } : t);
       
       const kitchenNotif: AppNotification = { 
         id: `K-${Date.now()}`, 
@@ -235,9 +284,9 @@ export const useRestaurantStore = () => {
 
     updateOrderItemStatus: async (tid: number, oid: string, s: OrderItemStatus) => {
       const targetTable = tables.find(t => t.id === tid);
-      const nt = tables.map(t => t.id === tid ? { ...t, currentOrders: t.currentOrders.map(o => o.id === oid ? { ...o, status: s } : o) } : t);
+      const nt = tables.map(t => t.id === tid ? { ...t, currentOrders: ensureArray<OrderItem>(t.currentOrders).map(o => o.id === oid ? { ...o, status: s } : o) } : t);
       if (s === OrderItemStatus.READY) {
-        const item = targetTable?.currentOrders.find(o => o.id === oid);
+        const item = ensureArray<OrderItem>(targetTable?.currentOrders).find(o => o.id === oid);
         const staffNotif: AppNotification = { id: `R-${Date.now()}`, targetRole: UserRole.STAFF, title: '🍳 Món ăn đã xong', message: `Bàn ${tid === 0 ? 'Khách lẻ' : tid}: ${item?.name} đã làm xong.`, timestamp: Date.now(), read: false, type: 'kitchen', payload: { tableId: tid, claimedBy: targetTable?.claimedBy, itemId: oid } };
         await pushToCloud({ tables: nt, notifications: [staffNotif, ...notifications] });
         return;
@@ -247,12 +296,12 @@ export const useRestaurantStore = () => {
 
     cancelOrderItem: async (tid: number, oid: string) => {
       const table = tables.find(t => t.id === tid);
-      const item = table?.currentOrders.find(o => o.id === oid);
+      const item = ensureArray<OrderItem>(table?.currentOrders).find(o => o.id === oid);
       if (!item) return;
       
       const nt = tables.map(t => t.id === tid ? { 
         ...t, 
-        currentOrders: t.currentOrders.map(o => (o.id === oid && (o.status === OrderItemStatus.PENDING || o.status === OrderItemStatus.CONFIRMED || o.status === OrderItemStatus.COOKING)) ? { ...o, status: OrderItemStatus.CANCELLED } : o) 
+        currentOrders: ensureArray<OrderItem>(t.currentOrders).map(o => (o.id === oid && (o.status === OrderItemStatus.PENDING || o.status === OrderItemStatus.CONFIRMED || o.status === OrderItemStatus.COOKING)) ? { ...o, status: OrderItemStatus.CANCELLED } : o) 
       } : t);
       
       const kitchenNotif: AppNotification = {
@@ -345,6 +394,45 @@ export const useRestaurantStore = () => {
     clearHistory: async () => { await pushToCloud({ history: [] }); },
     clearReviews: async () => { await pushToCloud({ reviews: [] }); },
     
+    requestPayment: async (tid: number) => {
+      const targetTable = tables.find(t => t.id === tid);
+      const nt = tables.map(t => t.id === tid ? { ...t, status: TableStatus.PAYING } : t);
+      const nnotif: AppNotification = { id: `PAY-${Date.now()}`, targetRole: UserRole.STAFF, title: 'Yêu cầu tính tiền', message: `${tid === 0 ? 'Khách lẻ' : 'Bàn ' + tid} muốn tính tiền.`, timestamp: Date.now(), read: false, type: 'payment', payload: { tableId: tid, claimedBy: targetTable?.claimedBy } };
+      await pushToCloud({ tables: nt, notifications: [nnotif, ...notifications] });
+    },
+
+    confirmPayment: async (tid: number) => {
+      const table = tables.find(t => t.id === tid);
+      if (!table || table.status === TableStatus.AVAILABLE) return;
+      
+      const paidItems = ensureArray<OrderItem>(table.currentOrders).filter(o => o.status !== OrderItemStatus.CANCELLED);
+      const total = paidItems.reduce((s, o) => s + (o.price * o.quantity), 0);
+      const transactionId = `BILL-${table.sessionToken || 'CASH'}-${Date.now()}`;
+      
+      const h: HistoryEntry = { 
+        id: transactionId, 
+        tableId: tid, 
+        staffId: table.claimedBy || 'direct',
+        total, 
+        items: ensureArray<OrderItem>(table.currentOrders), 
+        date: new Date().toISOString(), 
+        orderType: table.orderType
+      };
+      
+      if (tid === 0) {
+        const nt = tables.map(t => t.id === 0 ? { ...t, status: TableStatus.AVAILABLE, currentOrders: [], claimedBy: null, sessionToken: null, qrRequested: false } : t);
+        await pushToCloud({ tables: nt, history: [h, ...history] });
+      } else {
+        const nt = tables.map(t => t.id === tid ? { ...t, status: TableStatus.REVIEWING } : t);
+        await pushToCloud({ tables: nt, history: [h, ...history] });
+      }
+    },
+
+    completeBilling: async (tid: number) => {
+      const nt = tables.map(t => t.id === tid ? { ...t, status: TableStatus.REVIEWING } : t);
+      await pushToCloud({ tables: nt });
+    },
+
     setTableEmpty: async (tid: number) => {
       const nt = tables.map(t => t.id === tid ? { ...t, status: TableStatus.AVAILABLE, currentOrders: [], claimedBy: null, sessionToken: null, qrRequested: false } : t);
       await pushToCloud({ tables: nt });
