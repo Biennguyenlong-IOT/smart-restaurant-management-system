@@ -1,15 +1,15 @@
-
 import React, { useMemo, useState } from 'react';
-import { OrderItem, OrderItemStatus, AppNotification, UserRole, MenuItem, OrderType } from '../types.ts';
-import { Pizza, XCircle, CheckCircle, AlertTriangle, ChefHat, Clock, BellRing } from 'lucide-react';
+import { OrderItem, OrderItemStatus, AppNotification, UserRole, MenuItem, OrderType, User, HistoryEntry } from '../types.ts';
+import { Pizza, XCircle, CheckCircle, AlertTriangle, ChefHat, Clock, BellRing, Target } from 'lucide-react';
 import { ensureArray } from '../store.ts';
 
 interface KitchenViewProps {
   store: any;
+  currentUser: User;
 }
 
-const KitchenView: React.FC<KitchenViewProps> = ({ store }) => {
-  const [tab, setTab] = useState<'ORDERS' | 'MENU_MGMT'>('ORDERS');
+const KitchenView: React.FC<KitchenViewProps> = ({ store, currentUser }) => {
+  const [tab, setTab] = useState<'ORDERS' | 'MENU_MGMT' | 'MY_KPI'>('ORDERS');
   const [searchTerm, setSearchTerm] = useState('');
 
   const kitchenCommands = useMemo(() => 
@@ -28,11 +28,21 @@ const KitchenView: React.FC<KitchenViewProps> = ({ store }) => {
       .map((o: OrderItem) => ({ ...o, tableId: t.id, orderType: t.orderType }))
   ).sort((a,b) => b.timestamp - a.timestamp), [store.tables]);
 
+  const myKpiStats = useMemo(() => {
+    const history = ensureArray<HistoryEntry>(store.history);
+    let dishesCount = 0;
+    history.forEach(h => {
+        dishesCount += ensureArray<OrderItem>(h.items).filter(i => i.kitchenStaffId === currentUser.id && i.status !== OrderItemStatus.CANCELLED).length;
+    });
+    return { dishesCount };
+  }, [store.history, currentUser.id]);
+
   return (
     <div className="space-y-8 animate-fadeIn h-full flex flex-col">
-      <div className="flex gap-4 p-1.5 bg-white rounded-2xl border border-slate-200 w-fit shrink-0">
-         <button onClick={() => setTab('ORDERS')} className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${tab === 'ORDERS' ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400'}`}>Đơn Chế Biến</button>
-         <button onClick={() => setTab('MENU_MGMT')} className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${tab === 'MENU_MGMT' ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400'}`}>Quản Lý Món</button>
+      <div className="flex gap-4 p-1.5 bg-white rounded-2xl border border-slate-200 w-fit shrink-0 overflow-x-auto no-scrollbar">
+         <button onClick={() => setTab('ORDERS')} className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase transition-all whitespace-nowrap ${tab === 'ORDERS' ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400'}`}>Đơn Chế Biến</button>
+         <button onClick={() => setTab('MENU_MGMT')} className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase transition-all whitespace-nowrap ${tab === 'MENU_MGMT' ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400'}`}>Quản Lý Món</button>
+         <button onClick={() => setTab('MY_KPI')} className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase transition-all whitespace-nowrap ${tab === 'MY_KPI' ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400'}`}>Hiệu Suất</button>
       </div>
 
       {tab === 'ORDERS' ? (
@@ -75,7 +85,7 @@ const KitchenView: React.FC<KitchenViewProps> = ({ store }) => {
                                 </div>
                                 <span className="text-3xl font-black text-slate-900 bg-slate-50 px-3 py-1 rounded-xl">x{item.quantity}</span>
                             </div>
-                            <button onClick={() => store.updateOrderItemStatus(item.tableId, item.id, OrderItemStatus.COOKING)} className="w-full bg-slate-900 text-white py-4 rounded-xl font-black text-xs uppercase shadow-xl active:scale-95 transition-all">Bắt đầu nấu</button>
+                            <button onClick={() => store.updateOrderItemStatus(item.tableId, item.id, OrderItemStatus.COOKING, currentUser.id)} className="w-full bg-slate-900 text-white py-4 rounded-xl font-black text-xs uppercase shadow-xl active:scale-95 transition-all">Bắt đầu nấu</button>
                         </div>
                     ))
                 }
@@ -97,14 +107,14 @@ const KitchenView: React.FC<KitchenViewProps> = ({ store }) => {
                                 </div>
                                 <span className="text-3xl font-black text-orange-600 bg-orange-50 px-3 py-1 rounded-xl">x{item.quantity}</span>
                             </div>
-                            <button onClick={() => store.updateOrderItemStatus(item.tableId, item.id, OrderItemStatus.READY)} className="w-full bg-orange-500 text-white py-4 rounded-xl font-black text-xs uppercase shadow-lg active:scale-95 transition-all">Nấu xong & Gọi bưng</button>
+                            <button onClick={() => store.updateOrderItemStatus(item.tableId, item.id, OrderItemStatus.READY, currentUser.id)} className="w-full bg-orange-500 text-white py-4 rounded-xl font-black text-xs uppercase shadow-lg active:scale-95 transition-all">Nấu xong & Gọi bưng</button>
                         </div>
                     ))
                 }
             </section>
           </div>
         </div>
-      ) : (
+      ) : tab === 'MENU_MGMT' ? (
         <div className="flex-1 bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm flex flex-col overflow-hidden mb-10">
             <div className="flex items-center gap-4 mb-8 bg-slate-50 p-4 rounded-2xl shrink-0">
                <Pizza className="text-orange-500" />
@@ -126,6 +136,28 @@ const KitchenView: React.FC<KitchenViewProps> = ({ store }) => {
                   </div>
                ))}
             </div>
+        </div>
+      ) : (
+        <div className="flex-1 overflow-y-auto no-scrollbar pb-10">
+           <div className="bg-white rounded-[2.5rem] p-10 shadow-2xl border border-slate-100 text-center">
+                <div className="w-20 h-20 bg-emerald-50 text-emerald-500 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-inner">
+                    <Target size={40} />
+                </div>
+                <h2 className="text-2xl font-black text-slate-800 uppercase italic mb-2">Thống kê cá nhân</h2>
+                <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-10">Kết quả làm việc của bạn trong ngày</p>
+                
+                <div className="grid grid-cols-1 gap-6 max-w-sm mx-auto">
+                    <div className="bg-slate-900 rounded-[2rem] p-8 text-white relative overflow-hidden">
+                        <p className="text-[10px] font-black text-slate-500 uppercase italic tracking-widest mb-2">Món ăn đã chế biến</p>
+                        <h3 className="text-4xl font-black italic">{myKpiStats.dishesCount}</h3>
+                        <div className="absolute top-4 right-4 text-white/5"><ChefHat size={60}/></div>
+                    </div>
+                    <div className="bg-emerald-500 rounded-[2rem] p-8 text-white relative overflow-hidden">
+                        <p className="text-[10px] font-black text-white/60 uppercase italic tracking-widest mb-2">Trạng thái bếp</p>
+                        <h3 className="text-xl font-black italic uppercase">Đang hoạt động</h3>
+                    </div>
+                </div>
+           </div>
         </div>
       )}
     </div>
