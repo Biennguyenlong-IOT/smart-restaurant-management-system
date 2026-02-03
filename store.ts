@@ -326,8 +326,16 @@ export const useRestaurantStore = () => {
     },
     requestTableQr: async (tid: number, sid: string) => {
       if (tid === 0) return;
-      const staffActiveTables = tables.filter(t => t.claimedBy === sid && t.id !== 0 && t.status !== TableStatus.AVAILABLE).length;
+      // Refined check: Only count active tables (excluding AVAILABLE and CLEANING)
+      const staffActiveTables = tables.filter(t => 
+        t.claimedBy === sid && 
+        t.id !== 0 && 
+        t.status !== TableStatus.AVAILABLE && 
+        t.status !== TableStatus.CLEANING
+      ).length;
+      
       if (staffActiveTables >= 3) throw new Error("LIMIT_REACHED");
+      
       const nt = tables.map(t => t.id === tid ? { ...t, qrRequested: true, claimedBy: sid } : t);
       const nnotif: AppNotification = { id: `QR-REQ-${Date.now()}`, targetRole: UserRole.ADMIN, title: 'Yêu cầu mở bàn', message: `Bàn ${tid} cần mở QR.`, timestamp: Date.now(), read: false, type: 'qr_request', payload: { tableId: tid, staffId: sid } };
       await pushToCloud({ tables: nt, notifications: [nnotif, ...notifications] });
