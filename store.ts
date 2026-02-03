@@ -212,17 +212,39 @@ export const useRestaurantStore = () => {
       const updatedTables = tables.map(t => 
         t.id === tid ? { ...t, currentOrders: [...existingOrders, ...items], status: TableStatus.OCCUPIED, orderType: type } : t
       );
+      
+      // Thông báo cho Nhân viên Phục vụ (để xác nhận)
       const nnotif: AppNotification = { 
-        id: `O-${Date.now()}`, targetRole: UserRole.STAFF, title: type === OrderType.TAKEAWAY ? '📦 Đơn MANG VỀ' : '🍽️ Món mới', 
-        message: `Bàn ${tid === 0 ? 'Khách lẻ' : tid} gọi ${items.length} món.`, timestamp: Date.now(), read: false, type: 'order', 
+        id: `O-${Date.now()}`, targetRole: UserRole.STAFF, title: '🔔 Khách đặt món mới', 
+        message: `Bàn ${tid === 0 ? 'Khách lẻ' : tid} vừa đặt ${items.length} món. Vui lòng xác nhận!`, timestamp: Date.now(), read: false, type: 'order', 
         payload: { tableId: tid, claimedBy: targetTable.claimedBy }
       };
+      
+      await pushToCloud({ tables: updatedTables, notifications: [nnotif, ...notifications] });
+    },
+
+    confirmTableOrders: async (tid: number) => {
+      const targetTable = tables.find(t => t.id === tid);
+      if (!targetTable) return;
+
+      const pendingItems = targetTable.currentOrders.filter(o => o.status === OrderItemStatus.PENDING);
+      if (pendingItems.length === 0) return;
+
+      const updatedTables = tables.map(t => 
+        t.id === tid ? { 
+          ...t, 
+          currentOrders: t.currentOrders.map(o => o.status === OrderItemStatus.PENDING ? { ...o, status: OrderItemStatus.CONFIRMED } : o) 
+        } : t
+      );
+
+      // Sau khi nhân viên xác nhận, mới thông báo cho Bếp
       const kitchenNotif: AppNotification = {
-        id: `K-${Date.now()}`, targetRole: UserRole.KITCHEN, title: type === OrderType.TAKEAWAY ? '📦 Đơn MANG VỀ' : '🍳 Có món mới',
-        message: `Bàn ${tid === 0 ? 'Khách lẻ' : tid} có ${items.length} món mới.`, timestamp: Date.now(), read: false, type: 'order',
+        id: `K-${Date.now()}`, targetRole: UserRole.KITCHEN, title: '🍳 Món mới (Đã duyệt)',
+        message: `Bàn ${tid === 0 ? 'Khách lẻ' : tid} có ${pendingItems.length} món mới được xác nhận.`, timestamp: Date.now(), read: false, type: 'order',
         payload: { tableId: tid }
       };
-      await pushToCloud({ tables: updatedTables, notifications: [nnotif, kitchenNotif, ...notifications] });
+
+      await pushToCloud({ tables: updatedTables, notifications: [kitchenNotif, ...notifications] });
     },
 
     callStaff: async (tid: number) => {
@@ -324,7 +346,7 @@ export const useRestaurantStore = () => {
 
     completeBilling: async (tid: number) => {
       const nt = tables.map(t => t.id === tid ? { ...t, status: TableStatus.AVAILABLE, currentOrders: [], claimedBy: null, sessionToken: null } : t);
-      await pushToCloud({ nt });
+      await pushToCloud({ tables: nt });
     },
 
     adminForceClose: async (tid: number) => {
