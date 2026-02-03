@@ -8,7 +8,7 @@ import {
   Trash2, X, Edit3, LayoutDashboard, Calendar, PowerOff, 
   Search, Save, CreditCard, Star, Award, TrendingUp, ShoppingBag, Utensils,
   ChevronRight, Users, Hash, ChefHat, RefreshCcw, Database, CheckCircle, 
-  Clock, Filter, Download, Info, Package, User as UserIcon, QrCode, AlertTriangle, ChevronDown
+  Clock, Filter, Download, Info, Package, User as UserIcon, QrCode, AlertTriangle, ChevronDown, RotateCcw, Loader2
 } from 'lucide-react';
 
 interface AdminViewProps { store: any; }
@@ -33,7 +33,6 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
     const history: HistoryEntry[] = store.history || [];
     const todayStr = new Date().toLocaleDateString();
     
-    // Lọc lịch sử theo tìm kiếm (ID, Bàn, NV)
     const filteredHistory = history.filter(h => 
         h.id.toLowerCase().includes(historySearch.toLowerCase()) ||
         h.tableId.toString() === historySearch ||
@@ -41,11 +40,9 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
     );
 
     const todayOrders = history.filter(h => new Date(h.date).toLocaleDateString() === todayStr);
-    
     const todayRevenue = todayOrders.reduce((sum, h) => sum + h.total, 0);
     const totalRevenue = history.reduce((sum, h) => sum + h.total, 0);
     
-    // Thống kê thất thoát do huỷ món (Audit Trail)
     const totalLoss = history.reduce((sum, h) => {
         const cancelledSum = (h.items || []).filter(i => i.status === OrderItemStatus.CANCELLED).reduce((s, i) => s + (i.price * i.quantity), 0);
         return sum + cancelledSum;
@@ -151,12 +148,6 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
                         <span className="text-[10px] font-black uppercase italic relative z-10">Thực thu (Đã thanh toán):</span>
                         <span className="text-xl font-black italic relative z-10">{selectedHistory.total.toLocaleString()}đ</span>
                     </div>
-                    {selectedHistory.items?.some(i => i.status === OrderItemStatus.CANCELLED) && (
-                        <div className="bg-red-50 p-3 rounded-xl border border-red-100 flex items-center gap-3">
-                            <AlertTriangle size={16} className="text-red-500" />
-                            <p className="text-[9px] font-bold text-red-600 uppercase italic leading-tight">Phát hiện món bị huỷ trong đơn này - Kiểm tra lý do huỷ món để tránh thất thoát.</p>
-                        </div>
-                    )}
                 </div>
             </div>
         </div>
@@ -182,7 +173,6 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
       </div>
 
       <div className="flex-1 overflow-y-auto no-scrollbar pb-24 px-1 space-y-6">
-        {/* DASHBOARD TAB - Focus on Audit and Leakage Prevention */}
         {activeTab === 'DASHBOARD' && (
            <div className="space-y-6 animate-slideUp">
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -211,60 +201,39 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm flex flex-col min-h-[500px]">
                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-                      <h4 className="font-black text-xs uppercase italic flex items-center gap-2 shrink-0"><Clock className="text-slate-400" size={18}/> Đối soát đơn hàng & Chống thất thoát</h4>
-                      
+                      <h4 className="font-black text-xs uppercase italic flex items-center gap-2 shrink-0"><Clock className="text-slate-400" size={18}/> Đối soát hóa đơn</h4>
                       <div className="flex bg-slate-50 p-1.5 rounded-xl border border-slate-200 w-full md:w-auto">
                         <Search size={14} className="text-slate-300 mx-2 self-center"/>
-                        <input type="text" value={historySearch} onChange={e => setHistorySearch(e.target.value)} placeholder="Tìm theo ID, Bàn, Nhân viên..." className="bg-transparent text-[10px] font-bold outline-none uppercase w-full" />
+                        <input type="text" value={historySearch} onChange={e => setHistorySearch(e.target.value)} placeholder="Tìm kiếm..." className="bg-transparent text-[10px] font-bold outline-none uppercase w-full" />
                       </div>
                    </div>
 
                    <div className="flex-1 overflow-y-auto space-y-3 no-scrollbar pr-1">
-                      {stats.history.length === 0 ? (
-                        <div className="py-24 text-center">
-                            <Database size={48} className="text-slate-200 mx-auto mb-4" />
-                            <p className="text-slate-300 font-black uppercase text-[10px] italic tracking-widest">Không có dữ liệu đối soát phù hợp</p>
-                        </div>
-                      ) : (
-                        stats.history.map((h: HistoryEntry) => {
-                            const hasCancelled = (h.items || []).some(i => i.status === OrderItemStatus.CANCELLED);
-                            return (
-                                <div key={h.id} onClick={() => setSelectedHistory(h)} className={`p-4 rounded-2xl border-2 cursor-pointer transition-all hover:border-slate-300 group flex flex-col md:flex-row justify-between gap-3 ${hasCancelled ? 'bg-red-50/20 border-red-100 shadow-sm' : 'bg-slate-50 border-white'}`}>
-                                    <div className="flex items-center gap-4">
-                                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white font-black text-[10px] shadow-md shrink-0 ${h.orderType === OrderType.TAKEAWAY ? 'bg-indigo-600' : 'bg-slate-900'}`}>
-                                            <span className="opacity-50 text-[7px] mb-0.5">{h.orderType === OrderType.TAKEAWAY ? 'MANG VỀ' : 'BÀN'}</span>
-                                            {h.tableId === 0 ? 'LẺ' : h.tableId}
-                                        </div>
-                                        <div>
-                                            <p className="text-[11px] font-black text-slate-800 uppercase leading-none mb-1.5">{h.total.toLocaleString()}đ</p>
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-[8px] font-bold text-slate-400 uppercase italic leading-none">{new Date(h.date).toLocaleTimeString()} - {new Date(h.date).toLocaleDateString()}</span>
-                                                <span className="w-1 h-1 rounded-full bg-slate-200"></span>
-                                                <span className="text-[8px] font-black text-slate-500 uppercase leading-none">NV: @{h.staffId}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center justify-between md:justify-end gap-3 border-t md:border-0 pt-2 md:pt-0">
-                                        {hasCancelled && (
-                                            <div className="flex items-center gap-1.5 text-red-500 bg-red-50 px-2 py-1 rounded-lg border border-red-100">
-                                                <AlertTriangle size={10}/>
-                                                <span className="text-[8px] font-black uppercase">Món bị hủy</span>
-                                            </div>
-                                        )}
-                                        <div className="flex items-center gap-1.5 text-slate-300 group-hover:text-slate-500 transition-colors">
-                                            <span className="text-[8px] font-black uppercase">Xem bill</span>
-                                            <ChevronRight size={14}/>
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })
-                      )}
-                   </div>
-                   
-                   <div className="mt-4 pt-4 border-t border-slate-100 flex justify-between items-center">
-                      <p className="text-[9px] font-black text-slate-400 uppercase italic">Hiển thị {stats.history.length} hóa đơn lọc được</p>
-                      <button onClick={() => setDeleteTarget({ type: 'history', name: 'Kết toán & Xoá lịch sử (Admin Only)' })} className="text-[9px] font-black text-red-500 uppercase italic hover:underline">Reset toàn bộ dữ liệu</button>
+                      {stats.history.map((h: HistoryEntry) => {
+                          const hasCancelled = (h.items || []).some(i => i.status === OrderItemStatus.CANCELLED);
+                          return (
+                              <div key={h.id} onClick={() => setSelectedHistory(h)} className={`p-4 rounded-2xl border-2 cursor-pointer transition-all hover:border-slate-300 group flex flex-col md:flex-row justify-between gap-3 ${hasCancelled ? 'bg-red-50/20 border-red-100 shadow-sm' : 'bg-slate-50 border-white'}`}>
+                                  <div className="flex items-center gap-4">
+                                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white font-black text-[10px] shadow-md shrink-0 ${h.orderType === OrderType.TAKEAWAY ? 'bg-indigo-600' : 'bg-slate-900'}`}>
+                                          <span className="opacity-50 text-[7px] mb-0.5">{h.orderType === OrderType.TAKEAWAY ? 'MANG VỀ' : 'BÀN'}</span>
+                                          {h.tableId === 0 ? 'LẺ' : h.tableId}
+                                      </div>
+                                      <div>
+                                          <p className="text-[11px] font-black text-slate-800 uppercase leading-none mb-1.5">{h.total.toLocaleString()}đ</p>
+                                          <div className="flex items-center gap-2">
+                                              <span className="text-[8px] font-bold text-slate-400 uppercase italic leading-none">{new Date(h.date).toLocaleTimeString()} - {new Date(h.date).toLocaleDateString()}</span>
+                                              <span className="w-1 h-1 rounded-full bg-slate-200"></span>
+                                              <span className="text-[8px] font-black text-slate-500 uppercase leading-none">NV: @{h.staffId}</span>
+                                          </div>
+                                      </div>
+                                  </div>
+                                  <div className="flex items-center justify-between md:justify-end gap-3 border-t md:border-0 pt-2 md:pt-0">
+                                      {hasCancelled && <div className="flex items-center gap-1.5 text-red-500 bg-red-50 px-2 py-1 rounded-lg border border-red-100"><AlertTriangle size={10}/><span className="text-[8px] font-black uppercase">Món bị hủy</span></div>}
+                                      <div className="flex items-center gap-1.5 text-slate-300 group-hover:text-slate-500 transition-colors"><span className="text-[8px] font-black uppercase">Xem bill</span><ChevronRight size={14}/></div>
+                                  </div>
+                              </div>
+                          );
+                      })}
                    </div>
                 </div>
 
@@ -285,63 +254,52 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
                            </div>
                         </div>
                       ))}
-                      {stats.topItems.length === 0 && <p className="text-center py-20 text-slate-300 font-black uppercase text-[10px] italic">Chưa có dữ liệu thống kê</p>}
-                   </div>
-                   
-                   <div className="mt-8 space-y-3">
-                        <div className="p-5 bg-slate-900 text-white rounded-2xl relative overflow-hidden">
-                            <div className="absolute top-0 right-0 w-20 h-20 bg-white/5 rounded-bl-full"></div>
-                            <p className="text-[9px] font-black uppercase text-slate-400 mb-2 relative z-10">Cơ cấu doanh thu</p>
-                            <div className="flex justify-between text-[11px] font-black italic relative z-10">
-                                <span className="flex items-center gap-2"><Utensils size={12} className="text-orange-500"/> Tại bàn: {stats.dineInCount}</span>
-                                <span className="flex items-center gap-2"><ShoppingBag size={12} className="text-indigo-500"/> Mang về: {stats.takeawayCount}</span>
-                            </div>
-                        </div>
                    </div>
                 </div>
               </div>
            </div>
         )}
 
-        {/* REQUESTS TAB - Centralized Approval */}
         {activeTab === 'REQUESTS' && (
            <div className="space-y-6 animate-slideUp">
               <section className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm">
                  <h4 className="font-black text-xs uppercase italic mb-6 flex items-center gap-2"><CheckCircle className="text-green-500" size={18}/> Duyệt mở bàn & Chuyển bàn</h4>
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {qrRequests.length === 0 && moveRequests.length === 0 && (
-                        <div className="col-span-full py-20 text-center">
-                            {/* Fixed CheckCircle2 typo to CheckCircle */}
+                        <div className="col-span-full py-20 text-center bg-slate-50/50 rounded-3xl border border-dashed border-slate-200">
                             <CheckCircle size={48} className="text-slate-100 mx-auto mb-4" />
                             <p className="text-slate-300 font-black uppercase text-[10px] italic">Tất cả yêu cầu đã được xử lý</p>
                         </div>
                     )}
                     {qrRequests.map((n: AppNotification) => (
-                        <div key={n.id} className="p-4 rounded-2xl bg-orange-50 border border-orange-100 flex items-center justify-between gap-4">
-                            <div>
-                                <p className="text-[10px] font-black uppercase text-orange-600 italic">Mở QR Bàn {n.payload.tableId}</p>
-                                <p className="text-[8px] font-bold text-slate-400 mt-0.5 italic">Yêu cầu từ @{n.payload.staffId}</p>
+                        <div key={n.id} className="p-5 rounded-2xl bg-orange-50 border border-orange-100 flex items-center justify-between gap-4 shadow-sm">
+                            <div className="flex items-center gap-4">
+                                <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center text-orange-600"><QrCode size={20}/></div>
+                                <div>
+                                    <p className="text-[11px] font-black uppercase text-slate-800 italic">Mở QR Bàn {n.payload.tableId}</p>
+                                    <p className="text-[8px] font-bold text-slate-400 mt-0.5 italic">Phục vụ: @{n.payload.staffId}</p>
+                                </div>
                             </div>
-                            <button onClick={() => store.approveTableQr(n.id)} className="bg-orange-500 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase italic shadow-md active:scale-95 transition-all">Duyệt mở</button>
+                            <button onClick={() => store.approveTableQr(n.id)} className="bg-orange-500 text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase italic shadow-lg active:scale-95 transition-all">Duyệt mở</button>
                         </div>
                     ))}
                     {moveRequests.map((n: AppNotification) => (
-                        <div key={n.id} className="p-4 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-between gap-4">
-                            <div className="flex items-center gap-3">
-                                <ArrowRightLeft size={16} className="text-blue-500"/>
+                        <div key={n.id} className="p-5 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-between gap-4 shadow-sm">
+                            <div className="flex items-center gap-4">
+                                <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600"><ArrowRightLeft size={20}/></div>
                                 <div>
-                                    <p className="text-[10px] font-black uppercase text-blue-600 italic">Bàn {n.payload.fromId} → {n.payload.toId}</p>
-                                    <p className="text-[8px] font-bold text-slate-400 mt-0.5 italic">Yêu cầu từ @{n.payload.staffId}</p>
+                                    <p className="text-[11px] font-black uppercase text-slate-800 italic">Bàn {n.payload.fromId} → {n.payload.toId}</p>
+                                    <p className="text-[8px] font-bold text-slate-400 mt-0.5 italic">Phục vụ: @{n.payload.staffId}</p>
                                 </div>
                             </div>
-                            <button onClick={() => store.approveTableMove(n.id)} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase italic shadow-md active:scale-95 transition-all">Duyệt chuyển</button>
+                            <button onClick={() => store.approveTableMove(n.id)} className="bg-blue-600 text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase italic shadow-lg active:scale-95 transition-all">Duyệt chuyển</button>
                         </div>
                     ))}
                  </div>
               </section>
               
               <section className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm">
-                 <h4 className="font-black text-xs uppercase italic mb-6 flex items-center gap-2"><CreditCard className="text-indigo-500" size={18}/> Bill đang thanh toán</h4>
+                 <h4 className="font-black text-xs uppercase italic mb-6 flex items-center gap-2"><CreditCard className="text-indigo-500" size={18}/> Bill đang tính tiền</h4>
                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {paymentRequests.length === 0 && billingTables.length === 0 && (
                         <div className="col-span-full py-20 text-center">
@@ -350,27 +308,15 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
                         </div>
                     )}
                     {paymentRequests.map((t: Table) => (
-                        <div key={t.id} className="p-4 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-between shadow-sm animate-pulse">
+                        <div key={t.id} className="p-4 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-between shadow-sm">
                             <div className="flex items-center gap-3">
                                 <div className="w-10 h-10 bg-indigo-600 text-white rounded-xl flex items-center justify-center font-black text-xs shadow-md">B{t.id}</div>
                                 <div>
-                                    <p className="text-[10px] font-black uppercase text-indigo-800 italic">Đang chuyển khoản</p>
+                                    <p className="text-[10px] font-black uppercase text-indigo-800 italic">Khách muốn tính tiền</p>
                                     <p className="text-[8px] font-bold text-slate-400 mt-0.5">Mã: {t.sessionToken}</p>
                                 </div>
                             </div>
                             <button onClick={() => { setSelectedHistory(store.history.find((h:any) => h.tableId === t.id)); setActiveTab('DASHBOARD'); }} className="p-2.5 bg-white text-indigo-600 rounded-xl shadow-sm"><Info size={16}/></button>
-                        </div>
-                    ))}
-                    {billingTables.map((t: Table) => (
-                        <div key={t.id} className="p-4 rounded-2xl bg-green-50 border border-green-100 flex items-center justify-between shadow-sm">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-green-600 text-white rounded-xl flex items-center justify-center font-black text-xs shadow-md">B{t.id}</div>
-                                <div>
-                                    <p className="text-[10px] font-black uppercase text-green-800 italic">Đã in bill - Chờ xong</p>
-                                    <p className="text-[8px] font-bold text-slate-400 mt-0.5">NV: @{t.claimedBy}</p>
-                                </div>
-                            </div>
-                            <button onClick={() => store.adminForceClose(t.id)} className="bg-red-500 text-white px-3 py-1.5 rounded-lg text-[8px] font-black uppercase shadow-md italic">Cưỡng chế đóng</button>
                         </div>
                     ))}
                  </div>
@@ -378,7 +324,65 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
            </div>
         )}
 
-        {/* KPI TAB */}
+        {activeTab === 'MONITOR' && (
+           <div className="space-y-6 animate-slideUp">
+              <div className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm">
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
+                    <div>
+                        <h4 className="font-black text-xs uppercase italic flex items-center gap-2 mb-1"><Monitor size={18} className="text-slate-400"/> Quản trị sơ đồ bàn</h4>
+                        <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest italic">Nhấn vào biểu tượng Reset để cưỡng chế giải phóng bàn</p>
+                    </div>
+                    <div className="flex items-center gap-3 bg-slate-50 p-2 rounded-2xl border border-slate-100">
+                        <label className="text-[9px] font-black uppercase text-slate-400 italic px-2">Tổng số bàn:</label>
+                        <input type="number" value={tempTableCount} onChange={e => setTempTableCount(parseInt(e.target.value))} className="w-16 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-black outline-none" />
+                        <button onClick={() => store.updateTableCount(tempTableCount)} className="bg-slate-900 text-white px-5 py-2 rounded-xl text-[9px] font-black uppercase italic shadow-lg active:scale-95 transition-all">Lưu cấu hình</button>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-4">
+                     {store.tables.map((t: Table) => {
+                        const isAvailable = t.status === TableStatus.AVAILABLE;
+                        const isRequested = t.qrRequested;
+                        const isOccupied = t.status === TableStatus.OCCUPIED;
+                        const isBilling = t.status === TableStatus.PAYING || t.status === TableStatus.BILLING || t.status === TableStatus.REVIEWING;
+                        const isCleaning = t.status === TableStatus.CLEANING;
+
+                        return (
+                            <div key={t.id} className={`p-4 rounded-3xl border-2 flex flex-col items-center justify-center gap-2 transition-all relative group ${
+                                isAvailable ? 'border-dashed border-slate-100 bg-white opacity-40 hover:opacity-100' :
+                                isRequested ? 'border-amber-400 bg-amber-50 animate-pulse' :
+                                isOccupied ? 'border-orange-500 bg-orange-50 shadow-sm' :
+                                isBilling ? 'border-indigo-500 bg-indigo-50 animate-pulse' :
+                                isCleaning ? 'border-red-500 bg-red-50' : 'border-slate-50 bg-slate-50/50'
+                            }`}>
+                                <span className="text-[11px] font-black uppercase italic text-slate-800">{t.id === 0 ? 'LẺ' : 'BÀN '+t.id}</span>
+                                
+                                {isRequested && <div className="text-amber-600"><Loader2 size={16} className="animate-spin"/></div>}
+                                {!isRequested && (
+                                    <div className="flex items-center gap-1.5">
+                                        <div className={`w-2 h-2 rounded-full ${isAvailable ? 'bg-slate-200' : isOccupied ? 'bg-orange-500' : isBilling ? 'bg-indigo-500' : 'bg-red-500'}`}></div>
+                                        <span className="text-[8px] font-black uppercase text-slate-400 truncate max-w-[60px]">{t.status}</span>
+                                    </div>
+                                )}
+
+                                {/* Admin Force Reset Button */}
+                                {!isAvailable && (
+                                    <button 
+                                        onClick={() => setResetTableId(t.id)} 
+                                        title="Reset bàn này"
+                                        className="mt-1 text-white bg-slate-900 p-2 rounded-xl shadow-lg opacity-0 group-hover:opacity-100 transform translate-y-2 group-hover:translate-y-0 transition-all duration-300 active:scale-90"
+                                    >
+                                        <RotateCcw size={12}/>
+                                    </button>
+                                )}
+                            </div>
+                        )
+                     })}
+                  </div>
+              </div>
+           </div>
+        )}
+
         {activeTab === 'KPI' && (
            <div className="space-y-6 animate-slideUp">
               <div className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm overflow-x-auto">
@@ -419,49 +423,12 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
                              </td>
                           </tr>
                        ))}
-                       {staffKPI.length === 0 && <tr><td colSpan={5} className="py-20 text-center text-slate-300 font-black uppercase text-[10px] italic">Chưa có dữ liệu nhân sự</td></tr>}
                     </tbody>
                  </table>
               </div>
            </div>
         )}
 
-        {/* MONITOR TAB - Simplified for Admin */}
-        {activeTab === 'MONITOR' && (
-           <div className="space-y-6 animate-slideUp">
-              <div className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm">
-                  <div className="flex justify-between items-center mb-6">
-                    <h4 className="font-black text-xs uppercase italic flex items-center gap-2"><Monitor size={18} className="text-slate-400"/> Tổng quát sơ đồ bàn</h4>
-                    <div className="flex items-center gap-3">
-                        <label className="text-[9px] font-black uppercase text-slate-400 italic">Số lượng bàn:</label>
-                        <input type="number" value={tempTableCount} onChange={e => setTempTableCount(parseInt(e.target.value))} className="w-16 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-black outline-none" />
-                        <button onClick={() => store.updateTableCount(tempTableCount)} className="bg-slate-900 text-white px-4 py-1.5 rounded-lg text-[9px] font-black uppercase italic shadow-md">Lưu</button>
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-4">
-                     {store.tables.map((t: Table) => (
-                        <div key={t.id} className={`p-4 rounded-2xl border-2 flex flex-col items-center justify-center gap-1.5 transition-all ${
-                            t.status === TableStatus.AVAILABLE ? 'border-dashed border-slate-100 bg-white opacity-40' :
-                            t.status === TableStatus.OCCUPIED ? 'border-orange-200 bg-orange-50/20' :
-                            t.status === TableStatus.PAYING || t.status === TableStatus.BILLING ? 'border-indigo-200 bg-indigo-50/20 animate-pulse' : 'border-slate-50 bg-slate-50/50'
-                        }`}>
-                           <span className="text-[10px] font-black uppercase italic text-slate-800">{t.id === 0 ? 'LẺ' : 'B'+t.id}</span>
-                           <div className="flex items-center gap-1.5">
-                              <div className={`w-1.5 h-1.5 rounded-full ${t.status === TableStatus.AVAILABLE ? 'bg-slate-200' : t.status === TableStatus.OCCUPIED ? 'bg-orange-500' : 'bg-indigo-500'}`}></div>
-                              <span className="text-[7px] font-black uppercase text-slate-400 truncate max-w-[50px]">{t.status}</span>
-                           </div>
-                           {t.status !== TableStatus.AVAILABLE && (
-                             <button onClick={() => setResetTableId(t.id)} className="mt-1 text-red-500 bg-white border border-red-50 p-1.5 rounded-lg shadow-sm hover:bg-red-50 transition-all"><PowerOff size={10}/></button>
-                           )}
-                        </div>
-                     ))}
-                  </div>
-              </div>
-           </div>
-        )}
-
-        {/* MENU MGMT TAB */}
         {activeTab === 'MENU' && (
            <div className="space-y-6 animate-slideUp">
               <div className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm">
@@ -492,7 +459,6 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
            </div>
         )}
 
-        {/* USERS TAB */}
         {activeTab === 'USERS' && (
            <div className="space-y-6 animate-slideUp">
               <div className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm">
@@ -529,7 +495,6 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
            </div>
         )}
 
-        {/* BANK TAB */}
         {activeTab === 'BANK' && (
            <div className="space-y-6 animate-slideUp">
               <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm max-w-xl mx-auto">
@@ -549,20 +514,11 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
                         <label className="text-[9px] font-black uppercase text-slate-400 ml-1 italic">Tên chủ tài khoản</label>
                         <input type="text" placeholder="NGUYEN VAN A" value={store.bankConfig.accountName} onChange={e => store.updateBankConfig({ ...store.bankConfig, accountName: e.target.value })} className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold text-sm" />
                     </div>
-                    <div className="bg-indigo-50 p-6 rounded-[2rem] border border-indigo-100 flex items-center gap-5">
-                       <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shrink-0 shadow-sm border border-indigo-200">
-                          <QrCode size={32} className="text-indigo-600" />
-                       </div>
-                       <p className="text-[10px] font-bold text-indigo-700 uppercase italic leading-relaxed">
-                          Thông tin này sẽ được dùng để tạo mã QR tự động cho khách hàng. Vui lòng đảm bảo thông tin chính xác để khách chuyển khoản đúng tài khoản.
-                       </p>
-                    </div>
                  </div>
               </div>
            </div>
         )}
 
-        {/* CLOUD TAB */}
         {activeTab === 'CLOUD' && (
            <div className="space-y-6 animate-slideUp">
               <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm max-w-xl mx-auto text-center">
@@ -574,7 +530,6 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
                        {store.cloudUrl}
                     </div>
                     <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="w-full py-5 bg-red-500 text-white rounded-2xl font-black uppercase text-xs shadow-xl active:scale-95 transition-all italic">Xoá thiết lập & Reset URL</button>
-                    <p className="text-[9px] font-bold text-slate-300 mt-4 uppercase italic leading-relaxed">Smart Resto v5.2 - Bảo mật đa tầng - Đối soát thời gian thực</p>
                  </div>
               </div>
            </div>
