@@ -71,6 +71,18 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
     await store.deleteNotification(nid);
   };
 
+  const handleCancelOrderNotif = async (tid: number, nid: string) => {
+    const table = store.tables.find((t: any) => t.id === tid);
+    if (table) {
+        // Huỷ tất cả các món đang PENDING trong thông báo này
+        const pendingOids = table.currentOrders.filter((o: any) => o.status === OrderItemStatus.PENDING).map((o: any) => o.id);
+        for (const oid of pendingOids) {
+            await store.cancelOrderItem(tid, oid);
+        }
+    }
+    await store.deleteNotification(nid);
+  };
+
   const handleServeItem = async (tid: number, oid: string, nid: string) => {
     await store.updateOrderItemStatus(tid, oid, OrderItemStatus.SERVED);
     store.deleteNotification(nid);
@@ -130,7 +142,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
 
   return (
     <div className="flex flex-col h-full max-w-full overflow-hidden animate-fadeIn">
-      {/* Header Status Bar - Luôn cố định */}
+      {/* Header Status Bar */}
       <div className="bg-white px-5 py-3 border-b border-slate-100 flex justify-between items-center shrink-0">
          <div className="flex items-center gap-3">
            <div className="w-10 h-10 bg-slate-900 text-white rounded-xl flex items-center justify-center font-black italic shadow-lg">S</div>
@@ -145,7 +157,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
          </div>
       </div>
 
-      {/* Main Tab Navigation - Luôn cố định */}
+      {/* Main Tab Navigation */}
       <div className="bg-white p-2 border-b border-slate-200 shrink-0">
         <div className="flex bg-slate-50 p-1 rounded-2xl border border-slate-200 shadow-inner">
           <button onClick={() => setActiveTab('TABLES')} className={`flex-1 px-3 py-3 rounded-xl text-[10px] font-black uppercase transition-all flex items-center justify-center gap-1.5 ${activeTab === 'TABLES' ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400'}`}><Utensils size={14}/> Sơ đồ</button>
@@ -154,7 +166,6 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
         </div>
       </div>
 
-      {/* Content Area - Co giãn linh hoạt */}
       <div className="flex-1 overflow-hidden flex flex-col relative bg-slate-50">
         {activeTab === 'TABLES' && (
           <div className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar">
@@ -178,7 +189,10 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
                                 </div>
                                 <div className="flex gap-1.5 shrink-0">
                                     {n.type === 'order' && (
-                                        <button onClick={() => handleConfirmOrder(n.payload?.tableId, n.id)} className="px-3 py-2 bg-blue-500 text-white rounded-lg text-[8px] font-black uppercase shadow-lg italic">Duyệt món</button>
+                                        <>
+                                            <button onClick={() => handleConfirmOrder(n.payload?.tableId, n.id)} className="px-3 py-2 bg-blue-500 text-white rounded-lg text-[8px] font-black uppercase shadow-lg italic">Duyệt</button>
+                                            <button onClick={() => handleCancelOrderNotif(n.payload?.tableId, n.id)} className="px-3 py-2 bg-red-500 text-white rounded-lg text-[8px] font-black uppercase shadow-lg italic">Huỷ đơn</button>
+                                        </>
                                     )}
                                     {n.type === 'kitchen' && (
                                         <button onClick={() => handleServeItem(n.payload?.tableId, n.payload?.itemId, n.id)} className="px-3 py-2 bg-green-500 text-white rounded-lg text-[8px] font-black uppercase shadow-lg italic">Bưng lên</button>
@@ -199,7 +213,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
                         const isCleaning = t.status === TableStatus.CLEANING;
                         const isBilling = t.status === TableStatus.BILLING;
                         const isRequested = t.qrRequested;
-                        const hasOrders = (t.currentOrders || []).length > 0;
+                        const hasOrders = (t.currentOrders || []).filter(o => o.status !== OrderItemStatus.CANCELLED).length > 0;
                         
                         return (
                             <div key={t.id} className={`p-4 rounded-2xl border-2 flex flex-col items-center justify-center gap-2 relative min-h-[105px] transition-all duration-300 ${
@@ -229,7 +243,6 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
 
         {activeTab === 'ORDER' && (
            <div className="flex flex-col h-full overflow-hidden animate-slideUp">
-              {/* Filter Section - Luôn cố định trong tab ORDER */}
               <div className="bg-white p-4 border-b border-slate-100 space-y-3 shrink-0 shadow-sm z-10">
                   <div className="flex bg-slate-50 rounded-2xl flex items-center px-4 py-3 border border-slate-100">
                      <Search size={16} className="text-slate-300 mr-3 shrink-0"/>
@@ -255,14 +268,8 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
                   </div>
               </div>
 
-              {/* Menu List Container - CUỘN ĐƯỢC */}
               <div className="flex-1 overflow-y-auto p-4 space-y-3 no-scrollbar pb-32">
-                  {filteredMenu.length === 0 ? (
-                    <div className="py-20 text-center space-y-4">
-                        <Tag className="mx-auto text-slate-200" size={48}/>
-                        <p className="text-[10px] font-black text-slate-300 uppercase italic">Không tìm thấy món ăn phù hợp</p>
-                    </div>
-                  ) : filteredMenu.map((m:MenuItem) => {
+                  {filteredMenu.map((m:MenuItem) => {
                     const cartItem = cart[m.id];
                     const isOut = !m.isAvailable;
                     return (
@@ -288,7 +295,6 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
                   })}
               </div>
 
-              {/* Floating Cart Bar - Chỉ hiện khi có món trong cart */}
               {Object.keys(cart).length > 0 && (
                 <div className="absolute bottom-4 left-4 right-4 bg-slate-900/95 backdrop-blur-md text-white rounded-[2rem] p-5 shadow-2xl animate-slideUp border border-white/10 z-[50]">
                    <div className="flex justify-between items-end mb-4">
@@ -297,9 +303,6 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
                             {selectedTable === null ? '⚠️ Hãy chọn bàn trước' : selectedTable === 0 ? '🔵 Đơn khách lẻ' : `🔴 Bàn số ${selectedTable}`}
                         </p>
                         <h3 className="text-xl font-black italic leading-none">{cartTotal.toLocaleString()}đ</h3>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-[10px] font-black text-slate-400 block mb-1 uppercase italic">Tổng {(Object.values(cart) as { qty: number }[]).reduce((a, b) => a + b.qty, 0)} món</span>
                       </div>
                    </div>
                    <button onClick={handlePlaceStaffOrder} disabled={selectedTable === null} className={`w-full py-4 rounded-2xl font-black uppercase text-[11px] shadow-xl italic flex items-center justify-center gap-2 transition-all active:scale-95 ${selectedTable !== null ? 'bg-orange-500 text-white' : 'bg-slate-700 text-slate-500 cursor-not-allowed'}`}>
@@ -314,31 +317,26 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
            <div className="flex-1 overflow-y-auto p-6 space-y-6 no-scrollbar">
               <h2 className="text-xs font-black italic text-slate-800 uppercase flex items-center gap-2"><CreditCard size={18} className="text-orange-500"/> Danh sách thanh toán</h2>
               <div className="space-y-3">
-                 {store.tables.filter((t:Table) => (t.currentOrders || []).length > 0).map((t:Table) => (
+                 {store.tables.filter((t:Table) => (t.currentOrders || []).filter(o => o.status !== OrderItemStatus.CANCELLED).length > 0).map((t:Table) => (
                    <div key={t.id} className={`p-4 rounded-2xl flex items-center justify-between gap-4 transition-all duration-300 ${t.status === TableStatus.PAYING || t.status === TableStatus.BILLING ? 'bg-amber-50 border-2 border-amber-200 shadow-md' : 'bg-white border border-slate-100 shadow-sm opacity-80'}`}>
                       <div className="min-w-0">
                          <div className="flex items-center gap-2 mb-1">
                             <span className={`w-2 h-2 rounded-full ${t.status === TableStatus.PAYING ? 'bg-red-500 animate-ping' : t.status === TableStatus.BILLING ? 'bg-blue-500' : 'bg-slate-300'}`}></span>
                             <p className="text-[10px] font-black uppercase text-slate-800 italic">{t.id === 0 ? 'Khách lẻ mang đi' : 'Bàn số ' + t.id}</p>
                          </div>
-                         <h4 className="font-black text-slate-400 text-[9px] uppercase tracking-wider italic">{t.status === TableStatus.PAYING ? 'Chờ kiểm tiền' : t.status === TableStatus.BILLING ? 'Đã gán hóa đơn' : 'Đang phục vụ'}</h4>
                       </div>
                       <button onClick={() => setShowBillTableId(t.id)} className="bg-slate-900 text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase shadow-lg italic transition-all active:scale-95">Xem bill</button>
                    </div>
                  ))}
-                 {store.tables.filter((t:Table) => (t.currentOrders || []).length > 0).length === 0 && (
-                    <div className="py-20 text-center opacity-20 italic font-black uppercase text-[10px]">Chưa có hóa đơn nào</div>
-                 )}
               </div>
            </div>
         )}
       </div>
 
-      {/* MODALS */}
+      {/* MODAL BILL CHI TIẾT */}
       {showBillTableId !== null && currentBillTable && (
         <div className="fixed inset-0 z-[200] bg-slate-900/90 backdrop-blur-md flex items-center justify-center p-4">
             <div className="bg-white rounded-[2.5rem] p-7 max-w-sm w-full shadow-2xl animate-scaleIn border border-slate-100 max-h-[90dvh] flex flex-col relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-24 h-24 bg-slate-50 rounded-bl-[4rem] -z-10 opacity-50"></div>
                 <div className="flex justify-between items-center mb-6 shrink-0">
                     <div>
                         <h3 className="text-xl font-black italic uppercase leading-none">Hóa đơn</h3>
@@ -349,14 +347,14 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
                 
                 <div className="flex-1 overflow-y-auto no-scrollbar space-y-3 mb-6 border-y border-slate-50 py-5">
                     {currentBillTable.currentOrders.filter((o:any)=>o.status !== OrderItemStatus.CANCELLED).map((o:any) => (
-                        <div key={o.id} className="flex justify-between items-center text-[11px] animate-fadeIn">
-                            <span className="font-bold truncate pr-3 text-slate-800 italic uppercase leading-none">{o.name} <span className="text-orange-500">x{o.quantity}</span></span>
-                            <span className="font-black text-slate-900 shrink-0">{(o.price * o.quantity).toLocaleString()}đ</span>
+                        <div key={o.id} className="flex justify-between items-center text-[11px] animate-fadeIn group">
+                            <span className="font-bold truncate pr-3 text-slate-800 italic uppercase leading-none flex-1">{o.name} <span className="text-orange-500">x{o.quantity}</span></span>
+                            <div className="flex items-center gap-3">
+                                <span className="font-black text-slate-900 shrink-0">{(o.price * o.quantity).toLocaleString()}đ</span>
+                                <button onClick={() => store.cancelOrderItem(showBillTableId, o.id)} className="text-red-500 p-1 hover:bg-red-50 rounded"><Trash2 size={12}/></button>
+                            </div>
                         </div>
                     ))}
-                    {currentBillTable.currentOrders.filter((o:any)=>o.status !== OrderItemStatus.CANCELLED).length === 0 && (
-                        <p className="text-center py-4 text-[10px] font-bold text-slate-300 uppercase">Hóa đơn rỗng</p>
-                    )}
                 </div>
                 
                 <div className="space-y-4 shrink-0">
@@ -367,17 +365,13 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
                     
                     {currentBillTable.status === TableStatus.BILLING ? (
                         <button onClick={() => { store.completeBilling(showBillTableId); setShowBillTableId(null); }} className={`w-full py-5 text-white rounded-2xl font-black uppercase text-[11px] shadow-2xl italic active:scale-95 transition-all ${showBillTableId === 0 ? 'bg-indigo-600' : 'bg-green-600'}`}>
-                            {showBillTableId === 0 ? 'Hoàn tất & Kết thúc đơn' : 'Hoàn tất & Gửi đánh giá'}
+                            {showBillTableId === 0 ? 'Hoàn tất đơn' : 'Hoàn tất & Gửi đánh giá'}
                         </button>
                     ) : (
                         <button onClick={() => { store.confirmPayment(showBillTableId); setShowBillTableId(null); }} className="w-full py-5 bg-orange-500 text-white rounded-2xl font-black uppercase text-[11px] shadow-2xl italic active:scale-95 transition-all">
                             Xác nhận đã nhận tiền
                         </button>
                     )}
-                    
-                    <div className="flex flex-col items-center gap-2 pt-2">
-                        <img src={getVietQrUrl(billTotal, showBillTableId)} className="w-28 h-28 object-contain rounded-2xl shadow-sm border-2 border-slate-50 bg-white p-2" />
-                    </div>
                 </div>
             </div>
         </div>
@@ -396,12 +390,12 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
                 <div className="bg-slate-50 p-6 rounded-[2.5rem] border border-slate-100 mb-8 shadow-inner">
                     <img src={getFullQrUrl(showQrModalId, store.tables.find((t:any)=>t.id === showQrModalId).sessionToken)} className="w-56 h-56 object-contain rounded-2xl shadow-md border-4 border-white mx-auto" />
                 </div>
-                <button onClick={() => setShowQrModalId(null)} className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black uppercase text-[11px] shadow-2xl italic transition-all active:scale-95">Đóng cửa sổ</button>
+                <button onClick={() => setShowQrModalId(null)} className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black uppercase text-[11px] shadow-2xl italic transition-all active:scale-95">Đóng</button>
             </div>
         </div>
       )}
 
-      <ConfirmModal isOpen={confirmTableId !== null} title="Bàn đã dọn xong?" message={`Xác nhận Bàn ${confirmTableId} đã được dọn sạch và sẵn sàng đón khách mới?`} onConfirm={() => { if(confirmTableId !== null) store.setTableEmpty(confirmTableId); setConfirmTableId(null); }} onCancel={() => setConfirmTableId(null)} />
+      <ConfirmModal isOpen={confirmTableId !== null} title="Bàn đã dọn xong?" message={`Xác nhận Bàn ${confirmTableId} đã được dọn sạch?`} onConfirm={() => { if(confirmTableId !== null) store.setTableEmpty(confirmTableId); setConfirmTableId(null); }} onCancel={() => setConfirmTableId(null)} />
     </div>
   );
 };
