@@ -180,7 +180,7 @@ const AppContent: React.FC = () => {
                 <Route path="/table/:tableId" element={<CustomerMenu store={store} currentRole={UserRole.CUSTOMER} />} />
                 <Route path="/table/:tableId/:token" element={<CustomerMenu store={store} currentRole={UserRole.CUSTOMER} />} />
                 <Route path="/staff" element={renderProtectedRoute(UserRole.STAFF, <StaffView store={store} currentUser={currentUser!} />)} />
-                <Route path="/kitchen" element={renderProtectedRoute(UserRole.KITCHEN, <KitchenView store={store} />)} />
+                <Route path="/kitchen" element={renderProtectedRoute(UserRole.KITCHEN, <KitchenView store={store} currentUser={currentUser!} />)} />
                 <Route path="/admin" element={renderProtectedRoute(UserRole.ADMIN, <AdminView store={store} />)} />
                 <Route path="/login" element={<LoginOverlay users={store.users} onSuccess={handleLoginSuccess} onCancel={() => navigate('/')} />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
