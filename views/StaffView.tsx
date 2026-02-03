@@ -3,7 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { OrderItem, OrderItemStatus, TableStatus, UserRole, Table, OrderType, MenuItem, AppNotification, User } from '../types.ts';
 import { ConfirmModal } from '../App.tsx';
 import { CATEGORIES } from '../constants';
-import { PlusCircle, Utensils, Search, X, Bell, Trash2, ChevronRight, QrCode, LogOut, CheckCheck, MoveHorizontal, Merge, Sparkles, Eraser } from 'lucide-react';
+import { PlusCircle, Utensils, Search, X, Bell, Trash2, ChevronRight, QrCode, LogOut, CheckCheck, MoveHorizontal, Merge, Sparkles, Eraser, Loader2 } from 'lucide-react';
 import { ensureArray } from '../store.ts';
 
 interface StaffViewProps { store: any; currentUser: User; }
@@ -18,12 +18,11 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
   const [showQrModal, setShowQrModal] = useState<Table | null>(null);
   const [moveRequest, setMoveRequest] = useState<{fromId: number, mode: 'MOVE' | 'MERGE'} | null>(null);
 
-  // Quan trọng: Chỉ hiển thị bàn trống HOẶC bàn do chính mình phụ trách
   const visibleTables = useMemo(() => {
     return ensureArray<Table>(store.tables).filter((t: Table) => {
-      if (t.id === 0) return true; // Luôn hiện bàn lẻ (Khách takeaway)
-      if (t.status === TableStatus.AVAILABLE) return true; // Hiện bàn trống
-      return t.claimedBy === currentUser.id; // Hiện bàn của mình (Bao gồm cả bàn đang dọn dẹp)
+      if (t.id === 0) return true;
+      if (t.status === TableStatus.AVAILABLE || t.qrRequested) return true;
+      return t.claimedBy === currentUser.id;
     });
   }, [store.tables, currentUser.id]);
 
@@ -48,8 +47,8 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
   };
 
   const handlePlaceStaffOrder = async () => {
-    if (selectedTableId === null) return alert("Vui lòng chọn bàn/khách lẻ!");
-    if (Object.keys(cart).length === 0) return alert("Vui lòng chọn món ăn!");
+    if (selectedTableId === null) return alert("Vui lòng chọn bàn!");
+    if (Object.keys(cart).length === 0) return alert("Vui lòng chọn món!");
     
     const newItems: OrderItem[] = (Object.entries(cart) as [string, { qty: number, note: string }][])
       .map(([id, data]) => {
@@ -153,40 +152,36 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
             <div className="grid grid-cols-3 gap-3">
                 {visibleTables.map((t: Table) => (
                     <div key={t.id} onClick={() => { 
+                        if (t.qrRequested) return; // Prevent double requests
                         if (t.status === TableStatus.AVAILABLE) store.requestTableQr(t.id, currentUser.id).catch(() => alert("Bạn đã phục vụ tối đa 3 bàn!"));
-                        else if (t.status === TableStatus.CLEANING) store.setTableEmpty(t.id); // Click nhanh để dọn bàn
+                        else if (t.status === TableStatus.CLEANING) store.setTableEmpty(t.id);
                         else setQuickActionTable(t);
                     }} className={`p-4 rounded-3xl border-2 flex flex-col items-center justify-center gap-2 transition-all relative h-28 ${
-                      t.status === TableStatus.AVAILABLE 
+                      t.qrRequested 
+                      ? 'border-orange-500 bg-orange-50 text-orange-600 animate-pulse'
+                      : t.status === TableStatus.AVAILABLE 
                       ? 'border-dashed border-slate-200 bg-white' 
                       : t.status === TableStatus.CLEANING 
-                      ? 'border-emerald-500 bg-emerald-50 text-emerald-600 animate-pulse' 
+                      ? 'border-emerald-500 bg-emerald-50 text-emerald-600' 
                       : 'border-slate-800 bg-slate-900 text-white shadow-md'
                     }`}>
                         <span className="text-[10px] font-black uppercase italic">{t.id === 0 ? 'LẺ' : 'BÀN '+t.id}</span>
-                        {t.status === TableStatus.AVAILABLE ? <PlusCircle size={20} className="text-slate-300"/> : 
+                        {t.qrRequested ? <Loader2 size={20} className="animate-spin" /> :
+                         t.status === TableStatus.AVAILABLE ? <PlusCircle size={20} className="text-slate-300"/> : 
                          t.status === TableStatus.CLEANING ? <Sparkles size={20} className="text-emerald-500"/> :
                          <Utensils size={20} className="text-orange-500"/>}
                         
-                        {t.status === TableStatus.CLEANING && <span className="text-[8px] font-black uppercase tracking-tighter absolute bottom-2">Dọn xong?</span>}
+                        <span className="text-[8px] font-black uppercase tracking-tighter absolute bottom-2">
+                            {t.qrRequested ? 'Đang chờ QR...' : t.status === TableStatus.CLEANING ? 'Bấm để dọn xong' : ''}
+                        </span>
+                        
                         {t.status === TableStatus.PAYING && <div className="absolute top-1 right-1"><Bell size={12} className="text-red-500 animate-bounce"/></div>}
-                        {t.status === TableStatus.OCCUPIED && (
-                          <div className="absolute top-1 right-1">
-                             <button onClick={(e) => { e.stopPropagation(); setShowQrModal(t); }} className="p-1.5 bg-white/10 rounded-lg text-white"><QrCode size={10}/></button>
-                          </div>
-                        )}
                     </div>
                 ))}
             </div>
-            {visibleTables.length <= 1 && (
-               <div className="text-center py-10">
-                 <p className="text-[10px] font-black text-slate-300 uppercase italic">Các bàn khác hiện đang được phục vụ</p>
-               </div>
-            )}
           </div>
         )}
 
-        {/* Modal hành động nhanh */}
         {quickActionTable && (
            <div className="fixed inset-0 z-[250] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 animate-fadeIn">
               <div className="bg-white w-full max-sm:max-w-[90%] max-w-sm rounded-[2.5rem] p-8 shadow-2xl animate-scaleIn">
@@ -198,12 +193,10 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
                       <>
                         <button onClick={() => { setShowQrModal(quickActionTable); setQuickActionTable(null); }} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-2 italic"><QrCode size={16}/> Xem mã QR</button>
                         <button onClick={() => { setSelectedTableId(quickActionTable.id); setActiveTab('ORDER'); setQuickActionTable(null); }} className="w-full py-4 bg-orange-500 text-white rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-2 italic"><PlusCircle size={16}/> Thêm món mới</button>
-                        
                         <div className="grid grid-cols-2 gap-3">
                            <button onClick={() => { setMoveRequest({fromId: quickActionTable.id, mode: 'MOVE'}); setQuickActionTable(null); }} className="py-4 bg-blue-500 text-white rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-2 italic"><MoveHorizontal size={16}/> Chuyển bàn</button>
                            <button onClick={() => { setMoveRequest({fromId: quickActionTable.id, mode: 'MERGE'}); setQuickActionTable(null); }} className="py-4 bg-purple-500 text-white rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-2 italic"><Merge size={16}/> Gộp bàn</button>
                         </div>
-
                         {quickActionTable.status === TableStatus.PAYING && (
                            <button onClick={() => { setShowBillTableId(quickActionTable.id); setQuickActionTable(null); }} className="w-full py-4 bg-green-500 text-white rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-2 italic"><CheckCheck size={16}/> Xác nhận tính tiền</button>
                         )}
@@ -215,12 +208,10 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
            </div>
         )}
 
-        {/* Modal chọn bàn Chuyển/Gộp */}
         {moveRequest && (
            <div className="fixed inset-0 z-[400] bg-slate-900/80 backdrop-blur-xl flex items-center justify-center p-6 animate-fadeIn">
               <div className="bg-white w-full max-w-sm rounded-[3rem] p-10 shadow-2xl animate-scaleIn">
                   <h3 className="text-xl font-black uppercase italic text-slate-800 mb-2 text-center">{moveRequest.mode === 'MOVE' ? 'Chọn bàn trống' : 'Chọn bàn muốn gộp'}</h3>
-                  <p className="text-[10px] text-slate-400 font-bold text-center mb-8 uppercase tracking-widest">Từ bàn {moveRequest.fromId}</p>
                   <div className="grid grid-cols-3 gap-3 mb-8 max-h-60 overflow-y-auto p-2 no-scrollbar">
                      {ensureArray<Table>(store.tables).filter(t => {
                         if(t.id === 0 || t.id === moveRequest.fromId) return false;
@@ -235,7 +226,6 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
            </div>
         )}
 
-        {/* Modal xem QR QUÉT ĐƯỢC */}
         {showQrModal && (
           <div className="fixed inset-0 z-[300] bg-slate-900/90 backdrop-blur-xl flex items-center justify-center p-6 animate-fadeIn">
             <div className="bg-white w-full max-sm:max-w-[95%] max-w-sm rounded-[3rem] p-10 text-center shadow-2xl animate-scaleIn">
@@ -278,7 +268,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
                     <div className="flex justify-between items-center mb-4">
                         <select value={selectedTableId ?? ''} onChange={e => setSelectedTableId(parseInt(e.target.value))} className="bg-white/10 border-none outline-none font-black text-[10px] uppercase p-2 rounded-xl">
                             <option value="">Chọn bàn</option>
-                            {visibleTables.map(t => <option key={t.id} value={t.id}>{t.id === 0 ? 'Khách lẻ' : 'Bàn ' + t.id}</option>)}
+                            {visibleTables.filter(t => t.status !== TableStatus.AVAILABLE).map(t => <option key={t.id} value={t.id}>{t.id === 0 ? 'Khách lẻ' : 'Bàn ' + t.id}</option>)}
                         </select>
                         <span className="text-xs font-black italic">{(Object.values(cart) as {qty:number}[]).reduce((s,d)=>s+d.qty,0)} món</span>
                     </div>
@@ -301,9 +291,6 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
                         </div>
                     </div>
                 ))}
-                {visibleTables.filter(t => t.status !== TableStatus.AVAILABLE && t.status !== TableStatus.CLEANING).length === 0 && (
-                   <p className="text-center py-20 text-slate-300 font-black uppercase text-[10px] italic">Chưa có bàn nào đang phục vụ</p>
-                )}
             </div>
         )}
       </div>
