@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ref, onValue, set, Database } from 'firebase/database';
 import { getRemoteDatabase } from './firebase';
@@ -260,10 +259,14 @@ export const useRestaurantStore = () => {
       await pushToCloud({ tables: nt, notifications: nn });
     },
 
-    updateOrderItemStatus: async (tid: number, oid: string, s: OrderItemStatus) => {
+    updateOrderItemStatus: async (tid: number, oid: string, s: OrderItemStatus, kid?: string) => {
       const targetTable = tables.find(t => t.id === tid);
-      const orders = ensureArray<OrderItem>(targetTable?.currentOrders);
-      const nt = tables.map(t => t.id === tid ? { ...t, currentOrders: orders.map(o => o.id === oid ? { ...o, status: s } : o) } : t);
+      if (!targetTable) return;
+      const orders = ensureArray<OrderItem>(targetTable.currentOrders);
+      const nt = tables.map(t => t.id === tid ? { 
+          ...t, 
+          currentOrders: orders.map(o => o.id === oid ? { ...o, status: s, kitchenStaffId: kid || o.kitchenStaffId } : o) 
+      } : t);
       
       if (s === OrderItemStatus.READY) {
         const item = orders.find(o => o.id === oid);
@@ -322,6 +325,7 @@ export const useRestaurantStore = () => {
     callStaff: async (tid: number) => {
       const targetTable = tables.find(t => t.id === tid);
       const nnotif: AppNotification = { id: `CALL-${Date.now()}`, targetRole: UserRole.STAFF, title: '🔔 Gọi nhân viên', message: `Bàn ${tid} đang gọi phục vụ.`, timestamp: Date.now(), read: false, type: 'call_staff', payload: { tableId: tid, claimedBy: targetTable?.claimedBy } };
+      // Fix: Corrected pushToCloud call to only include notifications since 'nt' was not defined and no table state changes are needed
       await pushToCloud({ notifications: [nnotif, ...notifications] });
     },
     requestTableQr: async (tid: number, sid: string) => {
