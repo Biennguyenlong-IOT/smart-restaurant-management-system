@@ -127,7 +127,6 @@ export const useRestaurantStore = () => {
     try {
       const dataRef = ref(dbRef.current, 'restaurant_data');
       const cleanUpdates = sanitizeForFirebase(updates);
-      // Lấy data hiện tại để spread chính xác, tránh mất mát các field khác
       await set(dataRef, {
         tables, menu, history, notifications, users, bankConfig, reviews, 
         ...cleanUpdates,
@@ -278,7 +277,6 @@ export const useRestaurantStore = () => {
         payload: { tableId, claimedBy: staffId } 
       };
 
-      // QUAN TRỌNG: Gộp tất cả cập nhật vào một lần push để tránh xung đột
       await pushToCloud({ 
         tables: nt, 
         notifications: [staffNotif, ...notifications.filter(n => n.id !== nid)] 
