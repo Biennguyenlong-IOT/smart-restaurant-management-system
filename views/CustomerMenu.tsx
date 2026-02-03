@@ -6,8 +6,7 @@ const { useParams, Link, useNavigate, useSearchParams, useLocation } = ReactRout
 import { CATEGORIES } from '../constants';
 import { OrderItem, OrderItemStatus, MenuItem, TableStatus, UserRole, Table, OrderType, Review } from '../types';
 import { ConfirmModal } from '../App';
-// Fix: Added missing Clock import from lucide-react to resolve the reference error on line 219
-import { ShoppingCart, History, ChefHat, Loader2, FileText, CreditCard, Star, AlertTriangle, PlusCircle, Bell, MessageCircle, Heart, CheckCircle, Send, QrCode, Clock } from 'lucide-react';
+import { ShoppingCart, History, ChefHat, Loader2, FileText, CreditCard, Star, AlertTriangle, PlusCircle, Bell, MessageCircle, Heart, CheckCircle, Send, QrCode, Clock, ShieldAlert } from 'lucide-react';
 
 const MenuCard = memo(({ item, quantity, onAdd, onRemove }: { item: MenuItem, quantity: number, onAdd: () => void, onRemove: () => void }) => {
     const isOut = !item.isAvailable;
@@ -104,6 +103,7 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
   const allServed = useMemo(() => activeOrders.length > 0 && activeOrders.every((item: OrderItem) => item.status === OrderItemStatus.SERVED), [activeOrders]);
 
   const getVietQrUrl = (amount: number) => {
+    if (!store.bankConfig.accountNo) return '';
     return `https://img.vietqr.io/image/${store.bankConfig.bankId}-${store.bankConfig.accountNo}-compact.png?amount=${amount}&addInfo=Thanh+Toan+Ban+${idNum}&accountName=${encodeURIComponent(store.bankConfig.accountName)}`;
   };
 
@@ -172,14 +172,16 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
   // MÀN HÌNH HÓA ĐƠN & QR (BILLING / PAYING)
   if (table?.status === TableStatus.BILLING || table?.status === TableStatus.PAYING) {
     const isPaying = table.status === TableStatus.PAYING;
+    const qrUrl = getVietQrUrl(totalAmount);
+
     return (
         <div className="flex flex-col h-full animate-fadeIn max-w-md mx-auto w-full p-4 overflow-y-auto no-scrollbar pb-20">
             <div className="bg-white rounded-[2.5rem] p-6 shadow-2xl border border-slate-100 flex flex-col">
                 <div className="text-center mb-6 shrink-0">
                     <div className="w-12 h-12 bg-slate-900 text-white rounded-xl flex items-center justify-center mx-auto mb-3 font-black text-lg italic shadow-lg">B{idNum}</div>
                     <h2 className="text-xl font-black text-slate-800 uppercase italic leading-none mb-1">Hóa đơn bàn {idNum}</h2>
-                    <span className={`text-[9px] font-black uppercase tracking-[0.2em] px-3 py-1 rounded-full ${isPaying ? 'bg-orange-50 text-orange-600 animate-pulse' : 'bg-slate-100 text-slate-500'}`}>
-                        {isPaying ? 'Đang chờ xác nhận...' : 'Vui lòng thanh toán'}
+                    <span className={`text-[9px] font-black uppercase tracking-[0.2em] px-3 py-1 rounded-full ${isPaying ? 'bg-orange-50 text-orange-600' : 'bg-slate-100 text-slate-500'}`}>
+                        {isPaying ? 'Đang chờ phục vụ xác nhận...' : 'Vui lòng thanh toán'}
                     </span>
                 </div>
 
@@ -203,23 +205,27 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
 
                     <div className="text-center space-y-4">
                         <div className="flex items-center justify-center gap-2 text-[9px] font-black text-slate-400 uppercase tracking-widest italic mb-2">
-                           <QrCode size={14}/> Quét mã chuyển khoản
+                           <QrCode size={14}/> {qrUrl ? 'Quét mã chuyển khoản' : 'Liên hệ nhân viên'}
                         </div>
+                        
                         <div className="bg-white p-4 rounded-[2.5rem] border-4 border-slate-50 shadow-xl inline-block relative group">
-                            <img src={getVietQrUrl(totalAmount)} className="w-48 h-48 md:w-56 md:h-56 object-contain mx-auto" alt="VietQR" />
-                            {isPaying && <div className="absolute inset-0 bg-white/60 backdrop-blur-[2px] rounded-[2.2rem] flex items-center justify-center">
-                                <div className="bg-white p-3 rounded-full shadow-lg">
-                                    <Loader2 className="animate-spin text-orange-500" size={32} />
+                            {qrUrl ? (
+                                <img src={qrUrl} className="w-48 h-48 md:w-56 md:h-56 object-contain mx-auto" alt="VietQR" />
+                            ) : (
+                                <div className="w-48 h-48 md:w-56 md:h-56 flex flex-col items-center justify-center gap-3 text-slate-300">
+                                    <ShieldAlert size={48} />
+                                    <p className="text-[9px] font-black uppercase italic">Chưa cấu hình tài khoản</p>
                                 </div>
-                            </div>}
+                            )}
                         </div>
                         
                         {isPaying ? (
                             <div className="bg-orange-50 p-5 rounded-2xl border border-orange-100 mt-4 animate-slideUp">
-                                <p className="text-[11px] font-black text-orange-600 uppercase italic mb-2 flex items-center justify-center gap-2">
-                                    <Clock size={16}/> Đang kiểm tra giao dịch
-                                </p>
-                                <p className="text-[9px] font-bold text-orange-400 leading-relaxed uppercase">Vui lòng không đóng trang này. Hệ thống sẽ tự động chuyển trang khi hoàn tất.</p>
+                                <div className="flex items-center justify-center gap-3 mb-3">
+                                    <div className="w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
+                                    <p className="text-[11px] font-black text-orange-600 uppercase italic">Đang chờ đối soát tiền...</p>
+                                </div>
+                                <p className="text-[9px] font-bold text-orange-400 leading-relaxed uppercase">Bạn có thể chụp lại mã QR nếu cần. Hệ thống sẽ tự động chuyển sang trang đánh giá khi phục vụ xác nhận.</p>
                             </div>
                         ) : (
                             <button onClick={() => store.requestPayment(idNum)} className="w-full py-5 bg-orange-500 text-white rounded-2xl font-black uppercase text-[11px] shadow-2xl italic flex items-center justify-center gap-2 transition-all active:scale-95 hover:bg-orange-600">
