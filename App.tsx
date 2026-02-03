@@ -18,7 +18,7 @@ export const ConfirmModal: React.FC<{
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
-      <div className="bg-white w-full max-w-sm rounded-[2rem] p-8 shadow-2xl animate-scaleIn border border-slate-100 text-center">
+      <div className="bg-white w-full max-sm:max-w-[90%] max-w-sm rounded-[2rem] p-8 shadow-2xl animate-scaleIn border border-slate-100 text-center">
         <h3 className="text-xl font-black text-slate-800 mb-2">{title}</h3>
         <p className="text-slate-500 text-sm mb-8">{message}</p>
         <div className="grid grid-cols-2 gap-3">
@@ -98,11 +98,20 @@ const AppContent: React.FC = () => {
 
   useEffect(() => {
     if (!currentUser || !isAudioEnabled || currentUser.role === UserRole.CUSTOMER) return;
+    
     const relevantNotifs = store.notifications.filter(n => {
       if (n.read) return false;
-      if (currentUser.role === UserRole.ADMIN) return n.type === 'qr_request' || n.type === 'move_request' || n.type === 'payment' || n.type === 'order';
-      return n.targetRole === currentUser.role;
+      if (currentUser.role === UserRole.ADMIN) return true;
+      if (currentUser.role === UserRole.KITCHEN) return n.targetRole === UserRole.KITCHEN;
+      
+      if (currentUser.role === UserRole.STAFF) {
+        if (n.targetRole !== UserRole.STAFF) return false;
+        // Nhân viên chỉ nhận thông báo từ bàn do mình phụ trách (hoặc khách lẻ tid=0)
+        return !n.payload || n.payload.claimedBy === currentUser.id || n.payload.tableId === 0;
+      }
+      return false;
     });
+
     if (relevantNotifs.length > 0) {
       const latest = relevantNotifs[0];
       if (latest.id !== lastNotifIdRef.current) {
