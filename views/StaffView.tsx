@@ -1,9 +1,9 @@
 
 import React, { useState, useMemo, useCallback } from 'react';
-import { OrderItem, OrderItemStatus, TableStatus, UserRole, Table, OrderType, MenuItem } from '../types.ts';
+import { OrderItem, OrderItemStatus, TableStatus, UserRole, Table, OrderType, MenuItem, AppNotification } from '../types.ts';
 import { ConfirmModal } from '../App.tsx';
 import { CATEGORIES } from '../constants';
-import { QrCode, PlusCircle, Loader2, Coffee, Clock, ShoppingBag, Utensils, Search, FileText, CreditCard, MessageCircle, X, ArrowRightLeft } from 'lucide-react';
+import { QrCode, PlusCircle, Loader2, Coffee, Clock, ShoppingBag, Utensils, Search, FileText, CreditCard, MessageCircle, X, ArrowRightLeft, Bell, AlertCircle, CheckCircle2 } from 'lucide-react';
 
 interface StaffViewProps { store: any; }
 
@@ -36,11 +36,13 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
     (store.tables || []).filter((t: Table) => t.claimedBy === currentUser.id && t.id !== 0 && t.status !== TableStatus.AVAILABLE).length
   , [store.tables, currentUser.id]);
 
-  const readyItems = useMemo(() => myTables.flatMap((t: Table) => 
-    (t.currentOrders || [])
-      .filter((o: OrderItem) => o.status === OrderItemStatus.READY)
-      .map((o: OrderItem) => ({ ...o, tableId: t.id }))
-  ), [myTables]);
+  const myNotifications = useMemo(() => {
+    return (store.notifications || []).filter((n: AppNotification) => 
+        !n.read && 
+        n.targetRole === UserRole.STAFF && 
+        (!n.payload || n.payload.claimedBy === currentUser.id || n.payload.tableId === 0)
+    );
+  }, [store.notifications, currentUser.id]);
 
   const cartTotal = useMemo(() => {
     return (Object.entries(cart) as [string, { qty: number, note: string }][]).reduce((sum, [id, data]) => {
@@ -141,7 +143,35 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
 
       <div className="flex-1 overflow-y-auto no-scrollbar">
         {activeTab === 'TABLES' && (
-          <div className="space-y-4 md:space-y-8">
+          <div className="space-y-4 md:space-y-6">
+            {/* Live Notifications Panel for Staff */}
+            {myNotifications.length > 0 && (
+                <section className="bg-slate-900 text-white rounded-[2rem] p-6 shadow-xl animate-slideUp">
+                    <div className="flex items-center gap-2 mb-4">
+                        <Bell size={16} className="text-orange-500 animate-bounce" />
+                        <h4 className="text-[10px] font-black uppercase italic tracking-widest text-slate-400">Yêu cầu mới ({myNotifications.length})</h4>
+                    </div>
+                    <div className="space-y-3">
+                        {myNotifications.map((n: AppNotification) => (
+                            <div key={n.id} className="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/10">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-lg bg-orange-500 flex items-center justify-center text-[10px] font-black italic">
+                                        {n.payload?.tableId === 0 ? 'L' : n.payload?.tableId}
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] font-black uppercase">{n.title}</p>
+                                        <p className="text-[9px] text-slate-400 italic">{n.message}</p>
+                                    </div>
+                                </div>
+                                <button onClick={() => store.deleteNotification(n.id)} className="p-2 bg-white/10 rounded-lg hover:bg-white/20">
+                                    <CheckCircle2 size={16} className="text-green-500" />
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                </section>
+            )}
+
             <section className="bg-white rounded-[2rem] md:rounded-[2.5rem] p-4 md:p-8 border border-slate-100 shadow-sm">
                 <div className="grid grid-cols-2 xs:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 md:gap-4">
                     {store.tables.map((t: Table) => {
@@ -150,15 +180,24 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
                         const isOccupied = t.status === TableStatus.OCCUPIED || t.status === TableStatus.PAYING;
                         const isRequested = t.qrRequested;
                         const hasOrders = (t.currentOrders || []).length > 0;
+                        const hasCall = myNotifications.some(n => n.payload?.tableId === t.id && n.type === 'call_staff');
+                        const hasNewOrder = myNotifications.some(n => n.payload?.tableId === t.id && (n.type === 'order' || n.type === 'kitchen'));
                         
                         return (
                             <div key={t.id} className={`p-4 md:p-5 rounded-[1.5rem] md:rounded-[2rem] border-2 flex flex-col items-center justify-center gap-2 md:gap-3 relative min-h-[120px] md:min-h-[150px] transition-all ${
+                                hasCall ? 'ring-4 ring-orange-500/50 animate-pulse' : ''
+                            } ${
                                 moveFromId === t.id ? 'ring-4 ring-blue-500 border-blue-500 bg-blue-50' :
                                 moveToId === t.id ? 'ring-4 ring-green-500 border-green-500 bg-green-50' :
                                 t.id === 0 ? 'border-orange-200 bg-orange-50/20' :
                                 isMine ? 'border-orange-500 bg-orange-50/10' : 
                                 isAvailable ? 'border-dashed border-slate-200 opacity-60' : 'border-slate-100 bg-slate-50 opacity-20'
                             }`}>
+                                <div className="absolute -top-2 -right-1 flex gap-1">
+                                    {hasCall && <div className="bg-orange-500 text-white p-1 rounded-full shadow-lg"><Bell size={10} /></div>}
+                                    {hasNewOrder && <div className="bg-blue-500 text-white p-1 rounded-full shadow-lg"><PlusCircle size={10} /></div>}
+                                </div>
+                                
                                 <span className="font-black text-[10px] md:text-xs uppercase italic text-slate-700">{t.id === 0 ? 'Khách lẻ' : 'Bàn ' + t.id}</span>
                                 {isAvailable && !isRequested && t.id !== 0 && (
                                     moveFromId !== null ? (
@@ -170,10 +209,10 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
                                 {isRequested && <Loader2 size={12} className="animate-spin text-orange-500" />}
                                 {isMine && !isRequested && !isAvailable && (
                                   <div className="flex flex-wrap justify-center gap-1.5">
-                                    {t.sessionToken && <button onClick={() => setShowQrModalId(t.id)} className="p-2 bg-slate-900 text-white rounded-xl shadow-sm"><QrCode size={14} /></button>}
-                                    {hasOrders && <button onClick={() => setShowBillTableId(t.id)} className={`p-2 rounded-xl text-white ${t.status === TableStatus.PAYING ? 'bg-amber-500' : 'bg-blue-500'}`}><FileText size={14} /></button>}
-                                    {isOccupied && t.id !== 0 && <button onClick={() => setMoveFromId(t.id)} className="p-2 bg-indigo-500 text-white rounded-xl"><ArrowRightLeft size={14} /></button>}
-                                    {t.status === TableStatus.BILLING && <button onClick={() => setConfirmTableId(t.id)} className="p-2 bg-green-500 text-white rounded-xl"><Coffee size={14} /></button>}
+                                    {t.sessionToken && <button onClick={() => setShowQrModalId(t.id)} className="p-2 bg-slate-900 text-white rounded-xl shadow-sm" title="Hiện QR Code"><QrCode size={14} /></button>}
+                                    {hasOrders && <button onClick={() => setShowBillTableId(t.id)} className={`p-2 rounded-xl text-white ${t.status === TableStatus.PAYING ? 'bg-amber-500 shadow-amber-200/50 shadow-lg' : 'bg-blue-500'}`} title="Xem Bill / Thu tiền"><FileText size={14} /></button>}
+                                    {isOccupied && t.id !== 0 && <button onClick={() => setMoveFromId(t.id)} className="p-2 bg-indigo-500 text-white rounded-xl" title="Chuyển bàn"><ArrowRightLeft size={14} /></button>}
+                                    {t.status === TableStatus.BILLING && <button onClick={() => setConfirmTableId(t.id)} className="p-2 bg-green-500 text-white rounded-xl" title="Dọn bàn"><Coffee size={14} /></button>}
                                   </div>
                                 )}
                             </div>
@@ -281,7 +320,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
         <div className="fixed inset-0 z-[200] bg-slate-900/90 backdrop-blur-md flex items-center justify-center p-4">
             <div className="bg-white rounded-[2.5rem] p-6 md:p-8 max-w-sm w-full shadow-2xl animate-scaleIn border border-slate-100 max-h-[90dvh] overflow-y-auto no-scrollbar text-center">
                 <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-lg font-black italic uppercase">Bàn {showBillTableId === 0 ? 'Khách lẻ' : showBillTableId}</h3>
+                    <h3 className="text-lg font-black italic uppercase">{showBillTableId === 0 ? 'Khách lẻ' : 'Bàn ' + showBillTableId}</h3>
                     <button onClick={() => setShowBillTableId(null)} className="p-2 bg-slate-100 rounded-full"><X size={16}/></button>
                 </div>
                 <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100 mb-6 flex flex-col items-center">
