@@ -1,6 +1,10 @@
 
-import { initializeApp, getApp, getApps, FirebaseApp } from "firebase/app";
-import { getDatabase, Database } from "firebase/database";
+// Fix: Consolidate Firebase imports from "firebase/app" to resolve named export errors and satisfy type checking
+// Using separate type imports to handle cases where the environment/TS config requires explicit type vs value distinction
+import { initializeApp, getApp, getApps } from "firebase/app";
+import type { FirebaseApp } from "firebase/app";
+import { getDatabase } from "firebase/database";
+import type { Database } from "firebase/database";
 
 const firebaseConfig = {
   apiKey: process.env.VITE_FIREBASE_API_KEY || "placeholder-key",
@@ -14,7 +18,9 @@ const firebaseConfig = {
 // Khởi tạo App không cần databaseURL ngay lập tức để tránh Fatal Error
 let app: FirebaseApp;
 try {
-  app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+  // Safe initialization check to prevent multiple app instances
+  const apps = getApps();
+  app = apps.length === 0 ? initializeApp(firebaseConfig) : getApp();
 } catch (e) {
   app = initializeApp(firebaseConfig);
 }
