@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { MenuItem, TableStatus, Table, UserRole, AppNotification, User, HistoryEntry, BankConfig, OrderItemStatus, Review, OrderType, OrderItem } from '../types';
 import { CATEGORIES as INITIAL_CATEGORIES } from '../constants';
@@ -6,7 +7,7 @@ import {
   Monitor, Settings, Plus, UserPlus, Pizza, Shield, 
   Trash2, X, Edit3, LayoutDashboard, CreditCard, Star, Award, TrendingUp,
   Database, CheckCircle, RotateCcw, DollarSign, Search, FileText, 
-  ArrowUpRight, ArrowDownRight, UserCheck, AlertTriangle, QrCode, MoveHorizontal, Merge, Sparkles, ChevronRight, MessageSquare, Target
+  ArrowUpRight, ArrowDownRight, UserCheck, AlertTriangle, QrCode, MoveHorizontal, Merge, Sparkles, ChevronRight, MessageSquare, Target, ChefHat
 } from 'lucide-react';
 import { ensureArray } from '../store.ts';
 
@@ -61,7 +62,15 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
        return { ...u, revenue, billCount: userBills.length, avgRating };
     });
 
-    return { todayRevenue, totalLoss, topItems, totalBills: history.length, todayBillsCount: todayBills.length, staffKPI };
+    const kitchenKPI = ensureArray<User>(store.users).filter(u => u.role === UserRole.KITCHEN).map(u => {
+        let totalItems = 0;
+        history.forEach(h => {
+            totalItems += ensureArray<OrderItem>(h.items).filter(i => i.kitchenStaffId === u.id && i.status !== OrderItemStatus.CANCELLED).length;
+        });
+        return { ...u, totalItems };
+    });
+
+    return { todayRevenue, totalLoss, topItems, totalBills: history.length, todayBillsCount: todayBills.length, staffKPI, kitchenKPI };
   }, [store.history, store.tables, store.users, store.reviews]);
 
   const filteredHistory = useMemo(() => {
@@ -165,7 +174,7 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
         {activeTab === 'KPI' && (
            <div className="space-y-8 animate-slideUp px-1 pb-10">
               <section className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm">
-                 <h4 className="font-black text-[11px] uppercase italic mb-8 flex items-center gap-2 tracking-widest text-slate-800"><Target className="text-blue-500" size={18}/> Chỉ số hiệu quả nhân sự</h4>
+                 <h4 className="font-black text-[11px] uppercase italic mb-8 flex items-center gap-2 tracking-widest text-slate-800"><Target className="text-blue-500" size={18}/> Hiệu quả nhân viên Phục vụ</h4>
                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {stats.staffKPI.map((u, idx) => (
                        <div key={idx} className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100 flex flex-col gap-4">
@@ -189,6 +198,27 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
                           <div className="bg-orange-500 text-white p-3 rounded-xl flex justify-between items-center">
                              <span className="text-[9px] font-black uppercase">Điểm trung bình</span>
                              <span className="text-sm font-black flex items-center gap-1 italic"><Star size={14} fill="currentColor"/> {u.avgRating}</span>
+                          </div>
+                       </div>
+                    ))}
+                 </div>
+              </section>
+
+              <section className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm">
+                 <h4 className="font-black text-[11px] uppercase italic mb-8 flex items-center gap-2 tracking-widest text-slate-800"><ChefHat className="text-orange-500" size={18}/> Hiệu quả nhân viên Bếp</h4>
+                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {stats.kitchenKPI.map((u, idx) => (
+                       <div key={idx} className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100 flex flex-col gap-4">
+                          <div className="flex justify-between items-start">
+                             <div>
+                                <p className="text-[12px] font-black text-slate-800 uppercase italic">{u.fullName}</p>
+                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">ID: {u.username}</p>
+                             </div>
+                             <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-orange-500 shadow-sm"><ChefHat size={20}/></div>
+                          </div>
+                          <div className="bg-white p-4 rounded-xl text-center">
+                                <p className="text-[10px] font-black text-slate-400 uppercase italic mb-1">Tổng món đã hoàn thành</p>
+                                <p className="text-3xl font-black text-slate-900 italic">{u.totalItems} món</p>
                           </div>
                        </div>
                     ))}
