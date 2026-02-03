@@ -85,6 +85,11 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
     if (nid) store.deleteNotification(nid);
   };
 
+  const handleServeItem = async (tid: number, oid: string, nid: string) => {
+    await store.updateOrderItemStatus(tid, oid, OrderItemStatus.SERVED);
+    store.deleteNotification(nid);
+  };
+
   const handleMoveRequest = async () => {
     if (moveFromId !== null && moveToId !== null) {
         await store.requestTableMove(moveFromId, moveToId, currentUser.id);
@@ -158,9 +163,9 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
                     </div>
                     <div className="space-y-3">
                         {myNotifications.map((n: AppNotification) => (
-                            <div key={n.id} className="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/10">
+                            <div key={n.id} className={`flex items-center justify-between p-3 rounded-xl border ${n.type === 'kitchen' ? 'bg-green-500/10 border-green-500/30' : 'bg-white/5 border-white/10'}`}>
                                 <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-lg bg-orange-500 flex items-center justify-center text-[10px] font-black italic">
+                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-black italic ${n.type === 'kitchen' ? 'bg-green-500' : 'bg-orange-500'}`}>
                                         {n.payload?.tableId === 0 ? 'L' : n.payload?.tableId}
                                     </div>
                                     <div className="min-w-0 flex-1">
@@ -172,6 +177,11 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
                                     {n.type === 'order' && (
                                         <button onClick={() => handleConfirmOrder(n.payload?.tableId, n.id)} className="p-2 bg-green-500/20 text-green-500 rounded-lg hover:bg-green-500/30">
                                             <CheckCircle2 size={16} />
+                                        </button>
+                                    )}
+                                    {n.type === 'kitchen' && (
+                                        <button onClick={() => handleServeItem(n.payload?.tableId, n.payload?.itemId, n.id)} className="px-3 py-1.5 bg-green-500 text-white rounded-lg text-[9px] font-black uppercase flex items-center gap-1 shadow-lg">
+                                            <CheckCircle2 size={12} /> Bưng ngay
                                         </button>
                                     )}
                                     <button onClick={() => store.deleteNotification(n.id)} className="p-2 bg-white/10 rounded-lg hover:bg-white/20">
@@ -194,11 +204,12 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
                         const hasOrders = (t.currentOrders || []).length > 0;
                         const hasCall = myNotifications.some(n => n.payload?.tableId === t.id && n.type === 'call_staff');
                         const hasPendingOrder = (t.currentOrders || []).some(o => o.status === OrderItemStatus.PENDING);
-                        const hasNewOrderReady = myNotifications.some(n => n.payload?.tableId === t.id && (n.type === 'kitchen'));
+                        const hasDishReady = (t.currentOrders || []).some(o => o.status === OrderItemStatus.READY);
                         
                         return (
                             <div key={t.id} className={`p-4 md:p-5 rounded-[1.5rem] md:rounded-[2rem] border-2 flex flex-col items-center justify-center gap-2 md:gap-3 relative min-h-[120px] md:min-h-[150px] transition-all ${
-                                hasCall ? 'ring-4 ring-orange-500/50 animate-pulse' : ''
+                                hasDishReady ? 'border-green-500 bg-green-50/20 shadow-green-100 shadow-xl animate-pulse' :
+                                hasCall ? 'ring-4 ring-orange-500/50' : ''
                             } ${
                                 hasPendingOrder ? 'border-amber-400 bg-amber-50/20 shadow-amber-100 shadow-lg' :
                                 moveFromId === t.id ? 'ring-4 ring-blue-500 border-blue-500 bg-blue-50' :
@@ -210,7 +221,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
                                 <div className="absolute -top-2 -right-1 flex gap-1">
                                     {hasCall && <div className="bg-orange-500 text-white p-1 rounded-full shadow-lg"><Bell size={10} /></div>}
                                     {hasPendingOrder && <div className="bg-amber-500 text-white p-1 rounded-full shadow-lg animate-bounce"><AlertCircle size={10} /></div>}
-                                    {hasNewOrderReady && <div className="bg-blue-500 text-white p-1 rounded-full shadow-lg"><PlusCircle size={10} /></div>}
+                                    {hasDishReady && <div className="bg-green-500 text-white p-1 rounded-full shadow-lg animate-bounce"><CheckCircle2 size={10} /></div>}
                                 </div>
                                 
                                 <span className="font-black text-[10px] md:text-xs uppercase italic text-slate-700">{t.id === 0 ? 'Khách lẻ' : 'Bàn ' + t.id}</span>
@@ -225,7 +236,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
                                 {isMine && !isRequested && !isAvailable && (
                                   <div className="flex flex-wrap justify-center gap-1.5">
                                     {t.sessionToken && <button onClick={() => setShowQrModalId(t.id)} className="p-2 bg-slate-900 text-white rounded-xl shadow-sm" title="Hiện QR Code"><QrCode size={14} /></button>}
-                                    {hasOrders && <button onClick={() => setShowBillTableId(t.id)} className={`p-2 rounded-xl text-white ${hasPendingOrder ? 'bg-amber-500' : t.status === TableStatus.PAYING ? 'bg-orange-600' : 'bg-blue-500'}`} title="Xem Bill / Thu tiền"><FileText size={14} /></button>}
+                                    {hasOrders && <button onClick={() => setShowBillTableId(t.id)} className={`p-2 rounded-xl text-white ${hasDishReady ? 'bg-green-600 shadow-green-200 shadow-lg' : hasPendingOrder ? 'bg-amber-500' : t.status === TableStatus.PAYING ? 'bg-orange-600' : 'bg-blue-500'}`} title="Xem Bill / Thu tiền"><FileText size={14} /></button>}
                                     {isOccupied && t.id !== 0 && <button onClick={() => setMoveFromId(t.id)} className="p-2 bg-indigo-500 text-white rounded-xl" title="Chuyển bàn"><ArrowRightLeft size={14} /></button>}
                                     {t.status === TableStatus.BILLING && <button onClick={() => setConfirmTableId(t.id)} className="p-2 bg-green-500 text-white rounded-xl" title="Dọn bàn"><Coffee size={14} /></button>}
                                   </div>
@@ -234,17 +245,6 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
                         )
                     })}
                 </div>
-                {moveFromId !== null && (
-                    <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-3">
-                        <p className="text-[10px] font-black text-blue-800 uppercase italic">
-                            {moveToId === null ? `Chuyển Bàn ${moveFromId} -> Chọn bàn trống...` : `Chuyển Bàn ${moveFromId} sang Bàn ${moveToId}?`}
-                        </p>
-                        <div className="flex gap-3">
-                            <button onClick={() => {setMoveFromId(null); setMoveToId(null);}} className="text-[10px] font-black uppercase text-slate-400">Hủy</button>
-                            {moveToId !== null && <button onClick={handleMoveRequest} className="bg-blue-600 text-white px-6 py-2 rounded-xl text-[10px] font-black uppercase shadow-lg">Xác nhận</button>}
-                        </div>
-                    </div>
-                )}
             </section>
           </div>
         )}
@@ -342,12 +342,19 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
                 <div className="text-left space-y-3 mb-6 border-y border-slate-50 py-4">
                     <p className="text-[10px] font-black text-slate-400 uppercase">Chi tiết các món</p>
                     {currentBillTable.currentOrders.map((o:any) => (
-                        <div key={o.id} className={`flex justify-between items-center p-2 rounded-lg ${o.status === OrderItemStatus.PENDING ? 'bg-amber-50 border border-amber-100' : 'bg-slate-50'}`}>
+                        <div key={o.id} className={`flex justify-between items-center p-2 rounded-lg ${o.status === OrderItemStatus.READY ? 'bg-green-50 border-green-200' : o.status === OrderItemStatus.PENDING ? 'bg-amber-50 border-amber-100' : 'bg-slate-50'}`}>
                             <div className="flex flex-col">
-                                <span className="text-[10px] font-bold text-slate-800">{o.name} x{o.quantity}</span>
-                                <span className={`text-[8px] font-black uppercase italic ${o.status === OrderItemStatus.PENDING ? 'text-amber-500' : 'text-slate-400'}`}>{o.status}</span>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[10px] font-bold text-slate-800">{o.name} x{o.quantity}</span>
+                                    {o.status === OrderItemStatus.READY && <CheckCircle2 size={12} className="text-green-500" />}
+                                </div>
+                                <span className={`text-[8px] font-black uppercase italic ${o.status === OrderItemStatus.READY ? 'text-green-600' : o.status === OrderItemStatus.PENDING ? 'text-amber-500' : 'text-slate-400'}`}>{o.status}</span>
                             </div>
-                            <span className="text-[10px] font-black text-slate-600">{(o.price * o.quantity).toLocaleString()}đ</span>
+                            {o.status === OrderItemStatus.READY ? (
+                                <button onClick={() => handleServeItem(currentBillTable.id, o.id, `TEMP-${o.id}`)} className="bg-green-500 text-white px-2 py-1 rounded-lg text-[8px] font-black uppercase">Đã bưng</button>
+                            ) : (
+                                <span className="text-[10px] font-black text-slate-600">{(o.price * o.quantity).toLocaleString()}đ</span>
+                            )}
                         </div>
                     ))}
                     <div className="pt-2 border-t border-slate-100 flex justify-between items-center font-black text-orange-600">
