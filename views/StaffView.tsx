@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { OrderItem, OrderItemStatus, TableStatus, UserRole, Table, OrderType, MenuItem, AppNotification, User } from '../types.ts';
 import { ConfirmModal } from '../App.tsx';
@@ -30,8 +29,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
     ensureArray<Table>(store.tables).filter((t: Table) => 
       t.claimedBy === currentUser.id && 
       t.id !== 0 && 
-      t.status !== TableStatus.AVAILABLE && 
-      t.status !== TableStatus.CLEANING
+      (t.status === TableStatus.OCCUPIED || t.status === TableStatus.PAYING || t.status === TableStatus.BILLING)
     ).length
   , [store.tables, currentUser.id]);
 
@@ -127,7 +125,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
             {limitReached && (
               <div className="bg-red-500 text-white p-4 rounded-2xl flex items-center gap-3 shadow-lg animate-slideUp">
                 <AlertCircle size={20}/>
-                <p className="text-[10px] font-black uppercase italic">Đã đạt giới hạn 3 bàn. Vui lòng thanh toán bớt bàn để mở bàn mới.</p>
+                <p className="text-[10px] font-black uppercase italic">Đã đạt giới hạn 3 bàn. Vui lòng thanh toán hoặc gộp bàn để mở bàn mới.</p>
               </div>
             )}
 
@@ -164,8 +162,8 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
                     <div key={t.id} onClick={() => { 
                         if (t.qrRequested) return;
                         if (t.status === TableStatus.AVAILABLE) {
-                            if (limitReached) return;
-                            store.requestTableQr(t.id, currentUser.id).catch(() => alert("Bạn đã phục vụ tối đa 3 bàn!"));
+                            if (limitReached && t.id !== 0) return;
+                            store.requestTableQr(t.id, currentUser.id).catch((e: Error) => alert(e.message === 'LIMIT_REACHED' ? "Bạn đã phục vụ tối đa 3 bàn!" : "Lỗi hệ thống"));
                         }
                         else if (t.status === TableStatus.CLEANING) store.setTableEmpty(t.id);
                         else setQuickActionTable(t);
@@ -173,19 +171,19 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
                       t.qrRequested 
                       ? 'border-orange-500 bg-orange-50 text-orange-600 animate-pulse'
                       : t.status === TableStatus.AVAILABLE 
-                      ? `border-dashed border-slate-200 bg-white ${limitReached ? 'opacity-30 cursor-not-allowed' : ''}` 
+                      ? `border-dashed border-slate-200 bg-white ${limitReached && t.id !== 0 ? 'opacity-30 cursor-not-allowed grayscale' : ''}` 
                       : t.status === TableStatus.CLEANING 
                       ? 'border-emerald-500 bg-emerald-50 text-emerald-600' 
                       : 'border-slate-800 bg-slate-900 text-white shadow-md'
                     }`}>
                         <span className="text-[10px] font-black uppercase italic">{t.id === 0 ? 'LẺ' : 'BÀN '+t.id}</span>
                         {t.qrRequested ? <Loader2 size={20} className="animate-spin" /> :
-                         t.status === TableStatus.AVAILABLE ? <PlusCircle size={20} className={limitReached ? 'text-slate-200' : 'text-slate-300'}/> : 
+                         t.status === TableStatus.AVAILABLE ? <PlusCircle size={20} className={limitReached && t.id !== 0 ? 'text-slate-200' : 'text-slate-300'}/> : 
                          t.status === TableStatus.CLEANING ? <Sparkles size={20} className="text-emerald-500"/> :
                          <Utensils size={20} className="text-orange-500"/>}
                         
                         <span className="text-[8px] font-black uppercase tracking-tighter absolute bottom-2">
-                            {t.qrRequested ? 'Đang chờ QR...' : t.status === TableStatus.CLEANING ? 'Bấm để dọn xong' : (t.status === TableStatus.AVAILABLE && limitReached) ? 'Hết lượt' : ''}
+                            {t.qrRequested ? 'Đang chờ...' : t.status === TableStatus.CLEANING ? 'Bấm để dọn' : (t.status === TableStatus.AVAILABLE && limitReached && t.id !== 0) ? 'Hết lượt' : ''}
                         </span>
                     </div>
                 ))}
