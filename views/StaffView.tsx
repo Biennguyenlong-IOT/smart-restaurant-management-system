@@ -3,19 +3,19 @@ import React, { useState, useMemo } from 'react';
 import { OrderItem, OrderItemStatus, TableStatus, UserRole, Table, OrderType, MenuItem, AppNotification, User } from '../types.ts';
 import { ConfirmModal } from '../App.tsx';
 import { CATEGORIES } from '../constants';
-import { PlusCircle, Coffee, Clock, Utensils, Search, X, Bell, Trash2, Tag, ChevronRight, User as UserIcon, MoveHorizontal, RotateCcw, QrCode } from 'lucide-react';
+import { PlusCircle, Utensils, Search, X, Bell, Trash2, ChevronRight, QrCode, LogOut, CheckCheck } from 'lucide-react';
 import { ensureArray } from '../store.ts';
 
 interface StaffViewProps { store: any; currentUser: User; }
 
 const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
-  const [selectedTable, setSelectedTable] = useState<number | null>(null);
+  const [selectedTableId, setSelectedTableId] = useState<number | null>(null);
   const [cart, setCart] = useState<Record<string, { qty: number, note: string }>>({});
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState<'TABLES' | 'ORDER' | 'PAYMENTS'>('TABLES');
-  const [activeCategory, setActiveCategory] = useState('Tất cả');
   const [showBillTableId, setShowBillTableId] = useState<number | null>(null);
-  const [viewQrTable, setViewQrTable] = useState<Table | null>(null);
+  const [quickActionTable, setQuickActionTable] = useState<Table | null>(null);
+  const [showQrModal, setShowQrModal] = useState<Table | null>(null);
 
   const activeTableCount = useMemo(() => 
     ensureArray<Table>(store.tables).filter((t: Table) => t.claimedBy === currentUser.id && t.id !== 0 && t.status !== TableStatus.AVAILABLE).length
@@ -38,7 +38,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
   };
 
   const handlePlaceStaffOrder = async () => {
-    if (selectedTable === null) return alert("Vui lòng chọn bàn/khách lẻ!");
+    if (selectedTableId === null) return alert("Vui lòng chọn bàn/khách lẻ!");
     if (Object.keys(cart).length === 0) return alert("Vui lòng chọn món ăn!");
     
     const newItems: OrderItem[] = (Object.entries(cart) as [string, { qty: number, note: string }][])
@@ -52,8 +52,8 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
       });
 
     try {
-      await store.placeOrder(selectedTable, newItems, selectedTable === 0 ? OrderType.TAKEAWAY : OrderType.DINE_IN);
-      setCart({}); setSelectedTable(null); setActiveTab('TABLES');
+      await store.placeOrder(selectedTableId, newItems, selectedTableId === 0 ? OrderType.TAKEAWAY : OrderType.DINE_IN);
+      setCart({}); setSelectedTableId(null); setActiveTab('TABLES');
     } catch (e) { alert("Lỗi đặt đơn!"); }
   };
 
@@ -94,7 +94,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
         <div className="flex bg-slate-50 p-1 rounded-2xl border border-slate-200">
           <button onClick={() => setActiveTab('TABLES')} className={`flex-1 px-3 py-3 rounded-xl text-[10px] font-black uppercase transition-all flex items-center justify-center gap-1.5 ${activeTab === 'TABLES' ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400'}`}><Utensils size={14}/> Sơ đồ</button>
           <button onClick={() => setActiveTab('ORDER')} className={`flex-1 px-3 py-3 rounded-xl text-[10px] font-black uppercase transition-all flex items-center justify-center gap-1.5 ${activeTab === 'ORDER' ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400'}`}><PlusCircle size={14}/> Gọi món</button>
-          <button onClick={() => setActiveTab('PAYMENTS')} className={`flex-1 px-3 py-3 rounded-xl text-[10px] font-black uppercase transition-all flex items-center justify-center gap-1.5 ${activeTab === 'PAYMENTS' ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400'}`}><Clock size={14}/> Bill</button>
+          <button onClick={() => setActiveTab('PAYMENTS')} className={`flex-1 px-3 py-3 rounded-xl text-[10px] font-black uppercase transition-all flex items-center justify-center gap-1.5 ${activeTab === 'PAYMENTS' ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400'}`}><CheckCheck size={14}/> Bill</button>
         </div>
       </div>
 
@@ -121,7 +121,12 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
                                 </div>
                                 <div className="flex gap-1.5">
                                     {n.type === 'order' && <button onClick={() => handleConfirmOrder(n.payload?.tableId, n.id)} className="px-3 py-2 bg-blue-500 text-white rounded-lg text-[8px] font-black uppercase italic">Duyệt</button>}
-                                    {n.type === 'kitchen' && <button onClick={() => handleServeItem(n.payload?.tableId, n.payload?.itemId, n.id)} className="px-3 py-2 bg-green-500 text-white rounded-lg text-[8px] font-black uppercase italic">Bưng</button>}
+                                    {n.type === 'kitchen' && (
+                                       <div className="flex gap-1.5">
+                                          <button onClick={() => { const t = store.tables.find((tbl: any) => tbl.id === n.payload.tableId); if(t) setShowQrModal(t); }} className="p-2 bg-white/10 rounded-lg text-white"><QrCode size={14}/></button>
+                                          <button onClick={() => handleServeItem(n.payload?.tableId, n.payload?.itemId, n.id)} className="px-3 py-2 bg-green-500 text-white rounded-lg text-[8px] font-black uppercase italic">Bưng</button>
+                                       </div>
+                                    )}
                                     <button onClick={() => store.deleteNotification(n.id)} className="p-2 bg-white/10 rounded-lg"><X size={14} /></button>
                                 </div>
                             </div>
@@ -133,31 +138,48 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
             <div className="grid grid-cols-3 gap-3">
                 {ensureArray<Table>(store.tables).map((t: Table) => (
                     <div key={t.id} onClick={() => { 
-                      if(t.status === TableStatus.AVAILABLE) store.requestTableQr(t.id, currentUser.id);
-                      else if(t.status === TableStatus.OCCUPIED) setViewQrTable(t);
+                        if (t.status === TableStatus.AVAILABLE) store.requestTableQr(t.id, currentUser.id);
+                        else setQuickActionTable(t);
                     }} className={`p-4 rounded-3xl border-2 flex flex-col items-center justify-center gap-2 transition-all relative h-28 ${t.status === TableStatus.AVAILABLE ? 'border-dashed border-slate-200 bg-white' : 'border-slate-800 bg-slate-900 text-white'}`}>
                         <span className="text-[10px] font-black uppercase italic">{t.id === 0 ? 'LẺ' : 'BÀN '+t.id}</span>
                         {t.status === TableStatus.AVAILABLE ? <PlusCircle size={20} className="text-slate-300"/> : <Utensils size={20} className="text-orange-500"/>}
                         {t.status === TableStatus.PAYING && <div className="absolute top-1 right-1"><Bell size={12} className="text-red-500 animate-bounce"/></div>}
-                        {t.status === TableStatus.OCCUPIED && <div className="absolute bottom-1 right-1 opacity-40"><QrCode size={12}/></div>}
+                        {t.status === TableStatus.OCCUPIED && <div className="absolute bottom-1 right-1 opacity-20"><QrCode size={10}/></div>}
                     </div>
                 ))}
             </div>
           </div>
         )}
 
+        {/* Modal hành động nhanh */}
+        {quickActionTable && (
+           <div className="fixed inset-0 z-[250] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 animate-fadeIn">
+              <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl animate-scaleIn">
+                 <h3 className="text-lg font-black uppercase italic mb-6 text-center">Bàn số {quickActionTable.id}</h3>
+                 <div className="grid grid-cols-1 gap-3">
+                    <button onClick={() => { setShowQrModal(quickActionTable); setQuickActionTable(null); }} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-2 italic"><QrCode size={16}/> Xem mã QR</button>
+                    <button onClick={() => { setSelectedTableId(quickActionTable.id); setActiveTab('ORDER'); setQuickActionTable(null); }} className="w-full py-4 bg-orange-500 text-white rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-2 italic"><PlusCircle size={16}/> Thêm món mới</button>
+                    {quickActionTable.status === TableStatus.PAYING && (
+                       <button onClick={() => { setShowBillTableId(quickActionTable.id); setQuickActionTable(null); }} className="w-full py-4 bg-green-500 text-white rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-2 italic"><CheckCheck size={16}/> Xác nhận tính tiền</button>
+                    )}
+                    <button onClick={() => setQuickActionTable(null)} className="w-full py-4 bg-slate-50 text-slate-400 rounded-2xl font-black uppercase text-[10px]">Đóng</button>
+                 </div>
+              </div>
+           </div>
+        )}
+
         {/* Modal xem QR */}
-        {viewQrTable && (
-          <div className="fixed inset-0 z-[250] bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-6 animate-fadeIn">
+        {showQrModal && (
+          <div className="fixed inset-0 z-[300] bg-slate-900/90 backdrop-blur-xl flex items-center justify-center p-6 animate-fadeIn">
             <div className="bg-white w-full max-w-sm rounded-[3rem] p-10 text-center shadow-2xl animate-scaleIn">
-               <h3 className="text-xl font-black uppercase italic text-slate-800 mb-6">Mã QR Bàn {viewQrTable.id}</h3>
-               <div className="bg-slate-100 p-6 rounded-3xl mb-8 flex flex-col items-center gap-4">
-                  <QrCode size={120} className="text-slate-800" />
-                  <p className="text-[10px] font-bold text-slate-400 break-all bg-white p-4 rounded-2xl border border-slate-200">{getTableLink(viewQrTable)}</p>
+               <h3 className="text-xl font-black uppercase italic text-slate-800 mb-6">Mã QR Bàn {showQrModal.id}</h3>
+               <div className="bg-slate-50 p-6 rounded-3xl mb-8 flex flex-col items-center gap-4 border-2 border-dashed border-slate-200">
+                  <QrCode size={140} className="text-slate-800" />
+                  <p className="text-[8px] font-bold text-slate-300 break-all bg-white p-3 rounded-xl border border-slate-100">{getTableLink(showQrModal)}</p>
                </div>
-               <div className="grid grid-cols-1 gap-3">
-                 <button onClick={() => { navigator.clipboard.writeText(getTableLink(viewQrTable)); alert("Đã copy link bàn!"); }} className="py-4 bg-orange-500 text-white rounded-2xl font-black uppercase text-[10px] italic">Copy Link Bàn</button>
-                 <button onClick={() => setViewQrTable(null)} className="py-4 bg-slate-100 text-slate-400 rounded-2xl font-black uppercase text-[10px] italic">Đóng</button>
+               <div className="flex flex-col gap-3">
+                 <button onClick={() => { navigator.clipboard.writeText(getTableLink(showQrModal)); alert("Đã copy link!"); }} className="py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] italic">Copy Link Bàn</button>
+                 <button onClick={() => setShowQrModal(null)} className="py-4 bg-slate-100 text-slate-400 rounded-2xl font-black uppercase text-[10px]">Đóng</button>
                </div>
             </div>
           </div>
@@ -187,7 +209,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
                 </div>
                 <div className="fixed bottom-16 left-4 right-4 bg-slate-900 text-white p-5 rounded-2xl shadow-2xl z-50">
                     <div className="flex justify-between items-center mb-4">
-                        <select value={selectedTable ?? ''} onChange={e => setSelectedTable(parseInt(e.target.value))} className="bg-white/10 border-none outline-none font-black text-[10px] uppercase p-2 rounded-xl">
+                        <select value={selectedTableId ?? ''} onChange={e => setSelectedTableId(parseInt(e.target.value))} className="bg-white/10 border-none outline-none font-black text-[10px] uppercase p-2 rounded-xl">
                             <option value="">Chọn bàn</option>
                             {ensureArray<Table>(store.tables).map(t => <option key={t.id} value={t.id}>{t.id === 0 ? 'Khách lẻ' : 'Bàn ' + t.id}</option>)}
                         </select>
@@ -212,6 +234,9 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
                         </div>
                     </div>
                 ))}
+                {ensureArray<Table>(store.tables).filter(t => t.status !== TableStatus.AVAILABLE).length === 0 && (
+                   <p className="text-center py-20 text-slate-300 font-black uppercase text-[10px] italic">Chưa có bàn nào đang hoạt động</p>
+                )}
             </div>
         )}
       </div>
