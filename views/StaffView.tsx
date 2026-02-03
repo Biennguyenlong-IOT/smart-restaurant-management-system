@@ -3,7 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { OrderItem, OrderItemStatus, TableStatus, UserRole, Table, OrderType, MenuItem, AppNotification, User } from '../types.ts';
 import { ConfirmModal } from '../App.tsx';
 import { CATEGORIES } from '../constants';
-import { PlusCircle, Coffee, Clock, Utensils, Search, X, Bell, Trash2, Tag, ChevronRight, User as UserIcon, MoveHorizontal, RotateCcw } from 'lucide-react';
+import { PlusCircle, Coffee, Clock, Utensils, Search, X, Bell, Trash2, Tag, ChevronRight, User as UserIcon, MoveHorizontal, RotateCcw, QrCode } from 'lucide-react';
 import { ensureArray } from '../store.ts';
 
 interface StaffViewProps { store: any; currentUser: User; }
@@ -15,7 +15,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
   const [activeTab, setActiveTab] = useState<'TABLES' | 'ORDER' | 'PAYMENTS'>('TABLES');
   const [activeCategory, setActiveCategory] = useState('Tất cả');
   const [showBillTableId, setShowBillTableId] = useState<number | null>(null);
-  const [moveSourceId, setMoveSourceId] = useState<number | null>(null);
+  const [viewQrTable, setViewQrTable] = useState<Table | null>(null);
 
   const activeTableCount = useMemo(() => 
     ensureArray<Table>(store.tables).filter((t: Table) => t.claimedBy === currentUser.id && t.id !== 0 && t.status !== TableStatus.AVAILABLE).length
@@ -31,6 +31,10 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
 
   const handleConfirmOrder = async (tid: number, nid: string) => {
     await store.confirmTableOrders(tid, nid);
+  };
+
+  const handleServeItem = async (tid: number, oid: string, nid: string) => {
+    await store.serveOrderItem(tid, oid, nid);
   };
 
   const handlePlaceStaffOrder = async () => {
@@ -63,6 +67,11 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
         }
         return newCart;
     });
+  };
+
+  const getTableLink = (t: Table) => {
+    const baseUrl = window.location.origin + window.location.pathname;
+    return `${baseUrl}#/table/${t.id}/${t.sessionToken}`;
   };
 
   return (
@@ -112,7 +121,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
                                 </div>
                                 <div className="flex gap-1.5">
                                     {n.type === 'order' && <button onClick={() => handleConfirmOrder(n.payload?.tableId, n.id)} className="px-3 py-2 bg-blue-500 text-white rounded-lg text-[8px] font-black uppercase italic">Duyệt</button>}
-                                    {n.type === 'kitchen' && <button onClick={() => { store.updateOrderItemStatus(n.payload?.tableId, n.payload?.itemId, OrderItemStatus.SERVED); store.deleteNotification(n.id); }} className="px-3 py-2 bg-green-500 text-white rounded-lg text-[8px] font-black uppercase italic">Bưng</button>}
+                                    {n.type === 'kitchen' && <button onClick={() => handleServeItem(n.payload?.tableId, n.payload?.itemId, n.id)} className="px-3 py-2 bg-green-500 text-white rounded-lg text-[8px] font-black uppercase italic">Bưng</button>}
                                     <button onClick={() => store.deleteNotification(n.id)} className="p-2 bg-white/10 rounded-lg"><X size={14} /></button>
                                 </div>
                             </div>
@@ -123,12 +132,33 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
 
             <div className="grid grid-cols-3 gap-3">
                 {ensureArray<Table>(store.tables).map((t: Table) => (
-                    <div key={t.id} onClick={() => { if(t.status === TableStatus.AVAILABLE) store.requestTableQr(t.id, currentUser.id); }} className={`p-4 rounded-3xl border-2 flex flex-col items-center justify-center gap-2 transition-all relative h-28 ${t.status === TableStatus.AVAILABLE ? 'border-dashed border-slate-200 bg-white' : 'border-slate-800 bg-slate-900 text-white'}`}>
+                    <div key={t.id} onClick={() => { 
+                      if(t.status === TableStatus.AVAILABLE) store.requestTableQr(t.id, currentUser.id);
+                      else if(t.status === TableStatus.OCCUPIED) setViewQrTable(t);
+                    }} className={`p-4 rounded-3xl border-2 flex flex-col items-center justify-center gap-2 transition-all relative h-28 ${t.status === TableStatus.AVAILABLE ? 'border-dashed border-slate-200 bg-white' : 'border-slate-800 bg-slate-900 text-white'}`}>
                         <span className="text-[10px] font-black uppercase italic">{t.id === 0 ? 'LẺ' : 'BÀN '+t.id}</span>
                         {t.status === TableStatus.AVAILABLE ? <PlusCircle size={20} className="text-slate-300"/> : <Utensils size={20} className="text-orange-500"/>}
                         {t.status === TableStatus.PAYING && <div className="absolute top-1 right-1"><Bell size={12} className="text-red-500 animate-bounce"/></div>}
+                        {t.status === TableStatus.OCCUPIED && <div className="absolute bottom-1 right-1 opacity-40"><QrCode size={12}/></div>}
                     </div>
                 ))}
+            </div>
+          </div>
+        )}
+
+        {/* Modal xem QR */}
+        {viewQrTable && (
+          <div className="fixed inset-0 z-[250] bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-6 animate-fadeIn">
+            <div className="bg-white w-full max-w-sm rounded-[3rem] p-10 text-center shadow-2xl animate-scaleIn">
+               <h3 className="text-xl font-black uppercase italic text-slate-800 mb-6">Mã QR Bàn {viewQrTable.id}</h3>
+               <div className="bg-slate-100 p-6 rounded-3xl mb-8 flex flex-col items-center gap-4">
+                  <QrCode size={120} className="text-slate-800" />
+                  <p className="text-[10px] font-bold text-slate-400 break-all bg-white p-4 rounded-2xl border border-slate-200">{getTableLink(viewQrTable)}</p>
+               </div>
+               <div className="grid grid-cols-1 gap-3">
+                 <button onClick={() => { navigator.clipboard.writeText(getTableLink(viewQrTable)); alert("Đã copy link bàn!"); }} className="py-4 bg-orange-500 text-white rounded-2xl font-black uppercase text-[10px] italic">Copy Link Bàn</button>
+                 <button onClick={() => setViewQrTable(null)} className="py-4 bg-slate-100 text-slate-400 rounded-2xl font-black uppercase text-[10px] italic">Đóng</button>
+               </div>
             </div>
           </div>
         )}
