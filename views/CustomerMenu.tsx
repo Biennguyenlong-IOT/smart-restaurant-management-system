@@ -56,6 +56,7 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
   const [view, setView] = useState<'MENU' | 'CART' | 'HISTORY'>('MENU');
   
   const [showPaymentConfirm, setShowPaymentConfirm] = useState(false);
+  const [cancelTarget, setCancelTarget] = useState<{id: string, name: string} | null>(null);
   const [isOrdering, setIsOrdering] = useState(false);
   const [reviewForm, setReviewForm] = useState({ ratingFood: 5, ratingService: 5, comment: '' });
 
@@ -342,6 +343,9 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
                                       <div className={`w-1.5 h-1.5 rounded-full ${item.status === OrderItemStatus.SERVED ? 'bg-green-500' : 'bg-orange-400 animate-pulse'}`}></div>
                                       <span className="text-[8px] font-black uppercase italic text-slate-500">{item.status}</span>
                                    </div>
+                                   {(item.status === OrderItemStatus.PENDING || item.status === OrderItemStatus.CONFIRMED) && (
+                                     <button onClick={() => setCancelTarget({ id: item.id, name: item.name })} className="text-red-500 text-[8px] font-black uppercase italic underline">Huỷ</button>
+                                   )}
                                 </div>
                             </div>
                         ))}
@@ -369,6 +373,8 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
           <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-black w-5 h-5 rounded-full flex items-center justify-center border-2 border-white">{(Object.values(cart) as { qty: number }[]).reduce((s, d) => s + d.qty, 0)}</span>
         )}
       </button>
+
+      <ConfirmModal isOpen={cancelTarget !== null} type="danger" title="Huỷ món?" message={`Xác nhận huỷ "${cancelTarget?.name}"?`} onConfirm={() => { if (cancelTarget) store.cancelOrderItem(idNum, cancelTarget.id); setCancelTarget(null); }} onCancel={() => setCancelTarget(null)} />
     </div>
   );
 };
