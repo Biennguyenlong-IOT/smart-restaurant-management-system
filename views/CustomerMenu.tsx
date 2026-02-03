@@ -7,7 +7,7 @@ import { CATEGORIES } from '../constants';
 import { OrderItem, OrderItemStatus, MenuItem, TableStatus, UserRole, Table, OrderType, Review, User } from '../types';
 import { ensureArray } from '../store.ts';
 import { ConfirmModal } from '../App';
-import { ShoppingCart, History, ChefHat, Loader2, CreditCard, Bell, X, Trash2, Send, ChevronRight, Star, MessageSquare, CheckCircle2 } from 'lucide-react';
+import { ShoppingCart, History, ChefHat, Loader2, CreditCard, Bell, X, Trash2, Send, ChevronRight, Star, MessageSquare, CheckCircle2, Clock } from 'lucide-react';
 
 const MenuCard = memo(({ item, quantity, onAdd, onRemove }: { item: MenuItem, quantity: number, onAdd: () => void, onRemove: () => void }) => {
     const isOut = !item.isAvailable;
@@ -303,13 +303,16 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
                             <div key={item.id} className={`p-4 rounded-xl border-2 flex items-center justify-between ${item.status === OrderItemStatus.CANCELLED ? 'bg-slate-50 border-slate-100 opacity-40' : 'bg-white border-slate-50'}`}>
                                 <div className="min-w-0 pr-4">
                                     <h4 className="font-black text-slate-800 text-[10px] uppercase truncate italic">{item.name} x{item.quantity}</h4>
-                                    <span className="text-[8px] font-black uppercase italic text-slate-400">{item.status}</span>
+                                    <div className="flex items-center gap-2">
+                                       <span className="text-[8px] font-black uppercase italic text-slate-400">{item.status}</span>
+                                       {item.status === OrderItemStatus.CONFIRMED && <Clock size={10} className="text-orange-400 animate-pulse"/>}
+                                    </div>
                                 </div>
                                 <div className="flex items-center gap-3">
                                    <span className="font-black text-slate-900 text-[10px]">{(item.price * item.quantity).toLocaleString()}đ</span>
-                                   {/* Refined cancellation logic: Customer can only cancel PENDING items */}
-                                   {item.status === OrderItemStatus.PENDING && (
-                                     <button onClick={() => setCancelTarget({ id: item.id, name: item.name })} className="p-1.5 bg-red-50 text-red-500 rounded-lg transition-transform active:scale-90"><Trash2 size={14}/></button>
+                                   {/* Refined cancellation logic: Customer can cancel if Pending or Confirmed (but not yet cooking) */}
+                                   {(item.status === OrderItemStatus.PENDING || item.status === OrderItemStatus.CONFIRMED) && (
+                                     <button onClick={() => setCancelTarget({ id: item.id, name: item.name })} className="px-3 py-2 bg-red-50 text-red-500 rounded-lg transition-all hover:bg-red-500 hover:text-white font-black text-[9px] uppercase italic">Huỷ</button>
                                    )}
                                 </div>
                             </div>
