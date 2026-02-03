@@ -6,7 +6,7 @@ const { useParams, Link, useNavigate, useSearchParams, useLocation } = ReactRout
 import { CATEGORIES } from '../constants';
 import { OrderItem, OrderItemStatus, MenuItem, TableStatus, UserRole, Table, OrderType, Review } from '../types';
 import { ConfirmModal } from '../App';
-import { ShoppingCart, History, ChefHat, Loader2, FileText, CreditCard, Star, AlertTriangle, PlusCircle, Bell, MessageCircle, Heart, CheckCircle, Send, QrCode, Clock, ShieldAlert, X } from 'lucide-react';
+import { ShoppingCart, History, ChefHat, Loader2, CreditCard, Bell, X, Trash2, Send, ChevronRight } from 'lucide-react';
 
 const MenuCard = memo(({ item, quantity, onAdd, onRemove }: { item: MenuItem, quantity: number, onAdd: () => void, onRemove: () => void }) => {
     const isOut = !item.isAvailable;
@@ -43,7 +43,6 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
   const { tableId, token: tokenFromPath } = useParams<{ tableId: string; token?: string }>();
   const [searchParams] = useSearchParams();
   const location = useLocation();
-  const navigate = useNavigate();
   const idNum = parseInt(tableId || '0');
   
   const isPublicView = location.pathname === '/' || location.pathname === '/view-menu';
@@ -52,15 +51,13 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
   
   const [activeTab, setActiveTab] = useState('Tất cả');
   const [cart, setCart] = useState<Record<string, { qty: number, note: string }>>({});
-  const [orderType, setOrderType] = useState<OrderType>(OrderType.DINE_IN);
   const [view, setView] = useState<'MENU' | 'CART' | 'HISTORY'>('MENU');
-  
   const [showPaymentConfirm, setShowPaymentConfirm] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<{id: string, name: string} | null>(null);
   const [isOrdering, setIsOrdering] = useState(false);
-  const [reviewForm, setReviewForm] = useState({ ratingFood: 5, ratingService: 5, comment: '' });
 
-  const cartTotal = useMemo(() => (Object.entries(cart) as [string, { qty: number }][]).reduce((sum, [id, data]) => {
+  // Fix: Explicitly cast Object.entries(cart) to avoid "unknown" type error in reduce
+  const cartTotal = useMemo(() => (Object.entries(cart) as [string, { qty: number, note: string }][]).reduce((sum, [id, data]) => {
       const item = (store.menu || []).find((m: MenuItem) => m.id === id);
       return sum + (item?.price || 0) * data.qty;
   }, 0), [cart, store.menu]);
@@ -71,11 +68,13 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
     setCart(prev => ({ ...prev, [id]: { qty: (prev[id]?.qty || 0) + 1, note: prev[id]?.note || '' } }));
   }, [store.menu]);
 
+  // Fix: Add explicit type casting for indexed access to cart state to avoid "unknown" property errors
   const handleRemoveFromCart = useCallback((id: string) => {
     setCart(prev => {
-      if (!prev[id]) return prev;
+      const existing = prev[id] as { qty: number, note: string } | undefined;
+      if (!existing) return prev;
       const newCart = { ...prev };
-      if (newCart[id].qty > 1) newCart[id] = { ...newCart[id], qty: newCart[id].qty - 1 };
+      if (existing.qty > 1) newCart[id] = { ...existing, qty: existing.qty - 1 };
       else delete newCart[id];
       return newCart;
     });
@@ -93,7 +92,7 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
             timestamp: Date.now(), note: data.note
           };
         });
-        await store.placeOrder(idNum, newOrders, orderType);
+        await store.placeOrder(idNum, newOrders, idNum === 0 ? OrderType.TAKEAWAY : OrderType.DINE_IN);
         setCart({}); setView('HISTORY'); 
     } catch (e) { alert("Lỗi gửi đơn!"); } finally { setIsOrdering(false); }
   };
@@ -102,20 +101,15 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
   const totalAmount = useMemo(() => activeOrders.reduce((sum, item) => sum + (item.price * item.quantity), 0), [activeOrders]);
   const allServed = useMemo(() => activeOrders.length > 0 && activeOrders.every((item: OrderItem) => item.status === OrderItemStatus.SERVED), [activeOrders]);
 
-  const getVietQrUrl = (amount: number) => {
-    if (!store.bankConfig.accountNo) return '';
-    return `https://img.vietqr.io/image/${store.bankConfig.bankId}-${store.bankConfig.accountNo}-compact.png?amount=${amount}&addInfo=Thanh+Toan+Ban+${idNum}&accountName=${encodeURIComponent(store.bankConfig.accountName)}`;
-  };
-
   if (isPublicView) {
     return (
       <div className="flex flex-col items-center justify-center h-full px-6 text-center animate-fadeIn max-w-2xl mx-auto w-full pb-20">
-        <div className="w-20 h-20 md:w-24 md:h-24 bg-orange-500 text-white rounded-[2rem] md:rounded-[2.5rem] flex items-center justify-center mb-8 text-3xl md:text-4xl font-black italic shadow-2xl">S</div>
-        <h1 className="text-2xl md:text-4xl font-black text-slate-800 uppercase italic mb-4">Smart Resto</h1>
-        <div className="bg-white p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] shadow-xl border border-slate-100 w-full">
-           <h2 className="text-lg md:text-xl font-black text-slate-800 uppercase italic mb-4">Chào mừng bạn!</h2>
-           <p className="text-slate-500 text-xs md:text-sm leading-relaxed mb-6">Vui lòng quét QR tại bàn để bắt đầu đặt món.</p>
-           <Link to="/login" className="block bg-slate-900 text-white px-8 py-4 md:py-5 rounded-2xl font-black text-[10px] uppercase shadow-2xl active:scale-95 transition-all">Quản trị viên</Link>
+        <div className="w-20 h-20 bg-orange-500 text-white rounded-[2rem] flex items-center justify-center mb-8 text-3xl font-black italic shadow-2xl">S</div>
+        <h1 className="text-2xl font-black text-slate-800 uppercase italic mb-4">Smart Resto</h1>
+        <div className="bg-white p-6 rounded-[2rem] shadow-xl border border-slate-100 w-full">
+           <h2 className="text-lg font-black text-slate-800 uppercase italic mb-4">Chào mừng!</h2>
+           <p className="text-slate-500 text-xs mb-6">Vui lòng quét mã QR tại bàn để bắt đầu.</p>
+           <Link to="/login" className="block bg-slate-900 text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase shadow-2xl">Nhân viên</Link>
         </div>
       </div>
     );
@@ -125,8 +119,8 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
   if (!tableId || !isTokenValid) return (
     <div className="flex flex-col items-center justify-center h-full px-6 text-center animate-fadeIn">
         <div className="w-20 h-20 bg-red-50 text-red-500 rounded-[2rem] flex items-center justify-center mb-8 text-4xl">⚠️</div>
-        <h2 className="text-lg md:text-2xl font-black text-slate-800 mb-6 uppercase italic">Hết phiên làm việc</h2>
-        <p className="text-slate-400 text-xs uppercase font-black mb-10">Vui lòng liên hệ nhân viên để nhận mã QR mới</p>
+        <h2 className="text-lg font-black text-slate-800 mb-6 uppercase italic">Hết phiên làm việc</h2>
+        <p className="text-slate-400 text-[10px] uppercase font-black mb-10">Vui lòng liên hệ nhân viên để nhận mã QR mới</p>
         <Link to="/" className="px-10 py-4 bg-slate-900 text-white rounded-xl font-black text-[10px] uppercase shadow-2xl italic">Quay lại</Link>
     </div>
   );
@@ -138,14 +132,18 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
 
       <div className="bg-white rounded-[1.5rem] p-2.5 mb-3 shadow-sm border border-slate-100 flex justify-between items-center shrink-0 mt-1">
         <div className="flex items-center gap-2.5 ml-1">
-          <div className="w-8 h-8 md:w-10 md:h-10 bg-orange-500 text-white rounded-lg md:rounded-xl flex items-center justify-center font-black text-sm md:text-lg italic shadow-md">B{idNum}</div>
+          <div className="w-8 h-8 bg-orange-500 text-white rounded-lg flex items-center justify-center font-black text-sm italic shadow-md">B{idNum}</div>
           <div>
-            <h2 className="text-slate-800 font-black text-[10px] md:text-xs uppercase leading-none">Bàn số {idNum}</h2>
-            <span className="text-[7px] md:text-[8px] font-black text-slate-400 uppercase tracking-widest">Đang phục vụ</span>
+            <h2 className="text-slate-800 font-black text-[10px] uppercase leading-none">Bàn số {idNum}</h2>
+            <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest">Đang phục vụ</span>
           </div>
         </div>
         <div className="flex gap-1.5 p-1 bg-slate-100 rounded-xl">
             <button onClick={() => setView('MENU')} className={`p-2.5 rounded-lg transition-all ${view === 'MENU' ? 'bg-white text-orange-500 shadow-sm' : 'text-slate-400'}`}><ShoppingCart size={16}/></button>
+            <button onClick={() => setView('CART')} className={`p-2.5 rounded-lg transition-all relative ${view === 'CART' ? 'bg-white text-orange-500 shadow-sm' : 'text-slate-400'}`}>
+                <Send size={16}/>
+                {Object.keys(cart).length > 0 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] w-4 h-4 rounded-full flex items-center justify-center font-black border border-white">!</span>}
+            </button>
             <button onClick={() => setView('HISTORY')} className={`p-2.5 rounded-lg transition-all ${view === 'HISTORY' ? 'bg-white text-orange-500 shadow-sm' : 'text-slate-400'}`}><History size={16}/></button>
             <button onClick={() => store.callStaff(idNum)} className="p-2.5 rounded-lg bg-orange-50 text-orange-600 active:scale-90 transition-all"><Bell size={16}/></button>
         </div>
@@ -167,6 +165,50 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
             </>
         )}
 
+        {view === 'CART' && (
+            <div className="animate-fadeIn space-y-4 px-1">
+                <div className="bg-white rounded-[2rem] p-6 shadow-xl border border-slate-100 min-h-[300px] flex flex-col">
+                    <h3 className="font-black text-slate-800 text-lg mb-6 flex items-center gap-2 italic uppercase"><ShoppingCart size={18} className="text-orange-500"/> Giỏ hàng của bạn</h3>
+                    <div className="flex-1 space-y-3">
+                        {Object.keys(cart).length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-20 text-slate-300">
+                                <ShoppingCart size={48} className="opacity-20 mb-4"/>
+                                <p className="font-black uppercase text-[10px] italic">Chưa có món nào được chọn</p>
+                            </div>
+                        ) : (
+                            // Fix: Explicitly cast Object.entries(cart) to avoid "unknown" type error in map
+                            (Object.entries(cart) as [string, { qty: number, note: string }][]).map(([id, data]) => {
+                                const item = store.menu.find((m: MenuItem) => m.id === id);
+                                return (
+                                    <div key={id} className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                                        <div className="flex items-center gap-3 min-w-0">
+                                            <img src={item?.image} className="w-10 h-10 rounded-lg object-cover shadow-sm"/>
+                                            <div className="truncate">
+                                                <p className="text-[10px] font-black uppercase text-slate-800 truncate">{item?.name}</p>
+                                                <p className="text-[9px] font-bold text-orange-600">{item?.price.toLocaleString()}đ x{data.qty}</p>
+                                            </div>
+                                        </div>
+                                        <button onClick={() => handleRemoveFromCart(id)} className="p-2 text-red-500 bg-white rounded-xl shadow-sm"><Trash2 size={14}/></button>
+                                    </div>
+                                );
+                            })
+                        )}
+                    </div>
+                    {cartTotal > 0 && (
+                        <div className="mt-8 pt-6 border-t border-slate-100">
+                            <div className="flex justify-between items-center mb-6 px-2">
+                                <span className="text-[10px] font-black uppercase text-slate-400 italic">Tổng đơn hàng:</span>
+                                <span className="text-xl font-black text-slate-900 italic">{cartTotal.toLocaleString()}đ</span>
+                            </div>
+                            <button onClick={handlePlaceOrder} disabled={isOrdering} className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] shadow-2xl italic active:scale-95 transition-all flex items-center justify-center gap-2">
+                                {isOrdering ? <Loader2 size={16} className="animate-spin"/> : <><Send size={16}/> Gửi đơn ngay</>}
+                            </button>
+                        </div>
+                    )}
+                </div>
+            </div>
+        )}
+
         {view === 'HISTORY' && (
             <div className="animate-fadeIn space-y-4 px-1">
                 <div className="bg-white rounded-[2rem] p-6 shadow-2xl border border-slate-100 min-h-[300px]">
@@ -185,7 +227,7 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
                                 <div className="flex items-center gap-3">
                                    <span className="font-black text-slate-900 text-[10px]">{(item.price * item.quantity).toLocaleString()}đ</span>
                                    {(item.status === OrderItemStatus.PENDING || item.status === OrderItemStatus.CONFIRMED) && (
-                                     <button onClick={() => setCancelTarget({ id: item.id, name: item.name })} className="p-1.5 bg-red-50 text-red-500 rounded-lg shadow-sm active:scale-90"><X size={14}/></button>
+                                     <button onClick={() => setCancelTarget({ id: item.id, name: item.name })} className="p-1.5 bg-red-50 text-red-500 rounded-lg shadow-sm active:scale-90"><Trash2 size={14}/></button>
                                    )}
                                 </div>
                             </div>
@@ -208,7 +250,7 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
         )}
       </div>
 
-      <button onClick={() => setView(view === 'CART' ? 'MENU' : 'CART')} className={`fixed bottom-24 right-4 w-14 h-14 md:w-16 md:h-16 rounded-full shadow-2xl flex items-center justify-center z-[60] border-4 border-white transition-all active:scale-90 ${cartTotal > 0 ? 'bg-orange-500 text-white animate-bounce' : 'bg-slate-900 text-white'}`}>
+      <button onClick={() => setView(v => v === 'CART' ? 'MENU' : 'CART')} className={`fixed bottom-6 right-4 w-14 h-14 rounded-full shadow-2xl flex items-center justify-center z-[60] border-4 border-white transition-all active:scale-90 ${Object.keys(cart).length > 0 ? 'bg-orange-500 text-white animate-bounce' : 'bg-slate-900 text-white'}`}>
         <ShoppingCart size={24} />
         {Object.keys(cart).length > 0 && (
           <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-black w-5 h-5 rounded-full flex items-center justify-center border-2 border-white">{(Object.values(cart) as { qty: number }[]).reduce((s, d) => s + d.qty, 0)}</span>
