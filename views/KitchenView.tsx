@@ -59,13 +59,18 @@ const KitchenView: React.FC<KitchenViewProps> = ({ store }) => {
                             {item.orderType === OrderType.TAKEAWAY && <div className="absolute top-0 right-0 bg-red-500 text-white px-4 py-1.5 rounded-bl-2xl text-[9px] font-black uppercase italic animate-pulse">Mang về</div>}
                             <div className="flex justify-between items-start mb-4">
                                 <div>
-                                    <span className="text-[9px] font-black tracking-widest text-slate-400 uppercase">Bàn {item.tableId}</span>
+                                    <span className="text-[9px] font-black tracking-widest text-slate-400 uppercase">{item.tableId === 0 ? 'Khách lẻ' : 'Bàn ' + item.tableId}</span>
                                     <h3 className="text-lg font-black text-slate-800">{item.name}</h3>
-                                    {item.note && <div className="mt-2 flex items-center gap-2 text-red-500 bg-red-50 px-3 py-1.5 rounded-xl border border-red-100"><MessageSquare size={12}/><p className="text-[10px] font-black uppercase italic">{item.note}</p></div>}
+                                    {item.note && (
+                                        <div className="mt-2 flex items-center gap-2 text-red-600 bg-red-50 px-3 py-2 rounded-xl border border-red-200 shadow-sm">
+                                            <MessageSquare size={14} className="shrink-0" />
+                                            <p className="text-[11px] font-black uppercase italic leading-tight">{item.note}</p>
+                                        </div>
+                                    )}
                                 </div>
                                 <span className="text-3xl font-black text-slate-900 bg-slate-50 px-3 py-1 rounded-xl">x{item.quantity}</span>
                             </div>
-                            <button onClick={() => store.updateOrderItemStatus(item.tableId, item.id, OrderItemStatus.COOKING)} className="w-full bg-slate-900 text-white py-4 rounded-xl font-black text-xs uppercase shadow-xl">Chế biến</button>
+                            <button onClick={() => store.updateOrderItemStatus(item.tableId, item.id, OrderItemStatus.COOKING)} className="w-full bg-slate-900 text-white py-4 rounded-xl font-black text-xs uppercase shadow-xl active:scale-95 transition-all">Chế biến</button>
                         </div>
                     ))
                 }
@@ -79,13 +84,18 @@ const KitchenView: React.FC<KitchenViewProps> = ({ store }) => {
                             {item.orderType === OrderType.TAKEAWAY && <div className="absolute top-0 right-0 bg-red-500 text-white px-4 py-1.5 rounded-bl-2xl text-[9px] font-black uppercase italic">Mang về</div>}
                             <div className="flex justify-between items-start mb-4">
                                 <div>
-                                    <span className="text-[9px] font-black tracking-widest text-orange-400 uppercase">Bàn {item.tableId}</span>
+                                    <span className="text-[9px] font-black tracking-widest text-orange-400 uppercase">{item.tableId === 0 ? 'Khách lẻ' : 'Bàn ' + item.tableId}</span>
                                     <h3 className="text-lg font-black text-slate-800">{item.name}</h3>
-                                    {item.note && <div className="mt-2 flex items-center gap-2 text-red-500"><MessageSquare size={12}/><p className="text-[10px] font-black italic">{item.note}</p></div>}
+                                    {item.note && (
+                                        <div className="mt-2 flex items-center gap-2 text-red-600 bg-red-50 px-3 py-2 rounded-xl border border-red-200 shadow-sm">
+                                            <MessageSquare size={14} className="shrink-0" />
+                                            <p className="text-[11px] font-black uppercase italic leading-tight">{item.note}</p>
+                                        </div>
+                                    )}
                                 </div>
                                 <span className="text-3xl font-black text-orange-600 bg-orange-50 px-3 py-1 rounded-xl">x{item.quantity}</span>
                             </div>
-                            <button onClick={() => store.updateOrderItemStatus(item.tableId, item.id, OrderItemStatus.READY)} className="w-full bg-orange-500 text-white py-4 rounded-xl font-black text-xs uppercase shadow-lg">Hoàn tất & Gọi bưng</button>
+                            <button onClick={() => store.updateOrderItemStatus(item.tableId, item.id, OrderItemStatus.READY)} className="w-full bg-orange-500 text-white py-4 rounded-xl font-black text-xs uppercase shadow-lg active:scale-95 transition-all">Hoàn tất & Gọi bưng</button>
                         </div>
                     ))
                 }
@@ -96,7 +106,7 @@ const KitchenView: React.FC<KitchenViewProps> = ({ store }) => {
         <div className="flex-1 bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm flex flex-col overflow-hidden">
             <div className="flex items-center gap-4 mb-8 bg-slate-50 p-4 rounded-2xl shrink-0">
                <Pizza className="text-orange-500" />
-               <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Tìm kiếm món để cập nhật tình trạng..." className="flex-1 bg-transparent border-none outline-none font-bold text-sm" />
+               <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Tìm kiếm món để cập nhật tình trạng..." className="bg-transparent border-none outline-none font-bold text-sm" />
             </div>
             <div className="flex-1 overflow-y-auto no-scrollbar grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                {store.menu.filter((m: MenuItem) => m.name.toLowerCase().includes(searchTerm.toLowerCase())).map((item: MenuItem) => (
