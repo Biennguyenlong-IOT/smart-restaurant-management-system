@@ -344,7 +344,6 @@ export const useRestaurantStore = () => {
     },
 
     completeBilling: async (tid: number) => {
-      // Chuyển sang REVIEWING để bắt khách đánh giá, thay vì AVAILABLE ngay lập tức
       const nt = tables.map(t => t.id === tid ? { ...t, status: TableStatus.REVIEWING } : t);
       await pushToCloud({ tables: nt });
     },
@@ -356,7 +355,6 @@ export const useRestaurantStore = () => {
 
     submitReview: async (review: Review) => {
       const nr = [review, ...reviews];
-      // Sau khi đánh giá xong mới dọn bàn thực sự
       const nt = tables.map(t => t.id === review.tableId ? { ...t, status: TableStatus.AVAILABLE, currentOrders: [], claimedBy: null, sessionToken: null } : t);
       await pushToCloud({ reviews: nr, tables: nt });
     },
@@ -380,6 +378,14 @@ export const useRestaurantStore = () => {
 
     deleteNotification: async (id: string) => {
       const filteredNotifs = notifications.filter(n => n.id !== id); await pushToCloud({ notifications: filteredNotifs });
+    },
+
+    clearHistory: async () => {
+      await pushToCloud({ history: [] });
+    },
+
+    clearReviews: async () => {
+      await pushToCloud({ reviews: [] });
     },
     
     setTableEmpty: async (tid: number) => {
