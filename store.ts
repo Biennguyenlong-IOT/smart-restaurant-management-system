@@ -324,7 +324,7 @@ export const useRestaurantStore = () => {
 
     completeBilling: async (tid: number) => {
       const nt = tables.map(t => t.id === tid ? { ...t, status: TableStatus.AVAILABLE, currentOrders: [], claimedBy: null, sessionToken: null } : t);
-      await pushToCloud({ tables: nt });
+      await pushToCloud({ nt });
     },
 
     adminForceClose: async (tid: number) => {
