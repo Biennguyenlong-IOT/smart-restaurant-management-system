@@ -6,7 +6,7 @@ import { ConfirmModal } from '../App';
 import { 
   Monitor, Settings, Plus, UserPlus, Pizza, Shield, 
   Trash2, X, Edit3, LayoutDashboard, CreditCard, Star, Award, TrendingUp,
-  ChefHat, Database, CheckCircle, RotateCcw
+  ChefHat, Database, CheckCircle, RotateCcw, Save
 } from 'lucide-react';
 import { ensureArray } from '../store.ts';
 
@@ -28,18 +28,12 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
   const stats = useMemo(() => {
     const history = ensureArray<HistoryEntry>(store.history);
     const todayStr = new Date().toLocaleDateString();
-    
-    const filteredHistory = history.filter(h => 
-        h.id.toLowerCase().includes(historySearch.toLowerCase()) ||
-        h.tableId.toString() === historySearch
-    );
-
+    const filteredHistory = history.filter(h => h.id.toLowerCase().includes(historySearch.toLowerCase()) || h.tableId.toString() === historySearch);
     const todayRevenue = history.filter(h => new Date(h.date).toLocaleDateString() === todayStr).reduce((sum, h) => sum + h.total, 0);
     const totalLoss = history.reduce((sum, h) => {
         const cancelledSum = ensureArray<OrderItem>(h.items).filter(i => i.status === OrderItemStatus.CANCELLED).reduce((s, i) => s + (i.price * i.quantity), 0);
         return sum + cancelledSum;
     }, 0);
-
     return { todayRevenue, totalLoss, history: filteredHistory };
   }, [store.history, historySearch]);
 
@@ -107,6 +101,9 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
               </div>
               <div className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm min-h-[200px]">
                  <h4 className="font-black text-[10px] uppercase italic mb-6">Lịch sử hóa đơn</h4>
+                 <div className="mb-4">
+                    <input type="text" placeholder="Tìm ID hóa đơn hoặc số bàn..." value={historySearch} onChange={e => setHistorySearch(e.target.value)} className="w-full px-4 py-3 bg-slate-50 rounded-xl text-xs outline-none border border-slate-100" />
+                 </div>
                  {stats.history.length === 0 ? <p className="text-center py-10 text-slate-300 font-black uppercase text-[10px] italic">Chưa có dữ liệu hôm nay</p> : 
                     <div className="space-y-3">
                         {stats.history.map((h: HistoryEntry) => (
@@ -154,6 +151,57 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
             </div>
         )}
 
+        {activeTab === 'MONITOR' && (
+          <div className="space-y-6 animate-slideUp">
+             <div className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm">
+                <h4 className="font-black text-[10px] uppercase italic mb-6">Cài đặt số lượng bàn</h4>
+                <div className="flex gap-4 mb-8">
+                   <input type="number" value={tempTableCount} onChange={e => setTempTableCount(parseInt(e.target.value))} className="flex-1 px-4 py-3 bg-slate-50 rounded-xl font-bold outline-none border border-slate-100" />
+                   <button onClick={() => store.updateTableCount(tempTableCount)} className="bg-slate-900 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase italic shadow-lg">Cập nhật</button>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                   {ensureArray<Table>(store.tables).map(t => (
+                      <div key={t.id} className={`p-4 rounded-2xl border flex flex-col items-center gap-1 relative ${t.status === TableStatus.AVAILABLE ? 'bg-slate-50 border-slate-100' : 'bg-slate-900 text-white border-slate-800 shadow-lg'}`}>
+                         <span className="text-[10px] font-black uppercase italic">{t.id === 0 ? 'Khách lẻ' : 'Bàn '+t.id}</span>
+                         <span className="text-[8px] font-bold uppercase opacity-50">{t.status}</span>
+                         {t.status !== TableStatus.AVAILABLE && (
+                            <button onClick={() => setResetTableId(t.id)} className="absolute -top-1 -right-1 bg-red-500 text-white p-1 rounded-full shadow-lg"><RotateCcw size={10}/></button>
+                         )}
+                      </div>
+                   ))}
+                </div>
+             </div>
+          </div>
+        )}
+
+        {activeTab === 'USERS' && (
+           <div className="space-y-6 animate-slideUp">
+              <div className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm">
+                 <div className="flex justify-between items-center mb-6">
+                    <h4 className="font-black text-[10px] uppercase italic">Danh sách nhân sự</h4>
+                    <button onClick={() => setUserForm({})} className="bg-slate-900 text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase flex items-center gap-2 italic"><UserPlus size={14}/> Thêm mới</button>
+                 </div>
+                 <div className="space-y-3">
+                    {ensureArray<User>(store.users).map((u: User) => (
+                       <div key={u.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between">
+                          <div className="flex items-center gap-4">
+                             <div className="w-10 h-10 bg-slate-200 text-slate-600 rounded-xl flex items-center justify-center font-black">{u.fullName.charAt(0)}</div>
+                             <div>
+                                <p className="text-[11px] font-black text-slate-800 uppercase leading-none mb-1">{u.fullName} <span className="text-[8px] text-slate-400 font-bold ml-2">@{u.username}</span></p>
+                                <p className="text-[8px] font-black text-slate-400 uppercase italic tracking-widest">{u.role}</p>
+                             </div>
+                          </div>
+                          <div className="flex gap-2">
+                             <button onClick={() => setUserForm(u)} className="p-2 bg-white text-slate-400 rounded-xl shadow-sm"><Edit3 size={14}/></button>
+                             {u.role !== UserRole.ADMIN && <button onClick={() => store.deleteUser(u.id)} className="p-2 bg-white text-red-500 rounded-xl shadow-sm"><Trash2 size={14}/></button>}
+                          </div>
+                       </div>
+                    ))}
+                 </div>
+              </div>
+           </div>
+        )}
+
         {activeTab === 'REQUESTS' && (
            <div className="space-y-6 animate-slideUp">
               <section className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm">
@@ -166,6 +214,14 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
                                 <p className="text-[8px] font-bold text-slate-400 mt-0.5">Yêu cầu bởi: @{n.payload.staffId}</p>
                             </div>
                             <button onClick={() => store.approveTableQr(n.id)} className="bg-orange-500 text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase italic shadow-lg">Duyệt mở</button>
+                        </div>
+                    ))}
+                    {moveRequests.map((n: AppNotification) => (
+                        <div key={n.id} className="p-5 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-between">
+                            <div>
+                                <p className="text-[11px] font-black uppercase text-slate-800 italic">Gộp bàn: {n.payload.fromId} -> {n.payload.toId}</p>
+                            </div>
+                            <button onClick={() => store.approveTableMove(n.id)} className="bg-blue-500 text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase italic shadow-lg">Duyệt gộp</button>
                         </div>
                     ))}
                     {qrRequests.length === 0 && moveRequests.length === 0 && <p className="text-center py-10 text-slate-300 font-black uppercase text-[10px] italic">Không có yêu cầu nào</p>}
@@ -204,7 +260,7 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
 
         {activeTab === 'BANK' && (
             <div className="space-y-6 animate-slideUp">
-                <div className="bg-white rounded-[2rem] p-10 border border-slate-100 shadow-sm max-w-lg mx-auto w-full">
+                <div className="bg-white rounded-[2rem] p-8 border border-slate-100 shadow-sm max-w-lg mx-auto w-full">
                     <h4 className="font-black text-[10px] uppercase italic mb-8 text-center flex items-center justify-center gap-2"><CreditCard size={18}/> Cấu hình thanh toán QR</h4>
                     <div className="space-y-6">
                         <div className="space-y-2">
@@ -214,6 +270,10 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
                         <div className="space-y-2">
                             <label className="text-[9px] font-black uppercase text-slate-400 italic px-1">Số tài khoản thụ hưởng:</label>
                             <input type="text" value={store.bankConfig.accountNo} onChange={e => store.updateBankConfig({...store.bankConfig, accountNo: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold text-sm" placeholder="Số tài khoản ngân hàng..."/>
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-[9px] font-black uppercase text-slate-400 italic px-1">Tên chủ tài khoản:</label>
+                            <input type="text" value={store.bankConfig.accountName} onChange={e => store.updateBankConfig({...store.bankConfig, accountName: e.target.value})} className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold text-sm uppercase" placeholder="Tên chủ tài khoản..."/>
                         </div>
                     </div>
                 </div>
@@ -227,12 +287,56 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
                     <h4 className="font-black text-[10px] uppercase italic mb-2">Đồng bộ dữ liệu Cloud</h4>
                     <div className="space-y-4">
                         <input type="text" value={store.cloudUrl} onChange={e => store.updateCloudUrl(e.target.value)} className="w-full px-6 py-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none focus:border-blue-500 font-bold text-sm transition-all" placeholder="https://your-project.firebaseio.com/"/>
-                        <p className="text-[8px] text-slate-400 font-bold italic leading-relaxed px-4">THAY ĐỔI URL SẼ LÀM MỚI LẠI TOÀN BỘ DỮ LIỆU. HÃY CẨN THẬN!</p>
+                        <p className="text-[8px] text-slate-400 font-black italic leading-relaxed px-4 uppercase tracking-tighter">⚠️ Lưu ý: Thay đổi URL sẽ làm mới lại toàn bộ dữ liệu hiện tại.</p>
                     </div>
                 </div>
             </div>
         )}
       </div>
+
+      {/* Forms Modals */}
+      {userForm && (
+        <div className="fixed inset-0 z-[250] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6">
+           <div className="bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl animate-scaleIn">
+              <h3 className="text-lg font-black uppercase italic mb-6">Thông tin nhân sự</h3>
+              <div className="space-y-4">
+                 <input type="text" placeholder="Họ và tên" value={userForm.fullName || ''} onChange={e => setUserForm({...userForm, fullName: e.target.value})} className="w-full px-5 py-4 bg-slate-50 rounded-2xl outline-none font-bold text-sm" />
+                 <input type="text" placeholder="Username" value={userForm.username || ''} onChange={e => setUserForm({...userForm, username: e.target.value})} className="w-full px-5 py-4 bg-slate-50 rounded-2xl outline-none font-bold text-sm" />
+                 <input type="text" placeholder="Password" value={userForm.password || ''} onChange={e => setUserForm({...userForm, password: e.target.value})} className="w-full px-5 py-4 bg-slate-50 rounded-2xl outline-none font-bold text-sm" />
+                 <select value={userForm.role || UserRole.STAFF} onChange={e => setUserForm({...userForm, role: e.target.value as UserRole})} className="w-full px-5 py-4 bg-slate-50 rounded-2xl outline-none font-bold text-sm uppercase">
+                    <option value={UserRole.STAFF}>Phục vụ (Staff)</option>
+                    <option value={UserRole.KITCHEN}>Bếp (Kitchen)</option>
+                    <option value={UserRole.ADMIN}>Quản lý (Admin)</option>
+                 </select>
+                 <div className="grid grid-cols-2 gap-3 mt-4">
+                    <button onClick={() => setUserForm(null)} className="py-4 bg-slate-50 rounded-2xl font-black uppercase text-[10px]">Hủy</button>
+                    <button onClick={saveUser} className="py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px]">Lưu lại</button>
+                 </div>
+              </div>
+           </div>
+        </div>
+      )}
+
+      {menuForm && (
+        <div className="fixed inset-0 z-[250] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6">
+           <div className="bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl animate-scaleIn">
+              <h3 className="text-lg font-black uppercase italic mb-6">Thông tin món ăn</h3>
+              <div className="space-y-4 h-[60vh] overflow-y-auto no-scrollbar pr-1">
+                 <input type="text" placeholder="Tên món" value={menuForm.name || ''} onChange={e => setMenuForm({...menuForm, name: e.target.value})} className="w-full px-5 py-4 bg-slate-50 rounded-2xl outline-none font-bold text-sm" />
+                 <input type="number" placeholder="Giá tiền" value={menuForm.price || ''} onChange={e => setMenuForm({...menuForm, price: parseInt(e.target.value)})} className="w-full px-5 py-4 bg-slate-50 rounded-2xl outline-none font-bold text-sm" />
+                 <input type="text" placeholder="URL hình ảnh" value={menuForm.image || ''} onChange={e => setMenuForm({...menuForm, image: e.target.value})} className="w-full px-5 py-4 bg-slate-50 rounded-2xl outline-none font-bold text-sm" />
+                 <select value={menuForm.category || 'Tất cả'} onChange={e => setMenuForm({...menuForm, category: e.target.value})} className="w-full px-5 py-4 bg-slate-50 rounded-2xl outline-none font-bold text-sm uppercase">
+                    {INITIAL_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                 </select>
+                 <textarea placeholder="Mô tả món ăn" value={menuForm.description || ''} onChange={e => setMenuForm({...menuForm, description: e.target.value})} className="w-full px-5 py-4 bg-slate-50 rounded-2xl outline-none font-bold text-sm h-24" />
+              </div>
+              <div className="grid grid-cols-2 gap-3 mt-4">
+                <button onClick={() => setMenuForm(null)} className="py-4 bg-slate-50 rounded-2xl font-black uppercase text-[10px]">Hủy</button>
+                <button onClick={saveMenuItem} className="py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px]">Lưu món</button>
+              </div>
+           </div>
+        </div>
+      )}
 
       <ConfirmModal isOpen={resetTableId !== null} title="Cưỡng chế đóng bàn?" message={`Dữ liệu Bàn ${resetTableId} sẽ bị xóa và reset. Xác nhận?`} onConfirm={() => { if(resetTableId !== null) store.adminForceClose(resetTableId); setResetTableId(null); }} onCancel={() => setResetTableId(null)} type="danger" />
     </div>
