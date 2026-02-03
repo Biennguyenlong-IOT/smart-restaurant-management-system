@@ -312,19 +312,22 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
 
         {activeTab === 'PAYMENTS' && (
            <div className="bg-white rounded-[2rem] p-4 md:p-8 border border-slate-100 shadow-sm space-y-4">
-              <h2 className="text-lg font-black italic text-slate-800 uppercase">💰 Hóa đơn</h2>
+              <h2 className="text-lg font-black italic text-slate-800 uppercase">💰 Hóa đơn & Thu tiền</h2>
               <div className="space-y-3">
-                 {myTables.filter((t:Table) => (t.currentOrders || []).length > 0).map((t:Table) => (
-                   <div key={t.id} className={`p-4 md:p-6 rounded-2xl flex items-center justify-between transition-all ${t.status === TableStatus.PAYING ? 'bg-amber-50 border border-amber-200' : t.status === TableStatus.BILLING ? 'bg-green-50 border border-green-200' : 'bg-slate-50 border border-slate-100'}`}>
+                 {store.tables.filter((t:Table) => (t.currentOrders || []).length > 0).map((t:Table) => (
+                   <div key={t.id} className={`p-4 md:p-6 rounded-2xl flex items-center justify-between transition-all ${t.status === TableStatus.PAYING ? 'bg-amber-50 border border-amber-200 ring-2 ring-amber-500 shadow-lg' : t.status === TableStatus.BILLING ? 'bg-green-50 border border-green-200' : 'bg-slate-50 border border-slate-100'}`}>
                       <div>
                          <p className="text-[9px] font-black uppercase text-slate-400 italic">{t.id === 0 ? 'Khách lẻ' : 'Bàn ' + t.id}</p>
                          <h4 className="font-black text-slate-800 text-[11px] uppercase truncate max-w-[150px]">
-                            {t.status === TableStatus.PAYING ? 'Chờ duyệt' : t.status === TableStatus.BILLING ? 'Đã thanh toán' : 'Đang phục vụ'}
+                            {t.status === TableStatus.PAYING ? '🔴 Chờ xác nhận thu tiền' : t.status === TableStatus.BILLING ? 'Đã gởi hóa đơn' : 'Đang phục vụ'}
                          </h4>
                       </div>
-                      <button onClick={() => setShowBillTableId(t.id)} className="bg-slate-900 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase">Xem Bill</button>
+                      <button onClick={() => setShowBillTableId(t.id)} className="bg-slate-900 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase shadow-sm">Xem Bill / Thu tiền</button>
                    </div>
                  ))}
+                 {store.tables.filter((t:Table) => (t.currentOrders || []).length > 0).length === 0 && (
+                     <div className="text-center py-10 text-slate-300 font-black uppercase italic text-[10px]">Chưa có đơn hàng nào cần xử lý</div>
+                 )}
               </div>
            </div>
         )}
@@ -335,49 +338,54 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
         <div className="fixed inset-0 z-[200] bg-slate-900/90 backdrop-blur-md flex items-center justify-center p-4">
             <div className="bg-white rounded-[2.5rem] p-6 md:p-8 max-w-sm w-full shadow-2xl animate-scaleIn border border-slate-100 max-h-[90dvh] overflow-y-auto no-scrollbar text-center">
                 <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-lg font-black italic uppercase">{showBillTableId === 0 ? 'Khách lẻ' : 'Bàn ' + showBillTableId}</h3>
+                    <h3 className="text-lg font-black italic uppercase">{showBillTableId === 0 ? 'Khách lẻ (Mang đi)' : 'Bàn ' + showBillTableId}</h3>
                     <button onClick={() => setShowBillTableId(null)} className="p-2 bg-slate-100 rounded-full"><X size={16}/></button>
                 </div>
                 
                 <div className="text-left space-y-3 mb-6 border-y border-slate-50 py-4">
-                    <p className="text-[10px] font-black text-slate-400 uppercase">Chi tiết các món</p>
+                    <p className="text-[10px] font-black text-slate-400 uppercase">Danh sách món ăn</p>
                     {currentBillTable.currentOrders.map((o:any) => (
                         <div key={o.id} className={`flex justify-between items-center p-2 rounded-lg ${o.status === OrderItemStatus.READY ? 'bg-green-50 border-green-200' : o.status === OrderItemStatus.PENDING ? 'bg-amber-50 border-amber-100' : 'bg-slate-50'}`}>
                             <div className="flex flex-col">
                                 <div className="flex items-center gap-2">
-                                    <span className="text-[10px] font-bold text-slate-800">{o.name} x{o.quantity}</span>
+                                    <span className="text-[10px] font-bold text-slate-800 truncate max-w-[120px]">{o.name} x{o.quantity}</span>
                                     {o.status === OrderItemStatus.READY && <CheckCircle2 size={12} className="text-green-500" />}
                                 </div>
                                 <span className={`text-[8px] font-black uppercase italic ${o.status === OrderItemStatus.READY ? 'text-green-600' : o.status === OrderItemStatus.PENDING ? 'text-amber-500' : 'text-slate-400'}`}>{o.status}</span>
                             </div>
-                            {o.status === OrderItemStatus.READY ? (
-                                <button onClick={() => handleServeItem(currentBillTable.id, o.id, `TEMP-${o.id}`)} className="bg-green-500 text-white px-2 py-1 rounded-lg text-[8px] font-black uppercase">Đã bưng</button>
-                            ) : (
-                                <span className="text-[10px] font-black text-slate-600">{(o.price * o.quantity).toLocaleString()}đ</span>
-                            )}
+                            <span className="text-[10px] font-black text-slate-600">{(o.price * o.quantity).toLocaleString()}đ</span>
                         </div>
                     ))}
                     <div className="pt-2 border-t border-slate-100 flex justify-between items-center font-black text-orange-600">
-                        <span className="text-[10px] uppercase">Tổng:</span>
+                        <span className="text-[10px] uppercase">Tổng tiền:</span>
                         <span className="text-sm">{billTotal.toLocaleString()}đ</span>
                     </div>
                 </div>
 
                 <div className="space-y-3">
-                    {currentBillTable.currentOrders.some(o => o.status === OrderItemStatus.PENDING) && (
-                        <button onClick={() => handleConfirmOrder(showBillTableId)} className="w-full py-4 bg-green-500 text-white rounded-xl font-black uppercase text-[10px] shadow-xl flex items-center justify-center gap-2">
-                           <CheckCircle2 size={16} /> Xác nhận tất cả món mới
+                    {/* Luồng thanh toán của Khách lẻ (Table 0) - Nhân viên nhấn trực tiếp */}
+                    {showBillTableId === 0 && (
+                        <button onClick={() => { store.confirmPayment(0); setShowBillTableId(null); }} className="w-full py-4 bg-green-600 text-white rounded-xl font-black uppercase text-[10px] shadow-xl flex items-center justify-center gap-2">
+                           <CheckCircle2 size={16} /> Xác nhận thanh toán lẻ
+                        </button>
+                    )}
+
+                    {/* Xác nhận thu tiền cho bàn đang đợi (PAYING) */}
+                    {currentBillTable.status === TableStatus.PAYING && (
+                        <button onClick={() => { store.confirmPayment(showBillTableId); setShowBillTableId(null); }} className="w-full py-4 bg-amber-500 text-white rounded-xl font-black uppercase text-[10px] shadow-xl flex items-center justify-center gap-2">
+                           <CheckCircle2 size={16} /> Xác nhận đã thu tiền
                         </button>
                     )}
                     
-                    {currentBillTable.status !== TableStatus.PAYING && currentBillTable.status !== TableStatus.BILLING && (
+                    {/* Yêu cầu thanh toán (cho bàn đang ăn dở) */}
+                    {currentBillTable.status !== TableStatus.PAYING && currentBillTable.status !== TableStatus.BILLING && showBillTableId !== 0 && (
                         <button onClick={() => { store.requestPayment(showBillTableId); setShowBillTableId(null); }} className="w-full py-4 bg-orange-500 text-white rounded-xl font-black uppercase text-[10px] shadow-xl flex items-center justify-center gap-2">
-                           <CreditCard size={16} /> Yêu cầu thanh toán
+                           <CreditCard size={16} /> Gửi yêu cầu thanh toán
                         </button>
                     )}
 
                     <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100 flex flex-col items-center">
-                        <p className="text-[10px] font-black text-blue-500 uppercase mb-3">QR Thanh toán</p>
+                        <p className="text-[10px] font-black text-blue-500 uppercase mb-3">QR Thanh toán (Chụp cho khách)</p>
                         <img src={getVietQrUrl(billTotal, showBillTableId)} className="w-32 h-32 object-contain rounded-2xl shadow-sm border-4 border-white" />
                     </div>
                 </div>
