@@ -87,7 +87,7 @@ export interface AppNotification {
   message: string;
   timestamp: number;
   read: boolean;
-  type: 'order' | 'kitchen' | 'payment' | 'system' | 'qr_request' | 'move_request';
+  type: 'order' | 'kitchen' | 'payment' | 'system' | 'qr_request' | 'move_request' | 'call_staff';
   payload?: any;
 }
 
