@@ -7,7 +7,7 @@ import {
   ArrowRightLeft, Monitor, Settings, Plus, UserPlus, Pizza, Shield, 
   Trash2, X, Edit3, LayoutDashboard, Calendar, PowerOff, 
   Search, Save, CreditCard, Star, Award, TrendingUp, ShoppingBag, Utensils,
-  ChevronRight, Users, Hash
+  ChevronRight, Users, Hash, ChefHat
 } from 'lucide-react';
 
 interface AdminViewProps { store: any; }
@@ -56,12 +56,34 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
     return staffList.map((s: User) => {
       const staffOrders = history.filter(h => h.staffId === s.id);
       const totalSales = staffOrders.reduce((sum, o) => sum + o.total, 0);
-      const staffReviews = reviews.filter(r => r.staffId === s.id);
-      const avgRating = staffReviews.length > 0 
-        ? staffReviews.reduce((sum, r) => sum + r.ratingService, 0) / staffReviews.length 
-        : 5;
-      return { ...s, orderCount: staffOrders.length, totalSales, avgRating: Number(avgRating).toFixed(1) };
-    }).sort((a, b) => b.totalSales - a.totalSales);
+      
+      let avgRating = 0;
+      let reviewCount = 0;
+
+      if (s.role === UserRole.STAFF) {
+        // STAFF hưởng điểm Service (Phục vụ)
+        const staffReviews = reviews.filter(r => r.staffId === s.id);
+        reviewCount = staffReviews.length;
+        avgRating = reviewCount > 0 
+          ? staffReviews.reduce((sum, r) => sum + r.ratingService, 0) / reviewCount 
+          : 5;
+      } else if (s.role === UserRole.KITCHEN) {
+        // KITCHEN hưởng điểm Food (Món ăn) - tính chung cho toàn bộ bếp hoặc theo lượt nấu
+        // Ở phiên bản này, tất cả nhân viên bếp được hưởng điểm trung bình món ăn của hệ thống
+        reviewCount = reviews.length;
+        avgRating = reviewCount > 0 
+          ? reviews.reduce((sum, r) => sum + r.ratingFood, 0) / reviewCount 
+          : 5;
+      }
+
+      return { 
+        ...s, 
+        orderCount: staffOrders.length, 
+        totalSales, 
+        avgRating: Number(avgRating).toFixed(1),
+        reviewCount
+      };
+    }).sort((a, b) => b.totalSales - a.totalSales || Number(b.avgRating) - Number(a.avgRating));
   }, [store.users, store.history, store.reviews]);
 
   const saveMenuItem = () => {
@@ -172,34 +194,58 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
         {activeTab === 'KPI' && (
            <div className="space-y-6">
               <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm">
-                 <h4 className="font-black text-sm uppercase italic mb-8 flex items-center gap-2"><Users className="text-blue-500" size={18}/> Hiệu suất nhân viên</h4>
+                 <div className="flex justify-between items-center mb-8">
+                    <h4 className="font-black text-sm uppercase italic flex items-center gap-2"><Users className="text-blue-500" size={18}/> Hiệu suất nhân sự</h4>
+                    <div className="flex gap-4">
+                        <div className="flex items-center gap-1.5 text-[9px] font-black text-slate-400 uppercase italic">
+                            <div className="w-2 h-2 rounded-full bg-orange-500"></div> Điểm Phục vụ
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[9px] font-black text-slate-400 uppercase italic">
+                            <div className="w-2 h-2 rounded-full bg-blue-500"></div> Điểm Món ăn
+                        </div>
+                    </div>
+                 </div>
                  <div className="overflow-x-auto">
                     <table className="w-full text-left">
                        <thead>
                           <tr className="border-b border-slate-50">
-                             <th className="pb-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Nhân viên</th>
-                             <th className="pb-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Đơn</th>
-                             <th className="pb-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Doanh số</th>
-                             <th className="pb-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Đánh giá</th>
+                             <th className="pb-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Nhân sự</th>
+                             <th className="pb-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Vai trò</th>
+                             <th className="pb-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Lượt phục vụ</th>
+                             <th className="pb-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Đánh giá KPI</th>
                           </tr>
                        </thead>
                        <tbody className="divide-y divide-slate-50">
                           {staffKPI.map((s: any) => (
                              <tr key={s.id}>
                                 <td className="py-4">
-                                   <p className="text-xs font-black text-slate-800 uppercase">{s.fullName}</p>
-                                   <p className="text-[8px] text-slate-400 uppercase font-bold italic">{s.role}</p>
+                                   <div className="flex items-center gap-3">
+                                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${s.role === UserRole.KITCHEN ? 'bg-blue-50 text-blue-500' : 'bg-orange-50 text-orange-500'}`}>
+                                          {s.role === UserRole.KITCHEN ? <ChefHat size={16}/> : <Users size={16}/>}
+                                      </div>
+                                      <div>
+                                         <p className="text-xs font-black text-slate-800 uppercase">{s.fullName}</p>
+                                         <p className="text-[8px] text-slate-300 font-bold">@{s.username}</p>
+                                      </div>
+                                   </div>
                                 </td>
                                 <td className="py-4 text-center">
-                                   <span className="text-[10px] font-black text-slate-700 italic">{s.orderCount}</span>
-                                </td>
-                                <td className="py-4 text-right">
-                                   <span className="text-xs font-black text-orange-600 italic">{s.totalSales.toLocaleString()}đ</span>
+                                   <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full ${s.role === UserRole.KITCHEN ? 'bg-blue-100 text-blue-600' : 'bg-orange-100 text-orange-600'}`}>{s.role}</span>
                                 </td>
                                 <td className="py-4 text-center">
-                                   <div className="flex items-center justify-center gap-1">
-                                      <Star size={10} className="text-orange-500" fill="currentColor" />
-                                      <span className="text-[10px] font-black text-slate-800 italic">{s.avgRating}</span>
+                                   <span className="text-[10px] font-black text-slate-700 italic">{s.role === UserRole.KITCHEN ? stats.count : s.orderCount}</span>
+                                </td>
+                                <td className="py-4">
+                                   <div className="flex flex-col items-center">
+                                      <div className="flex items-center gap-1.5 mb-0.5">
+                                         <span className={`text-sm font-black italic ${Number(s.avgRating) >= 4.5 ? 'text-green-600' : Number(s.avgRating) >= 3.5 ? 'text-orange-500' : 'text-red-500'}`}>{s.avgRating}</span>
+                                         <div className="flex">
+                                            {[1,2,3,4,5].map(star => (
+                                                <Star key={star} size={8} fill={star <= Math.round(Number(s.avgRating)) ? (s.role === UserRole.KITCHEN ? '#3b82f6' : '#f97316') : 'none'} className={star <= Math.round(Number(s.avgRating)) ? (s.role === UserRole.KITCHEN ? 'text-blue-500' : 'text-orange-500') : 'text-slate-200'} />
+                                            ))}
+                                         </div>
+                                      </div>
+                                      <p className="text-[7px] font-black text-slate-300 uppercase italic">Dựa trên {s.reviewCount} đánh giá {s.role === UserRole.KITCHEN ? 'món ăn' : 'phục vụ'}</p>
                                    </div>
                                 </td>
                              </tr>
