@@ -1,32 +1,32 @@
 
-import React, { memo, useState, useEffect, useMemo, useCallback } from 'react';
-// Use namespace import to resolve missing named exports in some environments
+import React, { memo, useState, useMemo, useCallback } from 'react';
 import * as ReactRouterDOM from 'react-router-dom';
-const { useParams, Link, useNavigate, useSearchParams } = ReactRouterDOM;
+const { useParams, Link, useNavigate, useSearchParams, useLocation } = ReactRouterDOM;
 
-import { GoogleGenAI } from "@google/genai";
 import { CATEGORIES } from '../constants';
-import { OrderItem, OrderItemStatus, MenuItem, TableStatus, UserRole, Table } from '../types';
+import { OrderItem, OrderItemStatus, MenuItem, TableStatus, UserRole, Table, OrderType, Review } from '../types';
 import { ConfirmModal } from '../App';
-import { X, ShoppingCart, History, ChefHat, Loader2, Sparkles, Send, Bot, FileText, CreditCard } from 'lucide-react';
+import { ShoppingCart, History, ChefHat, Loader2, FileText, CreditCard, Star, AlertTriangle, PlusCircle, QrCode } from 'lucide-react';
 
 const MenuCard = memo(({ item, quantity, onAdd, onRemove }: { item: MenuItem, quantity: number, onAdd: () => void, onRemove: () => void }) => {
+    const isOut = !item.isAvailable;
     return (
-        <div className="bg-white rounded-[2rem] p-4 shadow-sm border border-slate-100 flex gap-4 animate-scaleIn will-change-transform h-fit">
-          <img src={item.image} alt={item.name} className="w-20 h-20 md:w-24 md:h-24 rounded-2xl object-cover shrink-0" loading="lazy" />
+        <div className={`bg-white rounded-[2rem] p-4 shadow-sm border border-slate-100 flex gap-4 animate-fadeIn h-fit relative transition-all active:scale-[0.98] ${isOut ? 'opacity-60 grayscale' : ''}`}>
+          {isOut && <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/40 rounded-[2rem]"><span className="bg-red-500 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase shadow-lg">Hết món</span></div>}
+          <img src={item.image} alt={item.name} className="w-20 h-20 md:w-24 md:h-24 rounded-2xl object-cover shrink-0 shadow-sm" loading="lazy" />
           <div className="flex-1 flex flex-col justify-between py-0.5 min-w-0">
             <div>
                 <h3 className="font-black text-slate-800 text-sm mb-0.5 truncate">{item.name}</h3>
                 <p className="text-[9px] md:text-[10px] text-slate-400 line-clamp-2 leading-tight">{item.description}</p>
             </div>
             <div className="flex justify-between items-center mt-2">
-                <span className="font-black text-orange-600 text-sm">{item.price.toLocaleString()}đ</span>
-                <div className="flex items-center gap-3 bg-slate-50 p-1 rounded-xl">
+                <span className="font-black text-orange-600 text-sm italic">{item.price.toLocaleString()}đ</span>
+                <div className="flex items-center gap-3 bg-slate-50 p-1 rounded-xl border border-slate-100">
                     {quantity > 0 && (
                         <button onClick={onRemove} className="w-7 h-7 bg-white rounded-lg shadow-sm font-black active:scale-90 transition-transform">-</button>
                     )}
-                    {quantity > 0 && <span className="text-xs font-black w-4 text-center">{quantity}</span>}
-                    <button onClick={onAdd} className="w-7 h-7 bg-orange-500 text-white rounded-lg shadow-lg font-black active:scale-90 transition-transform">+</button>
+                    {quantity > 0 && <span className="text-xs font-black w-4 text-center text-slate-800">{quantity}</span>}
+                    <button disabled={isOut} onClick={onAdd} className={`w-7 h-7 rounded-lg shadow-lg font-black active:scale-90 transition-transform ${isOut ? 'bg-slate-300' : 'bg-orange-500 text-white'}`}>+</button>
                 </div>
             </div>
           </div>
@@ -42,41 +42,50 @@ interface CustomerMenuProps {
 const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
   const { tableId, token: tokenFromPath } = useParams<{ tableId: string; token?: string }>();
   const [searchParams] = useSearchParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const idNum = parseInt(tableId || '0');
   
+  const isPublicView = location.pathname === '/' || location.pathname === '/view-menu';
   const table = useMemo(() => (store.tables || []).find((t: Table) => t.id === idNum), [store.tables, idNum]);
   const tokenFromUrl = tokenFromPath || searchParams.get('token');
   
   const [activeTab, setActiveTab] = useState('Tất cả');
-  const [cart, setCart] = useState<Record<string, number>>({});
+  const [cart, setCart] = useState<Record<string, { qty: number, note: string }>>({});
+  const [orderType, setOrderType] = useState<OrderType>(OrderType.DINE_IN);
   const [view, setView] = useState<'MENU' | 'CART' | 'HISTORY'>('MENU');
+  
   const [showPaymentConfirm, setShowPaymentConfirm] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<{id: string, name: string} | null>(null);
   const [isOrdering, setIsOrdering] = useState(false);
 
-  // Add missing cart utility functions and derived state
-  const cartCount = useMemo(() => 
-    Object.values(cart).reduce((sum, qty) => sum + qty, 0)
-  , [cart]);
+  // Review state
+  const [reviewForm, setReviewForm] = useState({ ratingFood: 5, ratingService: 5, comment: '' });
 
-  const cartTotal = useMemo(() => 
-    Object.entries(cart).reduce((sum, [id, qty]) => {
+  const cartTotal = useMemo(() => (Object.entries(cart) as [string, { qty: number }][]).reduce((sum, [id, data]) => {
       const item = (store.menu || []).find((m: MenuItem) => m.id === id);
-      return sum + (item?.price || 0) * qty;
-    }, 0)
-  , [cart, store.menu]);
+      return sum + (item?.price || 0) * data.qty;
+  }, 0), [cart, store.menu]);
+
+  const hasUnavailableItems = useMemo(() => {
+    return Object.keys(cart).some(itemId => {
+      const item = store.menu.find((m: MenuItem) => m.id === itemId);
+      return !item || !item.isAvailable;
+    });
+  }, [cart, store.menu]);
 
   const handleAddToCart = useCallback((id: string) => {
-    setCart(prev => ({ ...prev, [id]: (prev[id] || 0) + 1 }));
-  }, []);
+    const item = store.menu.find((m: MenuItem) => m.id === id);
+    if (!item?.isAvailable) return;
+    setCart(prev => ({ ...prev, [id]: { qty: (prev[id]?.qty || 0) + 1, note: prev[id]?.note || '' } }));
+  }, [store.menu]);
 
   const handleRemoveFromCart = useCallback((id: string) => {
     setCart(prev => {
       if (!prev[id]) return prev;
       const newCart = { ...prev };
-      if (newCart[id] > 1) {
-        newCart[id] -= 1;
+      if (newCart[id].qty > 1) {
+        newCart[id] = { ...newCart[id], qty: newCart[id].qty - 1 };
       } else {
         delete newCart[id];
       }
@@ -84,344 +93,267 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
     });
   }, []);
 
-  // AI Assistant State
-  const [isAiOpen, setIsAiOpen] = useState(false);
-  const [aiQuery, setAiQuery] = useState('');
-  const [aiResponse, setAiResponse] = useState('');
-  const [isAiThinking, setIsAiThinking] = useState(false);
-  
-  useEffect(() => {
-    if (!tableId) {
-      const lockedId = localStorage.getItem('locked_table_id');
-      if (lockedId && store.tables.length > 0) {
-        const lockedTable = store.tables.find((t: any) => t.id === parseInt(lockedId));
-        if (lockedTable && lockedTable.status !== TableStatus.AVAILABLE) {
-          navigate(`/table/${lockedId}`, { replace: true });
-        }
-      }
-    }
-  }, [tableId, store.tables, navigate]);
+  const activeOrders = useMemo(() => (table?.currentOrders || []).filter((i: OrderItem) => i.status !== OrderItemStatus.CANCELLED), [table?.currentOrders]);
+  const totalCurrentOrder = useMemo((): number => activeOrders.reduce((sum: number, item: OrderItem) => sum + (item.price * item.quantity), 0), [activeOrders]);
+  const allServed = useMemo(() => activeOrders.length > 0 && activeOrders.every((item: OrderItem) => item.status === OrderItemStatus.SERVED || item.status === OrderItemStatus.CANCELLED), [activeOrders]);
 
-  useEffect(() => {
-    if (tableId && table && table.status !== TableStatus.AVAILABLE) {
-      localStorage.setItem('locked_table_id', tableId);
+  const handlePlaceOrder = async () => {
+    if (Object.keys(cart).length === 0 || isOrdering || hasUnavailableItems) {
+      if (hasUnavailableItems) alert("Có món đã hết trong giỏ hàng! Vui lòng xoá món đó.");
+      return;
     }
-  }, [tableId, table?.status]);
-
-  const handleAiAsk = async () => {
-    if (!aiQuery.trim() || isAiThinking) return;
-    setIsAiThinking(true);
-    setAiResponse('');
-    
+    setIsOrdering(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: aiQuery,
-        config: {
-          systemInstruction: `Bạn là một trợ lý AI thông minh tại nhà hàng 'Smart Resto'. 
-          Thực đơn hiện tại: ${JSON.stringify(store.menu)}.
-          Hãy giúp khách hàng chọn món, giải thích nguyên liệu và đưa ra gợi ý dựa trên sở thích của họ.
-          Hãy trả lời thân thiện, súc tích và hoàn toàn bằng tiếng Việt.`,
-        }
-      });
-      setAiResponse(response.text || 'Xin lỗi, tôi không thể xử lý yêu cầu lúc này.');
-    } catch (e) {
-      setAiResponse('Có lỗi xảy ra khi kết nối với AI. Vui lòng thử lại sau.');
-      console.error(e);
-    } finally {
-      setIsAiThinking(false);
-    }
+        const newOrders: OrderItem[] = (Object.entries(cart) as [string, { qty: number, note: string }][]).map(([itemId, data]) => {
+          const menuItem = (store.menu || []).find((m: MenuItem) => m.id === itemId);
+          return { 
+            id: `O-${Date.now()}-${itemId}`, menuItemId: itemId, 
+            name: menuItem?.name || '', price: menuItem?.price || 0, 
+            quantity: data.qty, status: OrderItemStatus.PENDING, 
+            timestamp: Date.now(), note: data.note
+          };
+        });
+        await store.placeOrder(idNum, newOrders, orderType);
+        setCart({}); setView('HISTORY'); 
+    } catch (e) { alert("Lỗi gọi món! Vui lòng thử lại."); } finally { setIsOrdering(false); }
   };
 
-  const activeOrders = useMemo(() => 
-    (table?.currentOrders || []).filter((i: OrderItem) => i.status !== OrderItemStatus.CANCELLED)
-  , [table?.currentOrders]);
+  const submitReview = () => {
+    const review: Review = {
+      id: `R-${Date.now()}`,
+      tableId: idNum,
+      staffId: table?.claimedBy || 'system',
+      ratingFood: reviewForm.ratingFood,
+      ratingService: reviewForm.ratingService,
+      comment: reviewForm.comment,
+      timestamp: Date.now()
+    };
+    store.submitReview(review);
+    alert("Cảm ơn bạn đã đánh giá!");
+    navigate('/', { replace: true });
+  };
 
-  const totalCurrentOrder = useMemo((): number => 
-    activeOrders.reduce((sum: number, item: OrderItem) => sum + (item.price * item.quantity), 0)
-  , [activeOrders]);
-
-  const allServed = useMemo(() => {
-    return activeOrders.length > 0 && activeOrders.every((item: OrderItem) => item.status === OrderItemStatus.SERVED);
-  }, [activeOrders]);
-
-  if (tableId && (store.tables.length === 0 || !table)) {
+  // Trang chủ vãng lai - Giao diện chào mừng thay vì thực đơn
+  if (isPublicView) {
     return (
-      <div className="flex flex-col items-center justify-center h-full animate-fadeIn">
-        <div className="w-16 h-16 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mb-6"></div>
-        <h2 className="text-lg font-black text-slate-800 uppercase tracking-tighter">Đang kết nối...</h2>
+      <div className="flex flex-col items-center justify-center h-full px-6 text-center animate-fadeIn max-w-2xl mx-auto w-full pb-20">
+        <div className="w-24 h-24 bg-orange-500 text-white rounded-[2.5rem] flex items-center justify-center mb-8 text-4xl font-black italic shadow-2xl animate-bounce">S</div>
+        <h1 className="text-4xl font-black text-slate-800 uppercase italic mb-4 tracking-tighter">Smart Resto</h1>
+        <p className="text-slate-400 font-bold uppercase text-[10px] tracking-[0.4em] mb-12">Hệ thống gọi món thông minh</p>
+        
+        <div className="bg-white p-10 rounded-[3rem] shadow-xl border border-slate-100 w-full mb-10">
+           <div className="w-16 h-16 bg-blue-50 text-blue-500 rounded-2xl flex items-center justify-center mx-auto mb-6"><QrCode size={32} /></div>
+           <h2 className="text-xl font-black text-slate-800 uppercase italic mb-3">Vui lòng quét mã QR</h2>
+           <p className="text-slate-400 text-sm leading-relaxed mb-8">Quý khách vui lòng quét mã QR đặt tại bàn để xem thực đơn và gọi món trực tiếp.</p>
+           <div className="flex flex-col gap-3">
+             <div className="flex items-center gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-100 text-left">
+                <span className="w-6 h-6 bg-slate-900 text-white rounded-full flex items-center justify-center text-[10px] font-black italic">1</span>
+                <p className="text-[10px] font-black uppercase text-slate-600">Mở camera điện thoại</p>
+             </div>
+             <div className="flex items-center gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-100 text-left">
+                <span className="w-6 h-6 bg-slate-900 text-white rounded-full flex items-center justify-center text-[10px] font-black italic">2</span>
+                <p className="text-[10px] font-black uppercase text-slate-600">Quét mã tại bàn của bạn</p>
+             </div>
+             <div className="flex items-center gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-100 text-left">
+                <span className="w-6 h-6 bg-slate-900 text-white rounded-full flex items-center justify-center text-[10px] font-black italic">3</span>
+                <p className="text-[10px] font-black uppercase text-slate-600">Chọn món & Gửi yêu cầu</p>
+             </div>
+           </div>
+        </div>
+        
+        <div className="flex gap-4">
+           <Link to="/login" className="bg-slate-900 text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase shadow-2xl flex items-center gap-2 active:scale-95 transition-all">Đăng nhập Nhân viên</Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (table?.status === TableStatus.REVIEWING) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full px-6 text-center animate-fadeIn max-w-md mx-auto">
+        <div className="bg-white p-10 rounded-[3rem] shadow-2xl border border-slate-50 w-full">
+           <div className="w-20 h-20 bg-orange-50 text-orange-500 rounded-[2rem] flex items-center justify-center mx-auto mb-8 shadow-inner"><Star size={40} fill="currentColor" /></div>
+           <h2 className="text-2xl font-black text-slate-800 uppercase italic mb-2">Đánh giá dịch vụ</h2>
+           <p className="text-[10px] font-bold text-slate-400 uppercase italic mb-8">Ý kiến của bạn giúp chúng tôi hoàn thiện hơn</p>
+           
+           <div className="space-y-8 mb-10 text-center">
+              <div>
+                <p className="text-[11px] font-black text-slate-400 uppercase mb-4">Chất lượng món ăn</p>
+                <div className="flex justify-center gap-3">
+                  {[1,2,3,4,5].map(s => (
+                    <button key={s} onClick={() => setReviewForm({...reviewForm, ratingFood: s})} className={`transition-all active:scale-90 ${reviewForm.ratingFood >= s ? 'text-orange-500 scale-110' : 'text-slate-200'}`}><Star size={32} fill={reviewForm.ratingFood >= s ? 'currentColor' : 'none'}/></button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="text-[11px] font-black text-slate-400 uppercase mb-4">Thái độ phục vụ</p>
+                <div className="flex justify-center gap-3">
+                  {[1,2,3,4,5].map(s => (
+                    <button key={s} onClick={() => setReviewForm({...reviewForm, ratingService: s})} className={`transition-all active:scale-90 ${reviewForm.ratingService >= s ? 'text-blue-500 scale-110' : 'text-slate-200'}`}><Star size={32} fill={reviewForm.ratingService >= s ? 'currentColor' : 'none'}/></button>
+                  ))}
+                </div>
+              </div>
+              <textarea value={reviewForm.comment} onChange={e => setReviewForm({...reviewForm, comment: e.target.value})} placeholder="Bạn có góp ý gì thêm không?..." className="w-full p-5 bg-slate-50 rounded-2xl text-xs font-bold border border-slate-100 h-32 outline-none focus:border-orange-500 transition-all shadow-inner" />
+           </div>
+           <button onClick={submitReview} className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black uppercase text-xs shadow-xl active:scale-95 transition-all">Gửi đánh giá & Kết thúc</button>
+        </div>
       </div>
     );
   }
 
   const isTokenValid = tableId && table && table.sessionToken && table.sessionToken === tokenFromUrl;
+  if (!tableId || !isTokenValid) return (
+    <div className="flex flex-col items-center justify-center h-full px-6 text-center animate-fadeIn">
+        <div className="w-24 h-24 bg-red-50 text-red-500 rounded-[2.5rem] flex items-center justify-center mb-8 text-5xl shadow-lg">⚠️</div>
+        <h2 className="text-2xl font-black text-slate-800 mb-6 uppercase italic">Phiên làm việc hết hạn</h2>
+        <p className="text-slate-400 text-sm mb-8 max-w-xs">Vui lòng quét mã QR mới tại bàn để tiếp tục sử dụng dịch vụ.</p>
+        <Link to="/" className="px-12 py-5 bg-slate-900 text-white rounded-2xl font-black text-[11px] uppercase shadow-2xl active:scale-95 transition-all">Quay lại trang chủ</Link>
+    </div>
+  );
 
-  const getStatusLabel = (status: OrderItemStatus) => {
-    switch (status) {
-      case OrderItemStatus.PENDING: return { label: 'Chờ duyệt', color: 'bg-slate-100 text-slate-500' };
-      case OrderItemStatus.CONFIRMED: return { label: 'Đã nhận', color: 'bg-blue-100 text-blue-600' };
-      case OrderItemStatus.COOKING: return { label: 'Đang nấu', color: 'bg-orange-100 text-orange-600' };
-      case OrderItemStatus.READY: return { label: 'Xong - Chờ bưng', color: 'bg-amber-100 text-amber-600' };
-      case OrderItemStatus.SERVED: return { label: 'Đã phục vụ', color: 'bg-green-100 text-green-600' };
-      case OrderItemStatus.CANCELLED: return { label: 'Đã hủy', color: 'bg-red-100 text-red-600' };
-      default: return { label: status, color: 'bg-slate-100' };
-    }
-  };
-
-  const handlePlaceOrder = async () => {
-    if (Object.keys(cart).length === 0 || isOrdering) return;
-    setIsOrdering(true);
-    try {
-        const newOrders: OrderItem[] = (Object.entries(cart) as [string, number][]).map(([itemId, qty]) => {
-          const menuItem = (store.menu || []).find((m: MenuItem) => m.id === itemId);
-          return { 
-            id: `O-${Date.now()}-${itemId}-${Math.random().toString(36).substr(2, 4)}`, 
-            menuItemId: itemId, 
-            name: menuItem?.name || '', 
-            price: menuItem?.price || 0, 
-            quantity: qty, 
-            status: OrderItemStatus.PENDING, 
-            timestamp: Date.now() 
-          };
-        });
-        await store.placeOrder(idNum, newOrders);
-        setCart({});
-        setView('HISTORY'); 
-    } catch (e) {
-        alert("Có lỗi khi gọi món!");
-    } finally {
-        setIsOrdering(false);
-    }
-  };
-
-  if (!tableId) {
-    return (
-        <div className="flex flex-col items-center justify-center h-full px-6 text-center animate-fadeIn">
-            <div className="w-24 h-24 bg-orange-100 rounded-[2rem] flex items-center justify-center mb-8 text-4xl shadow-inner">🍴</div>
-            <h2 className="text-2xl font-black text-slate-800 mb-2 tracking-tight uppercase">Smart Restaurant</h2>
-            <p className="text-slate-500 mb-10 text-sm font-medium">Vui lòng quét QR tại bàn để gọi món</p>
-            <div className="w-full max-w-xs space-y-3">
-                <Link to="/login" className="flex items-center justify-center py-4 bg-slate-900 rounded-2xl shadow-xl text-[10px] font-black uppercase text-white tracking-widest active:scale-95 transition-transform">Vào Hệ Thống</Link>
-            </div>
-        </div>
-    );
-  }
-
-  if (!isTokenValid) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full px-6 text-center animate-fadeIn">
-        <div className="w-24 h-24 rounded-[2.5rem] bg-red-50 text-red-500 border-2 border-red-100 flex items-center justify-center mb-8 shadow-xl text-4xl">🚫</div>
-        <h2 className="text-2xl font-black text-slate-800 mb-4 uppercase tracking-tighter">Mã QR không hợp lệ</h2>
-        <p className="text-slate-500 text-xs mb-10 max-w-[240px]">Mã đã hết hạn hoặc chưa được kích hoạt. Hãy liên hệ nhân viên.</p>
-        <Link to="/" className="inline-block px-10 py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl">Quay lại</Link>
-      </div>
-    );
-  }
-
-  // View Thanh toán (Hóa đơn và VietQR)
   if (table?.status === TableStatus.PAYING || table?.status === TableStatus.BILLING) {
     const qrUrl = `https://img.vietqr.io/image/${store.bankConfig.bankId}-${store.bankConfig.accountNo}-compact.png?amount=${totalCurrentOrder}&addInfo=Thanh+Toan+Ban+${idNum}&accountName=${encodeURIComponent(store.bankConfig.accountName)}`;
-    
     return (
       <div className="flex flex-col h-full animate-fadeIn max-w-md mx-auto w-full pb-10">
         <div className="flex-1 overflow-y-auto no-scrollbar pt-6 px-4">
-           <div className="bg-white rounded-[2.5rem] p-8 shadow-xl border border-slate-100 text-center mb-6">
-              <div className="w-16 h-16 bg-blue-50 text-blue-500 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                 <FileText size={32} />
-              </div>
+           <div className="bg-white rounded-[2.5rem] p-8 shadow-2xl border border-slate-100 text-center mb-6">
+              <div className="w-16 h-16 bg-blue-50 text-blue-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-inner"><FileText size={32} /></div>
               <h2 className="text-2xl font-black text-slate-800 uppercase italic mb-2">Hóa đơn bàn {idNum}</h2>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-8">Vui lòng kiểm tra và thanh toán</p>
-              
-              <div className="space-y-3 mb-10 text-left border-y border-slate-50 py-6">
+              <div className="space-y-3 mb-10 text-left border-y border-slate-50 py-8 mt-6">
                 {activeOrders.map(o => (
-                  <div key={o.id} className="flex justify-between items-center">
-                    <span className="text-xs font-bold text-slate-600 truncate flex-1">{o.name} <span className="text-slate-400 ml-1">x{o.quantity}</span></span>
-                    <span className="text-xs font-black text-slate-800 ml-4">{(o.price * o.quantity).toLocaleString()}đ</span>
+                  <div key={o.id} className={`flex justify-between items-center text-xs ${o.status === OrderItemStatus.CANCELLED ? 'opacity-30 line-through' : ''}`}>
+                    <span className="font-bold text-slate-600">{o.name} <span className="text-slate-400 ml-1">x{o.quantity}</span></span>
+                    <span className="font-black text-slate-800">{(o.price * o.quantity).toLocaleString()}đ</span>
                   </div>
                 ))}
-                <div className="pt-4 border-t border-slate-50 flex justify-between items-center">
-                   <span className="text-sm font-black text-slate-900 uppercase italic">Tổng cộng</span>
-                   <span className="text-xl font-black text-orange-600">{totalCurrentOrder.toLocaleString()}đ</span>
+                <div className="pt-6 border-t border-slate-100 flex justify-between items-center font-black mt-4">
+                   <span className="text-sm text-slate-900 uppercase italic tracking-tighter">Tổng cộng</span>
+                   <span className="text-2xl text-orange-600 italic">{totalCurrentOrder.toLocaleString()}đ</span>
                 </div>
               </div>
-
-              {store.bankConfig.accountNo ? (
+              {store.bankConfig.accountNo && (
                 <div className="space-y-4">
-                  <p className="text-[10px] font-black text-blue-500 uppercase flex items-center justify-center gap-2">
-                    <CreditCard size={12}/> Quét mã VietQR để thanh toán
-                  </p>
-                  <img src={qrUrl} alt="VietQR" className="w-56 h-56 mx-auto rounded-3xl shadow-lg border-4 border-white" />
-                  <div className="text-[10px] font-bold text-slate-400">
-                    <p>{store.bankConfig.accountName}</p>
-                    <p>{store.bankConfig.bankId} - {store.bankConfig.accountNo}</p>
+                  <p className="text-[10px] font-black text-blue-500 uppercase flex items-center justify-center gap-2 tracking-widest bg-blue-50 py-2 rounded-xl"><CreditCard size={14}/> Thanh toán chuyển khoản</p>
+                  <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100">
+                    <img src={qrUrl} alt="VietQR" className="w-56 h-56 mx-auto rounded-3xl shadow-lg border-4 border-white" />
                   </div>
-                </div>
-              ) : (
-                <div className="p-6 bg-slate-50 rounded-2xl text-[11px] font-bold text-slate-500 italic">
-                  Vui lòng chờ nhân viên thu tiền mặt tại quầy.
+                  <p className="text-[9px] font-black text-slate-400 uppercase italic">Vui lòng kiểm tra lại số tiền trước khi chuyển</p>
                 </div>
               )}
            </div>
-           
-           <div className="bg-slate-900 text-white p-6 rounded-[2rem] shadow-xl text-center">
-             <p className="text-[10px] font-black uppercase tracking-widest mb-2 opacity-60">Trạng thái thanh toán</p>
-             <div className="flex items-center justify-center gap-2">
-                <Loader2 size={16} className="animate-spin text-blue-400"/>
-                <span className="font-black italic uppercase text-sm">
-                  {table.status === TableStatus.PAYING ? 'Đang chờ nhân viên xác nhận...' : 'Đang in hóa đơn...'}
+           <div className="bg-slate-900 text-white p-6 rounded-[2rem] shadow-xl text-center flex flex-col items-center gap-3">
+             <div className="flex items-center justify-center gap-3">
+                <Loader2 size={20} className="animate-spin text-orange-500"/>
+                <span className="font-black italic uppercase text-sm tracking-tight">
+                  {table.status === TableStatus.PAYING ? 'Chờ nhân viên xác nhận...' : 'Đang xử lý hoá đơn...'}
                 </span>
              </div>
+             <p className="text-[10px] font-black text-slate-500 uppercase">Hệ thống sẽ tự động cập nhật sau vài giây</p>
            </div>
+           {table.status === TableStatus.BILLING && (
+              <button onClick={() => store.completeBilling(idNum)} className="w-full mt-6 py-5 bg-orange-500 text-white rounded-2xl font-black uppercase text-xs shadow-xl animate-bounce">Tôi đã thanh toán xong!</button>
+           )}
         </div>
       </div>
     );
   }
 
-  const filteredMenu = (store.menu || []).filter((item: MenuItem) => activeTab === 'Tất cả' ? true : item.category === activeTab);
-
   return (
     <div className="flex flex-col h-full max-w-md mx-auto w-full relative">
-      <ConfirmModal isOpen={showPaymentConfirm} title="Thanh toán" message={`Xác nhận yêu cầu thanh toán ${totalCurrentOrder.toLocaleString()}đ?`} onConfirm={() => store.requestPayment(idNum)} onCancel={() => setShowPaymentConfirm(false)} />
-      <ConfirmModal 
-        isOpen={cancelTarget !== null} 
-        type="danger"
-        title="Huỷ món" 
-        message={`Huỷ món "${cancelTarget?.name}"?`} 
-        onConfirm={() => {
-            if (cancelTarget) store.cancelOrderItem(idNum, cancelTarget.id);
-            setCancelTarget(null);
-        }} 
-        onCancel={() => setCancelTarget(null)} 
-      />
+      <ConfirmModal isOpen={showPaymentConfirm} title="Xác nhận thanh toán" message={`Bạn muốn yêu cầu thanh toán tổng cộng ${totalCurrentOrder.toLocaleString()}đ?`} onConfirm={() => store.requestPayment(idNum)} onCancel={() => setShowPaymentConfirm(false)} />
+      <ConfirmModal isOpen={cancelTarget !== null} type="danger" title="Huỷ món" message={`Xác nhận huỷ món "${cancelTarget?.name}"?`} onConfirm={() => { if (cancelTarget) store.cancelOrderItem(idNum, cancelTarget.id); setCancelTarget(null); }} onCancel={() => setCancelTarget(null)} />
 
-      {/* AI Assistant Modal */}
-      {isAiOpen && (
-        <div className="fixed inset-0 z-[100] bg-slate-900/80 backdrop-blur-md flex items-end md:items-center justify-center p-4">
-          <div className="bg-white w-full max-w-sm rounded-t-[3rem] md:rounded-[3rem] p-8 shadow-2xl animate-slideUp relative">
-            <button onClick={() => setIsAiOpen(false)} className="absolute top-6 right-6 p-2 bg-slate-50 rounded-full text-slate-400"><X size={20}/></button>
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center">
-                <Bot size={28} />
-              </div>
-              <div>
-                <h3 className="text-xl font-black text-slate-800 italic">Smart Assistant</h3>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tư vấn chọn món AI</p>
-              </div>
-            </div>
-
-            <div className="bg-slate-50 rounded-2xl p-4 min-h-[120px] max-h-[300px] overflow-y-auto mb-6 text-sm text-slate-700 leading-relaxed">
-              {isAiThinking ? (
-                <div className="flex items-center gap-2 text-slate-400 font-bold italic animate-pulse">
-                  <Loader2 size={16} className="animate-spin" /> Gemini đang suy nghĩ...
-                </div>
-              ) : aiResponse ? (
-                <div className="whitespace-pre-wrap">{aiResponse}</div>
-              ) : (
-                <div className="text-slate-300 italic">Chào bạn! Hãy đặt câu hỏi để tôi gợi ý món ăn nhé.</div>
-              )}
-            </div>
-
-            <div className="relative">
-              <input 
-                type="text" 
-                value={aiQuery} 
-                onChange={e => setAiQuery(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleAiAsk()}
-                placeholder="Có món nào lạ không?..." 
-                className="w-full pl-6 pr-14 py-4 bg-slate-100 rounded-2xl font-bold text-sm outline-none"
-              />
-              <button 
-                onClick={handleAiAsk}
-                disabled={isAiThinking}
-                className="absolute right-2 top-2 w-10 h-10 bg-blue-600 text-white rounded-xl flex items-center justify-center shadow-lg disabled:bg-slate-300"
-              >
-                <Send size={18} />
-              </button>
-            </div>
+      <div className="bg-white rounded-[1.8rem] p-3 mb-4 shadow-sm border border-slate-100 flex justify-between items-center shrink-0 mt-2">
+        <div className="flex items-center gap-2.5 ml-1">
+          <div className="w-10 h-10 bg-orange-500 text-white rounded-xl flex items-center justify-center font-black text-lg italic shadow-md">B{idNum}</div>
+          <div>
+            <h2 className="text-slate-800 font-black text-xs uppercase leading-none">Bàn số {idNum}</h2>
+            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Đang phục vụ</span>
           </div>
         </div>
-      )}
-
-      <div className="bg-white rounded-[1.5rem] p-3 mb-4 shadow-sm border border-slate-100 flex justify-between items-center shrink-0 mt-1">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-orange-500 text-white rounded-lg flex items-center justify-center font-black shadow-md text-sm italic">B{idNum}</div>
-          <h2 className="text-slate-800 font-black text-sm uppercase">Bàn {idNum}</h2>
-        </div>
-        <div className="flex gap-1.5 p-1 bg-slate-50 rounded-xl">
-            <button onClick={() => setView('MENU')} className={`p-2.5 rounded-lg transition-all ${view === 'MENU' ? 'bg-orange-500 text-white shadow-sm' : 'text-slate-400'}`}><ShoppingCart size={16}/></button>
-            <button onClick={() => setView('HISTORY')} className={`p-2.5 rounded-lg transition-all ${view === 'HISTORY' ? 'bg-orange-500 text-white shadow-sm' : 'text-slate-400'}`}><History size={16}/></button>
+        <div className="flex gap-2 p-1.5 bg-slate-100 rounded-[1.2rem]">
+            <button onClick={() => setView('MENU')} className={`p-3 rounded-xl transition-all shadow-sm ${view === 'MENU' ? 'bg-white text-orange-500' : 'text-slate-400'}`}><ShoppingCart size={18}/></button>
+            <button onClick={() => setView('HISTORY')} className={`p-3 rounded-xl transition-all shadow-sm ${view === 'HISTORY' ? 'bg-white text-orange-500' : 'text-slate-400'}`}><History size={18}/></button>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto no-scrollbar pb-32">
+      <div className="flex-1 overflow-y-auto no-scrollbar pb-32 px-1">
         {view === 'MENU' && (
             <>
-                <div className="flex gap-1.5 overflow-x-auto pb-3 no-scrollbar sticky top-0 bg-slate-50/90 backdrop-blur-sm z-10 pt-1">
+                <div className="flex gap-1.5 overflow-x-auto pb-4 no-scrollbar sticky top-0 bg-slate-50/90 backdrop-blur-sm z-10 pt-1">
                     {CATEGORIES.map(cat => (
-                    <button key={cat} onClick={() => setActiveTab(cat)} className={`px-4 py-2 rounded-xl text-[9px] font-black transition-all uppercase whitespace-nowrap ${activeTab === cat ? 'bg-slate-900 text-white shadow-md' : 'bg-white text-slate-400 border border-slate-100'}`}>{cat}</button>
+                    <button key={cat} onClick={() => setActiveTab(cat)} className={`px-5 py-2.5 rounded-xl text-[10px] font-black transition-all uppercase whitespace-nowrap shadow-sm ${activeTab === cat ? 'bg-slate-900 text-white' : 'bg-white text-slate-400 border border-slate-100'}`}>{cat}</button>
                     ))}
                 </div>
-                <div className="grid grid-cols-1 gap-3">
-                    {filteredMenu.map((item: MenuItem) => (
-                        <MenuCard 
-                            key={item.id} 
-                            item={item} 
-                            quantity={cart[item.id] || 0} 
-                            onAdd={() => handleAddToCart(item.id)} 
-                            onRemove={() => handleRemoveFromCart(item.id)} 
-                        />
+                <div className="grid grid-cols-1 gap-4">
+                    {store.menu.filter((m: MenuItem) => activeTab === 'Tất cả' ? true : m.category === activeTab).map((item: MenuItem) => (
+                        <MenuCard key={item.id} item={item} quantity={cart[item.id]?.qty || 0} onAdd={() => handleAddToCart(item.id)} onRemove={() => handleRemoveFromCart(item.id)} />
                     ))}
+                    {store.menu.filter((m: MenuItem) => activeTab === 'Tất cả' ? true : m.category === activeTab).length === 0 && (
+                        <p className="text-center py-20 text-slate-300 font-black uppercase text-[10px] italic">Hiện không có món trong danh mục này</p>
+                    )}
                 </div>
             </>
         )}
 
         {view === 'CART' && (
-            <div className="animate-fadeIn space-y-4 pb-20">
-                <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-100">
-                    <div className="flex justify-between items-center mb-6">
-                        <h3 className="font-black text-slate-800 text-lg">Giỏ hàng</h3>
-                        <button onClick={() => setView('MENU')} className="text-[10px] font-black text-orange-500 uppercase">Chọn thêm</button>
-                    </div>
-                    <div className="space-y-4">
+            <div className="animate-fadeIn space-y-4 pb-20 px-2">
+                <div className="bg-white rounded-[2.5rem] p-8 shadow-2xl border border-slate-100">
+                    <h3 className="font-black text-slate-800 text-xl italic uppercase mb-8 flex items-center gap-3"><ShoppingCart size={22} className="text-orange-500"/> Giỏ hàng của bạn</h3>
+                    
+                    {hasUnavailableItems && (
+                      <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-2xl flex items-center gap-3 text-red-600 animate-pulse">
+                        <AlertTriangle size={20} />
+                        <p className="text-[10px] font-black uppercase tracking-tight italic">Rất tiếc, một số món đã hết! Vui lòng bỏ khỏi giỏ hàng.</p>
+                      </div>
+                    )}
+
+                    <div className="space-y-6">
                         {Object.keys(cart).length === 0 ? (
-                            <div className="py-10 text-center text-slate-300 font-bold uppercase text-[10px]">Chưa chọn món</div>
-                        ) : (
-                            (Object.entries(cart) as [string, number][]).map(([itemId, qty]) => {
-                                const item = (store.menu || []).find((m: any) => m.id === itemId);
+                          <div className="py-20 text-center">
+                            <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4"><ShoppingCart size={32} className="text-slate-200" /></div>
+                            <p className="text-slate-300 font-black uppercase text-[10px] italic">Giỏ hàng đang trống</p>
+                          </div>
+                        ) : 
+                            (Object.entries(cart) as [string, { qty: number, note: string }][]).map(([itemId, data]) => {
+                                const item = store.menu.find((m: MenuItem) => m.id === itemId);
+                                const isOut = item && !item.isAvailable;
                                 return (
-                                    <div key={itemId} className="flex items-center justify-between border-b border-slate-50 pb-3 last:border-0">
-                                        <div className="flex items-center gap-3">
-                                            <img src={item?.image} className="w-10 h-10 rounded-xl object-cover shrink-0" />
-                                            <div className="min-w-0">
-                                                <h4 className="font-black text-slate-800 text-[11px] leading-none truncate">{item?.name}</h4>
-                                                <p className="text-[9px] text-orange-600 font-bold mt-1">{item?.price.toLocaleString()}đ</p>
+                                    <div key={itemId} className={`space-y-4 border-b border-slate-50 pb-6 last:border-0 ${isOut ? 'opacity-70 grayscale' : ''}`}>
+                                        <div className="flex items-center justify-between gap-4">
+                                            <div className="flex items-center gap-4 min-w-0">
+                                                <div className="relative shrink-0">
+                                                  <img src={item?.image} className="w-14 h-14 rounded-2xl object-cover shadow-sm border border-slate-100" />
+                                                  {isOut && <div className="absolute inset-0 bg-red-500/60 rounded-2xl flex items-center justify-center font-black text-[8px] text-white italic">HẾT</div>}
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <h4 className="font-black text-slate-800 text-sm truncate uppercase">{item?.name}</h4>
+                                                    <p className={`text-[10px] font-bold italic ${isOut ? 'text-red-500' : 'text-orange-600'}`}>{isOut ? 'Tạm thời hết món' : `${item?.price.toLocaleString()}đ`}</p>
+                                                </div>
                                             </div>
-                                        </div>
-                                        <div className="flex items-center gap-3 shrink-0">
-                                            <button onClick={() => handleRemoveFromCart(itemId)} className="w-6 h-6 bg-slate-100 rounded-lg font-black text-xs">-</button>
-                                            <span className="font-black text-xs w-4 text-center">{qty}</span>
-                                            <button onClick={() => handleAddToCart(itemId)} className="w-6 h-6 bg-orange-500 text-white rounded-lg font-black text-xs shadow-md shadow-orange-200">+</button>
+                                            <div className="flex items-center gap-3 bg-slate-50 p-1.5 rounded-xl border border-slate-100">
+                                                <button onClick={() => handleRemoveFromCart(itemId)} className="w-8 h-8 bg-white rounded-lg shadow-sm font-black text-sm active:scale-90 transition-all">-</button>
+                                                <span className="font-black text-sm w-5 text-center text-slate-800">{data.qty}</span>
+                                                <button disabled={isOut} onClick={() => handleAddToCart(itemId)} className={`w-8 h-8 rounded-lg font-black text-sm shadow-md active:scale-90 transition-all ${isOut ? 'bg-slate-300 text-slate-400 cursor-not-allowed' : 'bg-orange-500 text-white'}`}>+</button>
+                                            </div>
                                         </div>
                                     </div>
                                 )
                             })
-                        )}
+                        }
                     </div>
                     {Object.keys(cart).length > 0 && (
-                        <div className="mt-8 pt-6 border-t border-slate-100 space-y-4">
-                            <div className="flex justify-between items-center">
-                                <span className="text-[10px] font-black text-slate-400 uppercase">Tổng cộng:</span>
-                                <span className="text-xl font-black text-slate-900">{cartTotal.toLocaleString()}đ</span>
+                        <div className="mt-10 pt-8 border-t border-slate-100 space-y-6">
+                            <div className="flex justify-between items-center bg-slate-50 p-5 rounded-2xl">
+                               <span className="text-[11px] font-black text-slate-400 uppercase italic">Thành tiền:</span>
+                               <span className="text-2xl font-black text-slate-900 italic">{cartTotal.toLocaleString()}đ</span>
                             </div>
                             <button 
-                                onClick={handlePlaceOrder} 
-                                disabled={isOrdering}
-                                className={`w-full py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl flex items-center justify-center gap-2 active:scale-95 transition-all ${
-                                    isOrdering ? 'bg-slate-400 cursor-not-allowed' : 'bg-slate-900 text-white'
-                                }`}
+                              onClick={handlePlaceOrder} 
+                              disabled={isOrdering || hasUnavailableItems} 
+                              className={`w-full py-6 rounded-2xl font-black uppercase text-xs flex items-center justify-center gap-3 shadow-xl transition-all active:scale-95 ${hasUnavailableItems ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-slate-900 text-white shadow-slate-200'}`}
                             >
-                                {isOrdering ? <Loader2 size={16} className="animate-spin" /> : 'Xác nhận gọi món'}
+                                {isOrdering ? <Loader2 size={20} className="animate-spin" /> : <>Xác nhận gọi món <PlusCircle size={18} /></>}
                             </button>
                         </div>
                     )}
@@ -430,86 +362,65 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
         )}
 
         {view === 'HISTORY' && (
-            <div className="animate-fadeIn space-y-4">
-                <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-100 min-h-[300px]">
-                    <h3 className="font-black text-slate-800 text-lg mb-6 flex items-center gap-2"><ChefHat size={18} className="text-orange-500"/> Món đã gọi</h3>
-                    <div className="space-y-3">
+            <div className="animate-fadeIn space-y-4 px-2">
+                <div className="bg-white rounded-[2.5rem] p-8 shadow-2xl border border-slate-100 min-h-[400px]">
+                    <h3 className="font-black text-slate-800 text-xl mb-8 flex items-center gap-3 italic uppercase"><ChefHat size={22} className="text-orange-500"/> Món đã gọi</h3>
+                    <div className="space-y-4">
                         {(!table?.currentOrders || table.currentOrders.length === 0) ? (
-                            <div className="flex flex-col items-center justify-center py-20 text-slate-200">
-                                <span className="text-4xl mb-2">🍽️</span>
-                                <p className="text-[10px] font-black uppercase tracking-widest italic">Chưa có món nào</p>
-                            </div>
-                        ) : (
-                            table.currentOrders.map((item: OrderItem) => {
-                                const statusInfo = getStatusLabel(item.status);
-                                const canCancel = item.status === OrderItemStatus.PENDING || item.status === OrderItemStatus.CONFIRMED;
-                                
-                                return (
-                                    <div key={item.id} className={`p-4 bg-slate-50 rounded-2xl flex items-center justify-between border-2 border-white transition-opacity ${item.status === OrderItemStatus.CANCELLED ? 'opacity-50' : ''}`}>
-                                        <div className="flex-1 min-w-0 pr-4">
-                                            <h4 className="font-black text-slate-800 text-[11px] truncate uppercase">{item.name} <span className="text-orange-500 ml-1">x{item.quantity}</span></h4>
-                                            <span className={`text-[8px] font-black px-2 py-0.5 rounded-full mt-2 inline-block uppercase tracking-wider ${statusInfo.color}`}>
-                                            {statusInfo.label}
-                                            </span>
-                                        </div>
-                                        <div className="flex items-center gap-4">
-                                          <span className="font-black text-slate-800 text-xs">{(item.price * item.quantity).toLocaleString()}đ</span>
-                                          {canCancel && (
-                                            <button 
-                                              onClick={() => setCancelTarget({ id: item.id, name: item.name })} 
-                                              className="w-8 h-8 bg-white text-red-500 rounded-lg flex items-center justify-center shadow-sm active:scale-90 transition-transform"
-                                            >
-                                              <X size={14} strokeWidth={3} />
-                                            </button>
-                                          )}
-                                        </div>
+                          <div className="flex flex-col items-center justify-center py-20">
+                             <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4"><ChefHat size={32} className="text-slate-200" /></div>
+                             <p className="text-slate-300 text-[10px] font-black uppercase italic">Chưa có đơn hàng nào được đặt</p>
+                          </div>
+                        ) : 
+                            table.currentOrders.map((item: OrderItem) => (
+                                <div key={item.id} className={`p-5 rounded-2xl border-2 transition-all ${item.status === OrderItemStatus.CANCELLED ? 'bg-slate-50 border-slate-100 opacity-50' : 'bg-white border-slate-50 shadow-sm'}`}>
+                                    <div className="flex justify-between items-start mb-2">
+                                        <h4 className="font-black text-slate-800 text-xs uppercase truncate max-w-[180px]">{item.name} <span className="text-orange-500 ml-1.5 italic">x{item.quantity}</span></h4>
+                                        <span className="font-black text-slate-900 text-xs">{(item.price * item.quantity).toLocaleString()}đ</span>
                                     </div>
-                                );
-                            })
-                        )}
+                                    <div className="flex justify-between items-center mt-3">
+                                       <div className="flex items-center gap-2">
+                                          <div className={`w-2 h-2 rounded-full ${
+                                            item.status === OrderItemStatus.SERVED ? 'bg-green-500' : 
+                                            item.status === OrderItemStatus.CANCELLED ? 'bg-red-300' : 'bg-orange-400 animate-pulse'
+                                          }`}></div>
+                                          <span className={`text-[9px] font-black uppercase tracking-tight italic ${
+                                            item.status === OrderItemStatus.SERVED ? 'text-green-600' : 
+                                            item.status === OrderItemStatus.CANCELLED ? 'text-red-400' : 'text-orange-500'
+                                          }`}>{item.status}</span>
+                                       </div>
+                                       {(item.status === OrderItemStatus.PENDING || item.status === OrderItemStatus.CONFIRMED) && (
+                                         <button onClick={() => setCancelTarget({ id: item.id, name: item.name })} className="text-red-500 text-[9px] font-black uppercase italic underline hover:text-red-600 transition-colors">Huỷ món</button>
+                                       )}
+                                    </div>
+                                </div>
+                            ))
+                        }
                     </div>
+                    {totalCurrentOrder > 0 && (
+                        <div className="mt-10 pt-8 border-t border-slate-100">
+                            <div className="bg-slate-900 rounded-[2rem] p-8 text-white text-center shadow-2xl relative overflow-hidden group">
+                                <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/10 rounded-full -mr-16 -mt-16 transition-all group-hover:scale-110"></div>
+                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-3 block italic">Tổng tiền hiện tại</span>
+                                <h3 className="text-4xl font-black mb-10 italic tracking-tighter">{totalCurrentOrder.toLocaleString()}đ</h3>
+                                <button disabled={!allServed} onClick={() => setShowPaymentConfirm(true)} className={`w-full py-5 rounded-2xl font-black uppercase text-xs transition-all shadow-xl active:scale-95 ${allServed ? 'bg-orange-500 text-white shadow-orange-500/20' : 'bg-white/5 text-slate-600 cursor-not-allowed border border-white/5'}`}>
+                                    {allServed ? 'Gửi yêu cầu thanh toán' : 'Đang chờ phục vụ...'}
+                                </button>
+                                {!allServed && <p className="text-[8px] font-bold text-slate-500 mt-4 uppercase italic">Vui lòng chờ phục vụ xong các món còn lại để thanh toán</p>}
+                            </div>
+                        </div>
+                    )}
                 </div>
-                
-                {totalCurrentOrder > 0 && (
-                    <div className="bg-slate-900 rounded-[2rem] p-6 text-white text-center shadow-xl relative overflow-hidden">
-                        <div className="absolute -top-4 -right-4 w-20 h-20 bg-orange-500/20 rounded-full blur-2xl"></div>
-                        <p className="text-white/40 text-[9px] mb-1 font-black uppercase tracking-widest">Tạm tính hóa đơn</p>
-                        <h3 className="text-3xl font-black mb-6 italic">{totalCurrentOrder.toLocaleString()}đ</h3>
-                        <button 
-                            disabled={!allServed} 
-                            onClick={() => setShowPaymentConfirm(true)} 
-                            className={`w-full py-5 rounded-2xl font-black uppercase text-xs transition-all ${
-                                allServed ? 'bg-orange-500 text-white active:scale-95 shadow-lg shadow-orange-500/20' : 'bg-white/10 text-white/20 cursor-not-allowed'
-                            }`}
-                        >
-                            {allServed ? 'Yêu cầu thanh toán' : 'Vui lòng chờ phục vụ hết món'}
-                        </button>
-                    </div>
-                )}
             </div>
         )}
       </div>
 
-      {/* AI Assistant Button */}
-      <button 
-        onClick={() => setIsAiOpen(true)}
-        className="fixed bottom-24 right-6 w-14 h-14 bg-blue-600 text-white rounded-full shadow-2xl flex items-center justify-center z-[60] hover:scale-110 active:scale-95 transition-all border-4 border-white"
-      >
-        <Sparkles size={24} />
+      <button onClick={() => setView(view === 'CART' ? 'MENU' : 'CART')} className={`fixed bottom-24 right-6 w-16 h-16 rounded-full shadow-2xl flex items-center justify-center z-[60] border-4 border-white transition-all active:scale-90 ${cartTotal > 0 ? 'bg-orange-500 text-white animate-bounce' : 'bg-slate-900 text-white'}`}>
+        <ShoppingCart size={28} />
+        {Object.keys(cart).length > 0 && (
+          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center border-2 border-white shadow-lg">{(Object.values(cart) as { qty: number }[]).reduce((s, d) => s + d.qty, 0)}</span>
+        )}
       </button>
-
-      {view === 'MENU' && cartCount > 0 && (
-        <div className="fixed bottom-6 inset-x-4 md:left-1/2 md:-translate-x-1/2 md:w-full md:max-w-md bg-slate-900 rounded-[1.8rem] p-4 shadow-2xl flex items-center justify-between animate-slideUp z-50 border border-white/10">
-            <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-orange-500 text-white rounded-xl flex items-center justify-center font-black shadow-lg shadow-orange-500/20">{cartCount}</div>
-                <div className="min-w-0">
-                    <p className="text-white/40 text-[8px] font-black uppercase">Giỏ hàng</p>
-                    <p className="text-sm font-black text-white truncate">{cartTotal.toLocaleString()}đ</p>
-                </div>
-            </div>
-            <button onClick={() => setView('CART')} className="bg-orange-500 text-white px-6 py-3.5 rounded-xl font-black text-[10px] uppercase shadow-lg shadow-orange-500/30 active:scale-95 transition-transform whitespace-nowrap">Xem & Gọi món</button>
-        </div>
-      )}
     </div>
   );
 };
