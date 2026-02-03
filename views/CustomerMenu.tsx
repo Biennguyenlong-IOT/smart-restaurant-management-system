@@ -6,7 +6,8 @@ const { useParams, Link, useNavigate, useSearchParams, useLocation } = ReactRout
 import { CATEGORIES } from '../constants';
 import { OrderItem, OrderItemStatus, MenuItem, TableStatus, UserRole, Table, OrderType, Review } from '../types';
 import { ConfirmModal } from '../App';
-import { ShoppingCart, History, ChefHat, Loader2, FileText, CreditCard, Star, AlertTriangle, PlusCircle, Bell, MessageCircle, Heart, CheckCircle, Send } from 'lucide-react';
+// Fix: Added missing Clock import from lucide-react to resolve the reference error on line 219
+import { ShoppingCart, History, ChefHat, Loader2, FileText, CreditCard, Star, AlertTriangle, PlusCircle, Bell, MessageCircle, Heart, CheckCircle, Send, QrCode, Clock } from 'lucide-react';
 
 const MenuCard = memo(({ item, quantity, onAdd, onRemove }: { item: MenuItem, quantity: number, onAdd: () => void, onRemove: () => void }) => {
     const isOut = !item.isAvailable;
@@ -168,52 +169,64 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
     );
   }
 
-  // MÀN HÌNH HÓA ĐƠN & QR (BILLING)
+  // MÀN HÌNH HÓA ĐƠN & QR (BILLING / PAYING)
   if (table?.status === TableStatus.BILLING || table?.status === TableStatus.PAYING) {
     const isPaying = table.status === TableStatus.PAYING;
     return (
-        <div className="flex flex-col h-full animate-fadeIn max-w-md mx-auto w-full p-4">
-            <div className="bg-white rounded-[2.5rem] p-6 shadow-2xl border border-slate-100 flex-1 flex flex-col overflow-hidden">
+        <div className="flex flex-col h-full animate-fadeIn max-w-md mx-auto w-full p-4 overflow-y-auto no-scrollbar pb-20">
+            <div className="bg-white rounded-[2.5rem] p-6 shadow-2xl border border-slate-100 flex flex-col">
                 <div className="text-center mb-6 shrink-0">
                     <div className="w-12 h-12 bg-slate-900 text-white rounded-xl flex items-center justify-center mx-auto mb-3 font-black text-lg italic shadow-lg">B{idNum}</div>
                     <h2 className="text-xl font-black text-slate-800 uppercase italic leading-none mb-1">Hóa đơn bàn {idNum}</h2>
-                    <span className="text-[8px] font-black text-orange-500 uppercase tracking-[0.3em]">{isPaying ? 'Chờ phục vụ xác nhận' : 'Vui lòng thanh toán'}</span>
+                    <span className={`text-[9px] font-black uppercase tracking-[0.2em] px-3 py-1 rounded-full ${isPaying ? 'bg-orange-50 text-orange-600 animate-pulse' : 'bg-slate-100 text-slate-500'}`}>
+                        {isPaying ? 'Đang chờ xác nhận...' : 'Vui lòng thanh toán'}
+                    </span>
                 </div>
 
-                <div className="flex-1 overflow-y-auto no-scrollbar border-y border-slate-50 py-4 space-y-3">
+                <div className="border-y border-slate-50 py-4 space-y-3 mb-6">
                     {activeOrders.map(o => (
                         <div key={o.id} className="flex justify-between items-center animate-slideUp">
                             <div className="min-w-0 pr-4">
-                                <p className="text-[10px] font-black text-slate-800 uppercase truncate">{o.name}</p>
-                                <p className="text-[8px] font-bold text-slate-400">x{o.quantity}</p>
+                                <p className="text-[10px] font-black text-slate-800 uppercase truncate italic">{o.name}</p>
+                                <p className="text-[9px] font-bold text-slate-400">x{o.quantity}</p>
                             </div>
                             <span className="text-[10px] font-black text-slate-900 shrink-0">{(o.price * o.quantity).toLocaleString()}đ</span>
                         </div>
                     ))}
                 </div>
 
-                <div className="pt-6 shrink-0 space-y-6">
-                    <div className="flex justify-between items-center bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                        <span className="text-[10px] font-black text-slate-400 uppercase italic">Tổng cộng:</span>
-                        <span className="text-xl font-black text-slate-900 italic">{totalAmount.toLocaleString()}đ</span>
+                <div className="space-y-6">
+                    <div className="flex justify-between items-center bg-slate-50 p-4 rounded-2xl border border-slate-100 shadow-inner">
+                        <span className="text-[10px] font-black text-slate-400 uppercase italic">Tổng thanh toán:</span>
+                        <span className="text-xl font-black text-orange-600 italic leading-none">{totalAmount.toLocaleString()}đ</span>
                     </div>
 
-                    {!isPaying && (
-                        <div className="text-center space-y-4">
-                            <p className="text-[9px] font-black text-slate-400 uppercase italic">Quét mã để thanh toán nhanh</p>
-                            <div className="bg-white p-3 rounded-3xl border-2 border-slate-50 shadow-inner inline-block">
-                                <img src={getVietQrUrl(totalAmount)} className="w-40 h-40 object-contain mx-auto" alt="VietQR" />
+                    <div className="text-center space-y-4">
+                        <div className="flex items-center justify-center gap-2 text-[9px] font-black text-slate-400 uppercase tracking-widest italic mb-2">
+                           <QrCode size={14}/> Quét mã chuyển khoản
+                        </div>
+                        <div className="bg-white p-4 rounded-[2.5rem] border-4 border-slate-50 shadow-xl inline-block relative group">
+                            <img src={getVietQrUrl(totalAmount)} className="w-48 h-48 md:w-56 md:h-56 object-contain mx-auto" alt="VietQR" />
+                            {isPaying && <div className="absolute inset-0 bg-white/60 backdrop-blur-[2px] rounded-[2.2rem] flex items-center justify-center">
+                                <div className="bg-white p-3 rounded-full shadow-lg">
+                                    <Loader2 className="animate-spin text-orange-500" size={32} />
+                                </div>
+                            </div>}
+                        </div>
+                        
+                        {isPaying ? (
+                            <div className="bg-orange-50 p-5 rounded-2xl border border-orange-100 mt-4 animate-slideUp">
+                                <p className="text-[11px] font-black text-orange-600 uppercase italic mb-2 flex items-center justify-center gap-2">
+                                    <Clock size={16}/> Đang kiểm tra giao dịch
+                                </p>
+                                <p className="text-[9px] font-bold text-orange-400 leading-relaxed uppercase">Vui lòng không đóng trang này. Hệ thống sẽ tự động chuyển trang khi hoàn tất.</p>
                             </div>
-                            <button onClick={() => store.requestPayment(idNum)} className="w-full py-4 bg-orange-500 text-white rounded-2xl font-black uppercase text-[10px] shadow-xl italic flex items-center justify-center gap-2">Tôi đã chuyển khoản <CheckCircle size={14}/></button>
-                        </div>
-                    )}
-                    
-                    {isPaying && (
-                        <div className="py-10 text-center space-y-4">
-                            <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                            <p className="text-[11px] font-black text-slate-800 uppercase italic">Đang chờ phục vụ kiểm tra...</p>
-                        </div>
-                    )}
+                        ) : (
+                            <button onClick={() => store.requestPayment(idNum)} className="w-full py-5 bg-orange-500 text-white rounded-2xl font-black uppercase text-[11px] shadow-2xl italic flex items-center justify-center gap-2 transition-all active:scale-95 hover:bg-orange-600">
+                                Xác nhận tôi đã chuyển khoản <CheckCircle size={18}/>
+                            </button>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>
@@ -316,7 +329,7 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
                         {table?.currentOrders.map((item: OrderItem) => (
                             <div key={item.id} className={`p-4 rounded-xl border-2 ${item.status === OrderItemStatus.CANCELLED ? 'bg-slate-50 border-slate-100 opacity-40 pr-2' : 'bg-white border-slate-50'}`}>
                                 <div className="flex justify-between items-center mb-1">
-                                    <h4 className="font-black text-slate-800 text-[10px] uppercase truncate flex-1">{item.name} <span className="text-orange-500 ml-1">x{item.quantity}</span></h4>
+                                    <h4 className="font-black text-slate-800 text-[10px] uppercase truncate flex-1 italic">{item.name} <span className="text-orange-500 ml-1">x{item.quantity}</span></h4>
                                     <span className="font-black text-slate-900 text-[10px] ml-2">{(item.price * item.quantity).toLocaleString()}đ</span>
                                 </div>
                                 <div className="flex justify-between items-center">
@@ -333,11 +346,12 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
                     </div>
                     {totalAmount > 0 && (
                         <div className="mt-8 pt-6 border-t border-slate-100">
-                            <div className="bg-slate-900 rounded-2xl p-6 text-white text-center shadow-2xl">
-                                <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1 block">Tạm tính</span>
-                                <h3 className="text-2xl font-black mb-6 italic">{totalAmount.toLocaleString()}đ</h3>
-                                <button disabled={!allServed} onClick={() => setShowPaymentConfirm(true)} className={`w-full py-4 rounded-xl font-black uppercase text-[10px] shadow-xl italic transition-all active:scale-95 ${allServed ? 'bg-orange-500 text-white' : 'bg-white/5 text-slate-600'}`}>
-                                    {allServed ? 'Yêu cầu thanh toán' : 'Chờ phục vụ bưng món...'}
+                            <div className="bg-slate-900 rounded-2xl p-6 text-white text-center shadow-2xl relative overflow-hidden">
+                                <div className="absolute top-0 left-0 w-20 h-20 bg-white/5 rounded-br-[3rem] -z-0"></div>
+                                <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1 block relative z-10">Tạm tính</span>
+                                <h3 className="text-2xl font-black mb-6 italic relative z-10">{totalAmount.toLocaleString()}đ</h3>
+                                <button disabled={!allServed} onClick={() => setShowPaymentConfirm(true)} className={`w-full py-5 rounded-xl font-black uppercase text-[10px] shadow-xl italic transition-all active:scale-95 relative z-10 flex items-center justify-center gap-2 ${allServed ? 'bg-orange-500 text-white' : 'bg-white/5 text-slate-600 cursor-not-allowed'}`}>
+                                    {allServed ? <><CreditCard size={14}/> Yêu cầu thanh toán</> : <><Loader2 size={14} className="animate-spin"/> Chờ bưng món...</>}
                                 </button>
                             </div>
                         </div>
