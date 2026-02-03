@@ -1,11 +1,11 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { OrderItem, OrderItemStatus, TableStatus, UserRole, Table, OrderType, MenuItem, AppNotification } from '../types.ts';
+import { OrderItem, OrderItemStatus, TableStatus, UserRole, Table, OrderType, MenuItem, AppNotification, User } from '../types.ts';
 import { ConfirmModal } from '../App.tsx';
 import { CATEGORIES } from '../constants';
-import { QrCode, PlusCircle, Loader2, Coffee, Clock, ShoppingBag, Utensils, Search, FileText, CreditCard, MessageCircle, X, ArrowRightLeft, Bell, AlertCircle, CheckCircle2, Trash2, Tag, ChevronRight, User as UserIcon, ArrowLeft } from 'lucide-react';
+import { QrCode, PlusCircle, Loader2, Coffee, Clock, ShoppingBag, Utensils, Search, FileText, CreditCard, MessageCircle, X, ArrowRightLeft, Bell, AlertCircle, CheckCircle, Trash2, Tag, ChevronRight, User as UserIcon, ArrowLeft } from 'lucide-react';
 
-interface StaffViewProps { store: any; }
+interface StaffViewProps { store: any; currentUser: User; }
 
 const getFullQrUrl = (tid: number, token?: string | null) => {
   const baseUrl = window.location.origin + window.location.pathname;
@@ -13,7 +13,7 @@ const getFullQrUrl = (tid: number, token?: string | null) => {
   return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(url)}`;
 };
 
-const StaffView: React.FC<StaffViewProps> = ({ store }) => {
+const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
   const [activeTab, setActiveTab] = useState<'TABLES' | 'ORDER' | 'PAYMENTS'>('TABLES');
   const [activeCategory, setActiveCategory] = useState('Tất cả');
   const [confirmTableId, setConfirmTableId] = useState<number | null>(null);
@@ -26,13 +26,6 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
   const [selectedTable, setSelectedTable] = useState<number | null>(null);
   const [cart, setCart] = useState<Record<string, { qty: number, note: string }>>({});
   const [searchTerm, setSearchTerm] = useState('');
-
-  const currentUser = useMemo(() => {
-    try {
-      const saved = sessionStorage.getItem('current_user');
-      return saved ? JSON.parse(saved) : {};
-    } catch { return {}; }
-  }, []);
 
   useEffect(() => {
     if (moveFromId !== null && moveToId !== null) {
@@ -74,7 +67,6 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
   const handleCancelOrderNotif = async (tid: number, nid: string) => {
     const table = store.tables.find((t: any) => t.id === tid);
     if (table) {
-        // Huỷ tất cả các món đang PENDING trong thông báo này
         const pendingOids = table.currentOrders.filter((o: any) => o.status === OrderItemStatus.PENDING).map((o: any) => o.id);
         for (const oid of pendingOids) {
             await store.cancelOrderItem(tid, oid);
@@ -89,7 +81,10 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
   };
 
   const handleRequestTableQr = async (tid: number) => {
-    try { await store.requestTableQr(tid, currentUser.id); } catch (e: any) { alert("Tối đa 3 bàn!"); }
+    try { await store.requestTableQr(tid, currentUser.id); } catch (e: any) { 
+      if (e.message === "LIMIT_REACHED") alert("Tối đa 3 bàn!");
+      else alert("Lỗi gửi yêu cầu!");
+    }
   };
 
   const handlePlaceStaffOrder = async () => {
@@ -128,10 +123,6 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
   const currentBillTable = useMemo(() => store.tables.find((t:any) => t.id === showBillTableId), [store.tables, showBillTableId]);
   const billTotal = useMemo(() => currentBillTable?.currentOrders.filter((o:any) => o.status !== OrderItemStatus.CANCELLED).reduce((s:number,o:any)=>s+(o.price*o.quantity), 0) || 0, [currentBillTable]);
 
-  const getVietQrUrl = (amount: number, tid: number) => {
-    return `https://img.vietqr.io/image/${store.bankConfig.bankId}-${store.bankConfig.accountNo}-compact.png?amount=${amount}&addInfo=Thanh+Toan+Ban+${tid === 0 ? 'Khach+Le' : tid}&accountName=${encodeURIComponent(store.bankConfig.accountName)}`;
-  };
-
   const filteredMenu = useMemo(() => {
     return store.menu.filter((m: MenuItem) => {
         const matchSearch = m.name.toLowerCase().includes(searchTerm.toLowerCase());
@@ -140,9 +131,10 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
     });
   }, [store.menu, searchTerm, activeCategory]);
 
+  const qrModalTable = useMemo(() => store.tables.find((t: any) => t.id === showQrModalId), [store.tables, showQrModalId]);
+
   return (
     <div className="flex flex-col h-full max-w-full overflow-hidden animate-fadeIn">
-      {/* Header Status Bar */}
       <div className="bg-white px-5 py-3 border-b border-slate-100 flex justify-between items-center shrink-0">
          <div className="flex items-center gap-3">
            <div className="w-10 h-10 bg-slate-900 text-white rounded-xl flex items-center justify-center font-black italic shadow-lg">S</div>
@@ -157,7 +149,6 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
          </div>
       </div>
 
-      {/* Main Tab Navigation */}
       <div className="bg-white p-2 border-b border-slate-200 shrink-0">
         <div className="flex bg-slate-50 p-1 rounded-2xl border border-slate-200 shadow-inner">
           <button onClick={() => setActiveTab('TABLES')} className={`flex-1 px-3 py-3 rounded-xl text-[10px] font-black uppercase transition-all flex items-center justify-center gap-1.5 ${activeTab === 'TABLES' ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400'}`}><Utensils size={14}/> Sơ đồ</button>
@@ -333,7 +324,6 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
         )}
       </div>
 
-      {/* MODAL BILL CHI TIẾT */}
       {showBillTableId !== null && currentBillTable && (
         <div className="fixed inset-0 z-[200] bg-slate-900/90 backdrop-blur-md flex items-center justify-center p-4">
             <div className="bg-white rounded-[2.5rem] p-7 max-w-sm w-full shadow-2xl animate-scaleIn border border-slate-100 max-h-[90dvh] flex flex-col relative overflow-hidden">
@@ -377,7 +367,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
         </div>
       )}
 
-      {showQrModalId !== null && (
+      {showQrModalId !== null && qrModalTable && (
         <div className="fixed inset-0 z-[250] bg-slate-900/90 backdrop-blur-xl flex items-center justify-center p-4">
             <div className="bg-white rounded-[2.5rem] p-8 max-w-sm w-full text-center shadow-2xl animate-scaleIn border border-white/10 relative">
                 <div className="flex justify-between items-center mb-6">
@@ -388,7 +378,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
                     <button onClick={() => setShowQrModalId(null)} className="p-2 bg-slate-50 text-slate-400 rounded-xl hover:bg-slate-100 transition-all"><X size={18}/></button>
                 </div>
                 <div className="bg-slate-50 p-6 rounded-[2.5rem] border border-slate-100 mb-8 shadow-inner">
-                    <img src={getFullQrUrl(showQrModalId, store.tables.find((t:any)=>t.id === showQrModalId).sessionToken)} className="w-56 h-56 object-contain rounded-2xl shadow-md border-4 border-white mx-auto" />
+                    <img src={getFullQrUrl(showQrModalId, qrModalTable.sessionToken)} className="w-56 h-56 object-contain rounded-2xl shadow-md border-4 border-white mx-auto" />
                 </div>
                 <button onClick={() => setShowQrModalId(null)} className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black uppercase text-[11px] shadow-2xl italic transition-all active:scale-95">Đóng</button>
             </div>
