@@ -355,7 +355,8 @@ export const useRestaurantStore = () => {
 
     submitReview: async (review: Review) => {
       const nr = [review, ...reviews];
-      const nt = tables.map(t => t.id === review.tableId ? { ...t, status: TableStatus.AVAILABLE, currentOrders: [], claimedBy: null, sessionToken: null } : t);
+      // Chuyển sang trạng thái CLEANING để nhân viên dọn bàn
+      const nt = tables.map(t => t.id === review.tableId ? { ...t, status: TableStatus.CLEANING } : t);
       await pushToCloud({ reviews: nr, tables: nt });
     },
 
