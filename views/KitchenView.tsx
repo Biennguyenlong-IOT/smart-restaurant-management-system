@@ -2,6 +2,7 @@
 import React, { useMemo, useState } from 'react';
 import { OrderItem, OrderItemStatus, AppNotification, UserRole, MenuItem, OrderType } from '../types.ts';
 import { Pizza, XCircle, CheckCircle, AlertTriangle, ChefHat, Clock } from 'lucide-react';
+import { ensureArray } from '../store.ts';
 
 interface KitchenViewProps {
   store: any;
@@ -12,17 +13,17 @@ const KitchenView: React.FC<KitchenViewProps> = ({ store }) => {
   const [searchTerm, setSearchTerm] = useState('');
 
   const kitchenCommands = useMemo(() => 
-    (store.notifications || []).filter((n: AppNotification) => n.targetRole === UserRole.KITCHEN)
+    ensureArray<AppNotification>(store.notifications).filter((n: AppNotification) => n.targetRole === UserRole.KITCHEN)
   , [store.notifications]);
 
   const incoming = useMemo(() => (store.tables || []).flatMap((t: any) => 
-    (t.currentOrders || [])
+    ensureArray<OrderItem>(t.currentOrders)
       .filter((o: OrderItem) => o.status === OrderItemStatus.CONFIRMED)
       .map((o: OrderItem) => ({ ...o, tableId: t.id, orderType: t.orderType }))
   ).sort((a,b) => b.timestamp - a.timestamp), [store.tables]);
 
   const inProgress = useMemo(() => (store.tables || []).flatMap((t: any) => 
-    (t.currentOrders || [])
+    ensureArray<OrderItem>(t.currentOrders)
       .filter((o: OrderItem) => o.status === OrderItemStatus.COOKING)
       .map((o: OrderItem) => ({ ...o, tableId: t.id, orderType: t.orderType }))
   ).sort((a,b) => b.timestamp - a.timestamp), [store.tables]);
@@ -59,7 +60,7 @@ const KitchenView: React.FC<KitchenViewProps> = ({ store }) => {
                     <h2 className="text-xl font-black flex items-center gap-3 text-slate-800 italic uppercase tracking-tighter"><ChefHat className="text-slate-400" size={24}/> 1. Món mới nhận</h2>
                     <span className="bg-slate-100 text-slate-500 text-[10px] font-black px-3 py-1 rounded-full">{incoming.length}</span>
                 </div>
-                {incoming.length === 0 ? <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-3xl p-12 text-center text-slate-300 font-black uppercase text-xs italic">Chờ xác nhận từ Phục vụ...</div> : 
+                {incoming.length === 0 ? <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-3xl p-12 text-center text-slate-300 font-black uppercase text-xs italic">Chưa có món nào chờ làm...</div> : 
                     incoming.map((item: any) => (
                         <div key={item.id} className="bg-white p-5 rounded-[2rem] border border-slate-200 shadow-sm relative overflow-hidden group hover:border-slate-800 transition-all">
                             {item.orderType === OrderType.TAKEAWAY && <div className="absolute top-0 right-0 bg-red-500 text-white px-4 py-1.5 rounded-bl-2xl text-[9px] font-black uppercase italic">Mang về</div>}
@@ -107,7 +108,7 @@ const KitchenView: React.FC<KitchenViewProps> = ({ store }) => {
                <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Tìm kiếm món để cập nhật tình trạng..." className="bg-transparent border-none outline-none font-bold text-sm uppercase w-full" />
             </div>
             <div className="flex-1 overflow-y-auto no-scrollbar grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-               {store.menu.filter((m: MenuItem) => m.name.toLowerCase().includes(searchTerm.toLowerCase())).map((item: MenuItem) => (
+               {ensureArray<MenuItem>(store.menu).filter((m: MenuItem) => m.name.toLowerCase().includes(searchTerm.toLowerCase())).map((item: MenuItem) => (
                   <div key={item.id} className={`p-4 rounded-3xl border-2 transition-all flex items-center justify-between ${item.isAvailable ? 'border-green-100 bg-green-50/20' : 'border-red-100 bg-red-50/20 grayscale'}`}>
                      <div className="flex items-center gap-3 min-w-0">
                         <img src={item.image} className="w-12 h-12 rounded-xl object-cover shadow-sm" />
