@@ -3,7 +3,7 @@ import React, { useState, useMemo, useCallback } from 'react';
 import { OrderItem, OrderItemStatus, TableStatus, UserRole, Table, OrderType, MenuItem } from '../types.ts';
 import { ConfirmModal } from '../App.tsx';
 import { CATEGORIES } from '../constants';
-import { QrCode, PlusCircle, Loader2, Coffee, Clock, ShoppingBag, Utensils, Search, FileText, CreditCard } from 'lucide-react';
+import { QrCode, PlusCircle, Loader2, Coffee, Clock, ShoppingBag, Utensils, Search, FileText, CreditCard, MessageCircle, X } from 'lucide-react';
 
 interface StaffViewProps {
   store: any;
@@ -16,7 +16,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
   const [showBillTableId, setShowBillTableId] = useState<number | null>(null);
   const [orderType, setOrderType] = useState<OrderType>(OrderType.TAKEAWAY);
   const [selectedTable, setSelectedTable] = useState<number | null>(null);
-  const [cart, setCart] = useState<Record<string, number>>({});
+  const [cart, setCart] = useState<Record<string, { qty: number, note: string }>>({});
   const [searchTerm, setSearchTerm] = useState('');
 
   const currentUser = useMemo(() => {
@@ -41,27 +41,30 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
   ), [myTables]);
 
   const cartTotal = useMemo(() => {
-    return Object.entries(cart).reduce((sum, [id, qty]) => {
+    // Fix: Explicitly cast Object.entries to resolve 'unknown' type error for 'data.qty' on line 46
+    return (Object.entries(cart) as [string, { qty: number, note: string }][]).reduce((sum, [id, data]) => {
       const item = store.menu.find((m: MenuItem) => m.id === id);
-      return sum + (item?.price || 0) * (qty as number);
+      return sum + (item?.price || 0) * data.qty;
     }, 0);
   }, [cart, store.menu]);
 
   const handlePlaceStaffOrder = async () => {
     if (selectedTable === null || Object.keys(cart).length === 0) return alert("Vui lòng chọn bàn/khách và chọn món!");
     
-    const newItems: OrderItem[] = Object.entries(cart)
-      .filter(([_, qty]) => (qty as number) > 0)
-      .map(([id, qty]) => {
+    // Fix: Explicitly cast Object.entries to resolve 'unknown' type error for 'data.qty' on line 54
+    const newItems: OrderItem[] = (Object.entries(cart) as [string, { qty: number, note: string }][])
+      .filter(([_, data]) => data.qty > 0)
+      .map(([id, data]) => {
         const m = store.menu.find((x: MenuItem) => x.id === id);
         return {
           id: `ST-${Date.now()}-${id}`,
           menuItemId: id,
           name: m?.name || '',
           price: m?.price || 0,
-          quantity: qty as number,
+          quantity: data.qty,
           status: OrderItemStatus.CONFIRMED,
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          note: data.note
         };
       });
 
@@ -70,6 +73,31 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
       alert("Đã gửi đơn hàng thành công!");
       setCart({}); setSelectedTable(null); setActiveTab('TABLES');
     } catch (e) { alert("Lỗi đặt đơn!"); }
+  };
+
+  const updateCartItem = (id: string, qty: number) => {
+    setCart(prev => {
+        const newCart = { ...prev };
+        if (qty <= 0) {
+            delete newCart[id];
+        } else {
+            // Fix: Cast prev[id] to resolve 'unknown' type error on line 62 when accessing 'note'
+            const existing = prev[id] as { qty: number, note: string } | undefined;
+            newCart[id] = { qty, note: existing?.note || '' };
+        }
+        return newCart;
+    });
+  };
+
+  const updateCartNote = (id: string, note: string) => {
+    setCart(prev => {
+        // Fix: Cast prev[id] to resolve 'unknown' type error on line 65 when accessing properties
+        const existing = prev[id] as { qty: number, note: string } | undefined;
+        return {
+            ...prev,
+            [id]: { qty: existing?.qty || 0, note }
+        };
+    });
   };
 
   const currentBillTable = useMemo(() => 
@@ -180,26 +208,43 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
                   </div>
               </div>
               <div className="flex-1 overflow-y-auto p-4 space-y-3 no-scrollbar">
-                  {store.menu.filter((m:MenuItem) => m.name.toLowerCase().includes(searchTerm.toLowerCase())).map((m:MenuItem) => (
-                    <div key={m.id} className={`p-3 bg-slate-50 rounded-2xl flex items-center justify-between border border-white transition-all ${!m.isAvailable ? 'opacity-40 grayscale' : ''}`}>
-                       <div className="flex items-center gap-3">
-                          <img src={m.image} className="w-12 h-12 rounded-xl object-cover shrink-0" />
-                          <div>
-                             <h4 className="text-[11px] font-black text-slate-800 uppercase truncate w-32 md:w-auto">{m.name}</h4>
-                             <p className="text-[10px] font-bold text-orange-600">{m.price.toLocaleString()}đ</p>
-                          </div>
-                       </div>
-                       <div className="flex items-center gap-3">
-                          {(cart[m.id] || 0) > 0 && (
-                            <button onClick={() => setCart({...cart, [m.id]: (cart[m.id] || 0)-1})} className="w-8 h-8 bg-white rounded-xl shadow-sm font-black text-slate-400">-</button>
-                          )}
-                          {(cart[m.id] || 0) > 0 && <span className="text-xs font-black text-slate-800">{cart[m.id]}</span>}
-                          <button disabled={!m.isAvailable} onClick={() => setCart({...cart, [m.id]: (cart[m.id]||0)+1})} className="w-8 h-8 bg-orange-500 text-white rounded-xl shadow-lg font-black">+</button>
-                       </div>
-                    </div>
-                  ))}
+                  {store.menu.filter((m:MenuItem) => m.name.toLowerCase().includes(searchTerm.toLowerCase())).map((m:MenuItem) => {
+                    const cartItem = cart[m.id];
+                    return (
+                        <div key={m.id} className={`p-3 bg-slate-50 rounded-2xl border border-white transition-all ${!m.isAvailable ? 'opacity-40 grayscale' : ''}`}>
+                            <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-3">
+                                    <img src={m.image} className="w-12 h-12 rounded-xl object-cover shrink-0" />
+                                    <div>
+                                        <h4 className="text-[11px] font-black text-slate-800 uppercase truncate w-32 md:w-auto">{m.name}</h4>
+                                        <p className="text-[10px] font-bold text-orange-600">{m.price.toLocaleString()}đ</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    {cartItem && cartItem.qty > 0 && (
+                                        <button onClick={() => updateCartItem(m.id, cartItem.qty - 1)} className="w-8 h-8 bg-white rounded-xl shadow-sm font-black text-slate-400">-</button>
+                                    )}
+                                    {cartItem && cartItem.qty > 0 && <span className="text-xs font-black text-slate-800">{cartItem.qty}</span>}
+                                    <button disabled={!m.isAvailable} onClick={() => updateCartItem(m.id, (cartItem?.qty || 0) + 1)} className="w-8 h-8 bg-orange-500 text-white rounded-xl shadow-lg font-black">+</button>
+                                </div>
+                            </div>
+                            {cartItem && cartItem.qty > 0 && (
+                                <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-slate-100 mt-2">
+                                    <MessageCircle size={14} className="text-slate-300" />
+                                    <input 
+                                        type="text" 
+                                        placeholder="Ghi chú món ăn..." 
+                                        value={cartItem.note} 
+                                        onChange={(e) => updateCartNote(m.id, e.target.value)}
+                                        className="bg-transparent text-[10px] font-bold w-full outline-none" 
+                                    />
+                                </div>
+                            )}
+                        </div>
+                    );
+                  })}
               </div>
-              {Object.keys(cart).some(k => (cart[k] || 0) > 0) && (
+              {Object.keys(cart).length > 0 && (
                 <div className="p-6 bg-slate-900 text-white rounded-t-[2.5rem] shadow-2xl animate-slideUp">
                    <div className="flex justify-between items-center mb-4">
                       <div>
@@ -211,7 +256,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
                         <span className="text-[11px] font-black uppercase italic">{orderType === OrderType.TAKEAWAY ? 'Mang về' : 'Tại chỗ'}</span>
                       </div>
                    </div>
-                   <button onClick={handlePlaceStaffOrder} className="w-full py-5 bg-orange-500 rounded-2xl font-black uppercase text-xs shadow-xl active:scale-95 transition-all">Gửi yêu cầu đơn hàng</button>
+                   <button onClick={handlePlaceStaffOrder} className="w-full py-5 bg-orange-500 rounded-2xl font-black uppercase text-xs shadow-xl active:scale-95 transition-all">Gửi đơn hàng</button>
                 </div>
               )}
            </div>
@@ -221,37 +266,36 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
            <div className="bg-white rounded-[2rem] p-8 border border-slate-100 shadow-sm space-y-6">
               <h2 className="text-lg font-black italic text-slate-800">💰 Thanh toán hóa đơn</h2>
               <div className="space-y-4">
-                 {myTables.filter((t:Table) => (t.currentOrders || []).length > 0 && (t.status === TableStatus.PAYING || t.status === TableStatus.BILLING || t.status === TableStatus.OCCUPIED)).map((t:Table) => (
+                 {myTables.filter((t:Table) => (t.currentOrders || []).length > 0).map((t:Table) => (
                    <div key={t.id} className={`p-6 rounded-[2rem] flex items-center justify-between transition-all ${t.status === TableStatus.PAYING ? 'bg-amber-50 border border-amber-200' : t.status === TableStatus.BILLING ? 'bg-green-50 border border-green-200' : 'bg-slate-50 border border-slate-100'}`}>
                       <div>
                          <p className="text-[9px] font-black uppercase text-slate-400 italic">{t.id === 0 ? 'Đơn khách lẻ' : 'Bàn ' + t.id}</p>
                          <h4 className="font-black text-slate-800 text-sm uppercase">
-                            {t.status === TableStatus.PAYING ? 'Chờ Admin duyệt bill' : 
-                             t.status === TableStatus.BILLING ? 'Đã thu tiền xong' : 'Đang phục vụ'}
+                            {t.status === TableStatus.PAYING ? 'Chờ duyệt' : 
+                             t.status === TableStatus.BILLING ? 'Đã thanh toán' : 'Đang phục vụ'}
                          </h4>
                       </div>
                       <div className="flex gap-2">
                         <button onClick={() => setShowBillTableId(t.id)} className="bg-slate-900 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase flex items-center gap-1.5 shadow-md">
-                            <FileText size={12}/> Xem Bill
+                            <FileText size={12}/> Bill
                         </button>
                       </div>
                    </div>
                  ))}
                  {myTables.filter((t:Table) => (t.currentOrders || []).length > 0).length === 0 && (
-                   <div className="py-20 text-center text-slate-300 font-black uppercase italic text-xs">Hiện tại chưa có hóa đơn nào.</div>
+                   <div className="py-20 text-center text-slate-300 font-black uppercase italic text-xs">Không có hóa đơn.</div>
                  )}
               </div>
            </div>
         )}
       </div>
 
-      {/* Modal hiển thị Bill & VietQR cho nhân viên xem và đưa khách scan */}
       {showBillTableId !== null && currentBillTable && (
         <div className="fixed inset-0 z-[200] bg-slate-900/90 backdrop-blur-md flex items-center justify-center p-4">
             <div className="bg-white rounded-[3rem] p-8 max-w-sm w-full shadow-2xl animate-scaleIn border border-slate-100 max-h-[90dvh] overflow-y-auto no-scrollbar">
                 <div className="flex justify-between items-center mb-6">
                     <h3 className="text-xl font-black italic uppercase">Hóa đơn: {showBillTableId === 0 ? 'Khách lẻ' : 'Bàn ' + showBillTableId}</h3>
-                    <button onClick={() => setShowBillTableId(null)} className="p-2 bg-slate-100 rounded-full"><X size={16}/></button>
+                    <button onClick={() => setShowBillTableId(null)} className="p-2 bg-slate-100 rounded-full"><XIcon size={16}/></button>
                 </div>
                 
                 <div className="space-y-3 mb-6 border-y border-slate-50 py-4">
@@ -269,23 +313,12 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
 
                 <div className="space-y-4 text-center">
                     <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100">
-                        <p className="text-[10px] font-black text-blue-500 uppercase mb-3 flex items-center justify-center gap-2"><CreditCard size={14}/> Mã QR Chuyển khoản</p>
+                        <p className="text-[10px] font-black text-blue-500 uppercase mb-3 flex items-center justify-center gap-2"><CreditCard size={14}/> QR Thanh toán</p>
                         <img src={getVietQrUrl(billTotal, showBillTableId)} className="w-48 h-48 mx-auto rounded-2xl shadow-sm border-4 border-white" />
-                        <p className="text-[9px] font-bold text-slate-400 mt-2 uppercase italic">{store.bankConfig.accountName}</p>
                     </div>
                     
                     {currentBillTable.status !== TableStatus.PAYING && currentBillTable.status !== TableStatus.BILLING && (
-                        <button onClick={() => { store.requestPayment(showBillTableId); setShowBillTableId(null); }} className="w-full py-4 bg-orange-500 text-white rounded-2xl font-black uppercase text-xs shadow-xl active:scale-95 transition-all">Gửi yêu cầu thanh toán tới Admin</button>
-                    )}
-                    
-                    {currentBillTable.status === TableStatus.PAYING && (
-                        <div className="py-4 bg-amber-50 text-amber-600 rounded-2xl border border-amber-200 text-[10px] font-black uppercase flex items-center justify-center gap-2 animate-pulse">
-                            <Clock size={14}/> Đang chờ Admin duyệt Bill...
-                        </div>
-                    )}
-
-                    {currentBillTable.status === TableStatus.BILLING && (
-                        <button onClick={() => { store.setTableEmpty(showBillTableId); setShowBillTableId(null); }} className="w-full py-4 bg-green-600 text-white rounded-2xl font-black uppercase text-xs shadow-xl animate-bounce">Đã thu tiền xong (Dọn bàn)</button>
+                        <button onClick={() => { store.requestPayment(showBillTableId); setShowBillTableId(null); }} className="w-full py-4 bg-orange-500 text-white rounded-2xl font-black uppercase text-xs shadow-xl active:scale-95 transition-all">Gửi yêu cầu thanh toán</button>
                     )}
                 </div>
             </div>
@@ -296,7 +329,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
       {showQrModalId !== null && (
         <div className="fixed inset-0 z-[150] bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4">
             <div className="bg-white rounded-[3rem] p-8 max-w-sm w-full text-center shadow-2xl animate-scaleIn border border-slate-100">
-                <h3 className="text-2xl font-black text-slate-800 mb-6 italic uppercase">Quét QR Bàn {showQrModalId}</h3>
+                <h3 className="text-2xl font-black text-slate-800 mb-6 italic uppercase">Bàn {showQrModalId}</h3>
                 <div className="bg-slate-50 p-6 rounded-[2.5rem] border border-slate-100 mb-8 flex items-center justify-center">
                     <img src={getFullQrUrl(showQrModalId, store.tables.find((t:any)=>t.id === showQrModalId).sessionToken)} className="w-56 h-56 object-contain rounded-2xl shadow-sm" />
                 </div>
@@ -308,8 +341,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store }) => {
   );
 };
 
-// Component con cho biểu tượng X
-const X = ({ size }: { size: number }) => (
+const XIcon = ({ size }: { size: number }) => (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
 );
 
