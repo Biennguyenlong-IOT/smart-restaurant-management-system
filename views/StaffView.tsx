@@ -18,6 +18,15 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
   const [showQrModal, setShowQrModal] = useState<Table | null>(null);
   const [moveRequest, setMoveRequest] = useState<{fromId: number, mode: 'MOVE' | 'MERGE'} | null>(null);
 
+  // Quan trọng: Chỉ hiển thị bàn trống HOẶC bàn do chính mình phụ trách
+  const visibleTables = useMemo(() => {
+    return ensureArray<Table>(store.tables).filter((t: Table) => {
+      if (t.id === 0) return true; // Luôn hiện bàn lẻ (Khách takeaway)
+      if (t.status === TableStatus.AVAILABLE) return true; // Hiện bàn trống
+      return t.claimedBy === currentUser.id; // Hiện bàn của mình
+    });
+  }, [store.tables, currentUser.id]);
+
   const activeTableCount = useMemo(() => 
     ensureArray<Table>(store.tables).filter((t: Table) => t.claimedBy === currentUser.id && t.id !== 0 && t.status !== TableStatus.AVAILABLE).length
   , [store.tables, currentUser.id]);
@@ -77,6 +86,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
 
   const getQrUrl = (t: Table) => {
     const link = getTableLink(t);
+    // Sử dụng API tạo QR Code quét được thật sự
     return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(link)}`;
   };
 
@@ -142,22 +152,27 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
             )}
 
             <div className="grid grid-cols-3 gap-3">
-                {ensureArray<Table>(store.tables).map((t: Table) => (
+                {visibleTables.map((t: Table) => (
                     <div key={t.id} onClick={() => { 
                         if (t.status === TableStatus.AVAILABLE) store.requestTableQr(t.id, currentUser.id);
                         else setQuickActionTable(t);
-                    }} className={`p-4 rounded-3xl border-2 flex flex-col items-center justify-center gap-2 transition-all relative h-28 ${t.status === TableStatus.AVAILABLE ? 'border-dashed border-slate-200 bg-white' : 'border-slate-800 bg-slate-900 text-white'}`}>
+                    }} className={`p-4 rounded-3xl border-2 flex flex-col items-center justify-center gap-2 transition-all relative h-28 ${t.status === TableStatus.AVAILABLE ? 'border-dashed border-slate-200 bg-white' : 'border-slate-800 bg-slate-900 text-white shadow-md'}`}>
                         <span className="text-[10px] font-black uppercase italic">{t.id === 0 ? 'LẺ' : 'BÀN '+t.id}</span>
                         {t.status === TableStatus.AVAILABLE ? <PlusCircle size={20} className="text-slate-300"/> : <Utensils size={20} className="text-orange-500"/>}
                         {t.status === TableStatus.PAYING && <div className="absolute top-1 right-1"><Bell size={12} className="text-red-500 animate-bounce"/></div>}
                         {t.status === TableStatus.OCCUPIED && (
-                          <div className="absolute top-1 right-1 flex flex-col gap-1">
-                             <button onClick={(e) => { e.stopPropagation(); setShowQrModal(t); }} className="p-1.5 bg-white/10 rounded-lg text-white hover:bg-white/20"><QrCode size={10}/></button>
+                          <div className="absolute top-1 right-1">
+                             <button onClick={(e) => { e.stopPropagation(); setShowQrModal(t); }} className="p-1.5 bg-white/10 rounded-lg text-white"><QrCode size={10}/></button>
                           </div>
                         )}
                     </div>
                 ))}
             </div>
+            {visibleTables.length <= 1 && (
+               <div className="text-center py-10">
+                 <p className="text-[10px] font-black text-slate-300 uppercase italic">Tất cả các bàn khác đã có nhân viên phụ trách</p>
+               </div>
+            )}
           </div>
         )}
 
@@ -193,7 +208,10 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
                   <div className="grid grid-cols-3 gap-3 mb-8 max-h-60 overflow-y-auto p-2 no-scrollbar">
                      {ensureArray<Table>(store.tables).filter(t => {
                         if(t.id === 0 || t.id === moveRequest.fromId) return false;
-                        return moveRequest.mode === 'MOVE' ? t.status === TableStatus.AVAILABLE : t.status === TableStatus.OCCUPIED;
+                        // Chuyển bàn: Chỉ chọn bàn trống
+                        if(moveRequest.mode === 'MOVE') return t.status === TableStatus.AVAILABLE;
+                        // Gộp bàn: Chỉ chọn bàn đang có khách
+                        return t.status === TableStatus.OCCUPIED || t.status === TableStatus.PAYING;
                      }).map(t => (
                         <button key={t.id} onClick={() => { store.requestTableMove(moveRequest.fromId, t.id, currentUser.id); setMoveRequest(null); alert("Đã gửi yêu cầu tới Quản lý!"); }} className="p-4 bg-slate-50 rounded-2xl border-2 border-slate-100 font-black text-xs hover:border-slate-800 transition-all">Bàn {t.id}</button>
                      ))}
@@ -246,7 +264,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
                     <div className="flex justify-between items-center mb-4">
                         <select value={selectedTableId ?? ''} onChange={e => setSelectedTableId(parseInt(e.target.value))} className="bg-white/10 border-none outline-none font-black text-[10px] uppercase p-2 rounded-xl">
                             <option value="">Chọn bàn</option>
-                            {ensureArray<Table>(store.tables).map(t => <option key={t.id} value={t.id}>{t.id === 0 ? 'Khách lẻ' : 'Bàn ' + t.id}</option>)}
+                            {visibleTables.map(t => <option key={t.id} value={t.id}>{t.id === 0 ? 'Khách lẻ' : 'Bàn ' + t.id}</option>)}
                         </select>
                         <span className="text-xs font-black italic">{(Object.values(cart) as {qty:number}[]).reduce((s,d)=>s+d.qty,0)} món</span>
                     </div>
@@ -257,7 +275,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
 
         {activeTab === 'PAYMENTS' && (
             <div className="p-4 space-y-4 overflow-y-auto no-scrollbar">
-                {ensureArray<Table>(store.tables).filter(t => t.status !== TableStatus.AVAILABLE).map(t => (
+                {visibleTables.filter(t => t.status !== TableStatus.AVAILABLE).map(t => (
                     <div key={t.id} onClick={() => setShowBillTableId(t.id)} className="bg-white p-4 rounded-2xl border border-slate-200 flex justify-between items-center cursor-pointer">
                         <div>
                             <p className="text-[10px] font-black uppercase text-slate-800 italic">Bàn {t.id === 0 ? 'Lẻ' : t.id}</p>
@@ -269,8 +287,8 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
                         </div>
                     </div>
                 ))}
-                {ensureArray<Table>(store.tables).filter(t => t.status !== TableStatus.AVAILABLE).length === 0 && (
-                   <p className="text-center py-20 text-slate-300 font-black uppercase text-[10px] italic">Chưa có bàn nào đang hoạt động</p>
+                {visibleTables.filter(t => t.status !== TableStatus.AVAILABLE).length === 0 && (
+                   <p className="text-center py-20 text-slate-300 font-black uppercase text-[10px] italic">Chưa có bàn nào do bạn phụ trách</p>
                 )}
             </div>
         )}
