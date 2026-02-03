@@ -145,8 +145,8 @@ export const useRestaurantStore = () => {
 
     requestTableMove: async (fromId: number, toId: number, sid: string) => {
         const nnotif: AppNotification = {
-            id: `MOVE-${Date.now()}`, targetRole: UserRole.ADMIN, title: 'Yêu cầu chuyển bàn',
-            message: `Chuyển Bàn ${fromId} sang Bàn ${toId}.`, timestamp: Date.now(), read: false,
+            id: `MOVE-${Date.now()}`, targetRole: UserRole.ADMIN, title: 'Yêu cầu chuyển/gộp bàn',
+            message: `Yêu cầu: Bàn ${fromId} -> Bàn ${toId}.`, timestamp: Date.now(), read: false,
             type: 'move_request', payload: { fromId, toId, staffId: sid }
         };
         await pushToCloud({ notifications: [nnotif, ...notifications] });
@@ -157,9 +157,23 @@ export const useRestaurantStore = () => {
         if (!notif?.payload) return;
         const { fromId, toId } = notif.payload;
         const fromTable = tables.find(t => t.id === fromId);
-        if (!fromTable) return;
+        const toTable = tables.find(t => t.id === toId);
+        if (!fromTable || !toTable) return;
+
         const nt = tables.map(t => {
-            if (t.id === toId) return { ...t, status: fromTable.status, currentOrders: fromTable.currentOrders, sessionToken: fromTable.sessionToken, claimedBy: fromTable.claimedBy, orderType: fromTable.orderType };
+            if (t.id === toId) {
+                // Merge logic: Cộng dồn món ăn nếu bàn đích đang có khách
+                const mergedOrders = [...(toTable.currentOrders || []), ...(fromTable.currentOrders || [])];
+                return { 
+                    ...t, 
+                    status: TableStatus.OCCUPIED, 
+                    currentOrders: mergedOrders, 
+                    // Ưu tiên sessionToken của bàn đích nếu nó đã OCCUPIED, ngược lại lấy của bàn nguồn
+                    sessionToken: toTable.status === TableStatus.AVAILABLE ? fromTable.sessionToken : toTable.sessionToken,
+                    claimedBy: toTable.claimedBy || fromTable.claimedBy, 
+                    orderType: toTable.orderType 
+                };
+            }
             if (t.id === fromId) return { ...t, status: TableStatus.AVAILABLE, currentOrders: [], sessionToken: null, claimedBy: null, qrRequested: false };
             return t;
         });
