@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { OrderItem, OrderItemStatus, TableStatus, UserRole, Table, OrderType, MenuItem, AppNotification, User } from '../types.ts';
 import { ConfirmModal } from '../App.tsx';
@@ -37,6 +38,14 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
     );
   }, [store.notifications, currentUser.id]);
 
+  const handleConfirmOrder = async (tid: number, nid: string) => {
+    await store.confirmTableOrders(tid, nid);
+  };
+
+  const handleServeItem = async (tid: number, oid: string, nid: string) => {
+    await store.serveOrderItem(tid, oid, nid);
+  };
+
   const handlePlaceStaffOrder = async () => {
     if (selectedTableId === null) return alert("Vui lòng chọn bàn!");
     if (Object.keys(cart).length === 0) return alert("Vui lòng chọn món!");
@@ -54,11 +63,35 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
     try {
       await store.placeOrder(selectedTableId, newItems, selectedTableId === 0 ? OrderType.TAKEAWAY : OrderType.DINE_IN);
       setCart({}); setSelectedTableId(null); setActiveTab('TABLES');
-    } catch (e) { alert("Lỗi đặt đơn!"); }
+    } catch (e: any) { alert(e.message || "Lỗi đặt đơn!"); }
+  };
+
+  const updateCartItem = (id: string, qty: number) => {
+    setCart(prev => {
+        const newCart = { ...prev };
+        if (qty <= 0) delete newCart[id];
+        else {
+            const existing = prev[id] as { qty: number, note: string } | undefined;
+            newCart[id] = { qty, note: existing?.note || '' };
+        }
+        return newCart;
+    });
+  };
+
+  const getTableLink = (t: Table) => {
+    const baseUrl = window.location.origin + window.location.pathname;
+    return `${baseUrl}#/table/${t.id}/${t.sessionToken}`;
+  };
+
+  const getQrUrl = (t: Table) => {
+    const link = getTableLink(t);
+    return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(link)}`;
   };
 
   return (
     <div className="flex flex-col h-full max-w-full overflow-hidden animate-fadeIn pb-12">
+      <ConfirmModal isOpen={showBillTableId !== null} title={`Tính tiền Bàn ${showBillTableId}`} message="Xác nhận gửi thông tin hóa đơn cho khách?" onConfirm={() => { if(showBillTableId !== null) store.confirmPayment(showBillTableId); setShowBillTableId(null); }} onCancel={() => setShowBillTableId(null)} />
+
       <div className="bg-white px-5 py-3 border-b border-slate-100 flex justify-between items-center shrink-0">
          <div className="flex items-center gap-3">
            <div className="w-10 h-10 bg-slate-900 text-white rounded-xl flex items-center justify-center font-black italic shadow-lg">S</div>
@@ -88,11 +121,165 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
                 <section className="bg-slate-900 text-white rounded-[2rem] p-5 shadow-xl border border-white/5 animate-slideUp">
                     <div className="flex items-center gap-2 mb-4">
                         <Bell size={16} className="text-orange-500 animate-bounce" />
-                        <h4 className="text-[10px] font-black uppercase italic tracking-widest text-slate-400">Thông báo ({myNotifications.length})</h4>
+                        <h4 className="text-[10px] font-black uppercase italic tracking-widest text-slate-400">Cần xử lý ({myNotifications.length})</h4>
+                    </div>
+                    <div className="space-y-2.5">
+                        {myNotifications.map((n: AppNotification) => (
+                            <div key={n.id} className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10 gap-3">
+                                <div className="flex items-center gap-3 min-w-0">
+                                    <div className="truncate">
+                                        <p className="text-[10px] font-black uppercase truncate mb-0.5">{n.title}</p>
+                                        <p className="text-[8px] text-slate-400 italic truncate">{n.message}</p>
+                                    </div>
+                                </div>
+                                <div className="flex gap-1.5">
+                                    {n.type === 'order' && <button onClick={() => handleConfirmOrder(n.payload?.tableId, n.id)} className="px-3 py-2 bg-blue-500 text-white rounded-lg text-[8px] font-black uppercase italic">Duyệt</button>}
+                                    {n.type === 'kitchen' && n.payload?.itemId && (
+                                       <button onClick={() => handleServeItem(n.payload?.tableId, n.payload?.itemId, n.id)} className="px-3 py-2 bg-green-500 text-white rounded-lg text-[8px] font-black uppercase italic">Bưng</button>
+                                    )}
+                                    <button onClick={() => store.deleteNotification(n.id)} className="p-2 bg-white/10 rounded-lg"><X size={14} /></button>
+                                </div>
+                            </div>
+                        ))}
                     </div>
                 </section>
             )}
+
+            <div className="grid grid-cols-3 gap-3">
+                {visibleTables.map((t: Table) => (
+                    <div key={t.id} onClick={() => { 
+                        if (t.qrRequested) return;
+                        if (t.status === TableStatus.AVAILABLE) store.requestTableQr(t.id, currentUser.id).catch(() => alert("Bạn đã phục vụ tối đa 3 bàn!"));
+                        else if (t.status === TableStatus.CLEANING) store.setTableEmpty(t.id);
+                        else setQuickActionTable(t);
+                    }} className={`p-4 rounded-3xl border-2 flex flex-col items-center justify-center gap-2 transition-all relative h-28 ${
+                      t.qrRequested 
+                      ? 'border-orange-500 bg-orange-50 text-orange-600 animate-pulse'
+                      : t.status === TableStatus.AVAILABLE 
+                      ? 'border-dashed border-slate-200 bg-white' 
+                      : t.status === TableStatus.CLEANING 
+                      ? 'border-emerald-500 bg-emerald-50 text-emerald-600' 
+                      : 'border-slate-800 bg-slate-900 text-white shadow-md'
+                    }`}>
+                        <span className="text-[10px] font-black uppercase italic">{t.id === 0 ? 'LẺ' : 'BÀN '+t.id}</span>
+                        {t.qrRequested ? <Loader2 size={20} className="animate-spin" /> :
+                         t.status === TableStatus.AVAILABLE ? <PlusCircle size={20} className="text-slate-300"/> : 
+                         t.status === TableStatus.CLEANING ? <Sparkles size={20} className="text-emerald-500"/> :
+                         <Utensils size={20} className="text-orange-500"/>}
+                        
+                        <span className="text-[8px] font-black uppercase tracking-tighter absolute bottom-2">
+                            {t.qrRequested ? 'Đang chờ QR...' : t.status === TableStatus.CLEANING ? 'Bấm để dọn xong' : ''}
+                        </span>
+                    </div>
+                ))}
+            </div>
           </div>
+        )}
+
+        {quickActionTable && (
+           <div className="fixed inset-0 z-[250] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 animate-fadeIn">
+              <div className="bg-white w-full max-sm:max-w-[90%] max-w-sm rounded-[2.5rem] p-8 shadow-2xl animate-scaleIn">
+                 <h3 className="text-lg font-black uppercase italic mb-6 text-center">Bàn số {quickActionTable.id}</h3>
+                 <div className="grid grid-cols-1 gap-3">
+                    <button onClick={() => { setShowQrModal(quickActionTable); setQuickActionTable(null); }} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-2 italic"><QrCode size={16}/> Xem mã QR</button>
+                    <button onClick={() => { setSelectedTableId(quickActionTable.id); setActiveTab('ORDER'); setQuickActionTable(null); }} className="w-full py-4 bg-orange-500 text-white rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-2 italic"><PlusCircle size={16}/> Thêm món mới</button>
+                    <div className="grid grid-cols-2 gap-3">
+                       <button onClick={() => { setMoveRequest({fromId: quickActionTable.id, mode: 'MOVE'}); setQuickActionTable(null); }} className="py-4 bg-blue-500 text-white rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-2 italic"><MoveHorizontal size={16}/> Chuyển bàn</button>
+                       <button onClick={() => { setMoveRequest({fromId: quickActionTable.id, mode: 'MERGE'}); setQuickActionTable(null); }} className="py-4 bg-purple-500 text-white rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-2 italic"><Merge size={16}/> Gộp bàn</button>
+                    </div>
+                    {quickActionTable.status === TableStatus.PAYING && (
+                       <button onClick={() => { setShowBillTableId(quickActionTable.id); setQuickActionTable(null); }} className="w-full py-4 bg-green-500 text-white rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-2 italic"><CheckCheck size={16}/> Xác nhận tính tiền</button>
+                    )}
+                    <button onClick={() => setQuickActionTable(null)} className="w-full py-4 bg-slate-50 text-slate-400 rounded-2xl font-black uppercase text-[10px]">Đóng</button>
+                 </div>
+              </div>
+           </div>
+        )}
+
+        {moveRequest && (
+           <div className="fixed inset-0 z-[400] bg-slate-900/80 backdrop-blur-xl flex items-center justify-center p-6 animate-fadeIn">
+              <div className="bg-white w-full max-w-sm rounded-[3rem] p-10 shadow-2xl animate-scaleIn">
+                  <h3 className="text-xl font-black uppercase italic text-slate-800 mb-2 text-center">{moveRequest.mode === 'MOVE' ? 'Chọn bàn trống' : 'Chọn bàn muốn gộp'}</h3>
+                  <div className="grid grid-cols-3 gap-3 mb-8 max-h-60 overflow-y-auto p-2 no-scrollbar">
+                     {ensureArray<Table>(store.tables).filter(t => {
+                        if(t.id === 0 || t.id === moveRequest.fromId) return false;
+                        if(moveRequest.mode === 'MOVE') return t.status === TableStatus.AVAILABLE;
+                        return t.status === TableStatus.OCCUPIED || t.status === TableStatus.PAYING;
+                     }).map(t => (
+                        <button key={t.id} onClick={() => { store.requestTableMove(moveRequest.fromId, t.id, currentUser.id); setMoveRequest(null); alert("Đã gửi yêu cầu tới Quản lý!"); }} className="p-4 bg-slate-50 rounded-2xl border-2 border-slate-100 font-black text-xs hover:border-slate-800 transition-all">Bàn {t.id}</button>
+                     ))}
+                  </div>
+                  <button onClick={() => setMoveRequest(null)} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px]">Hủy bỏ</button>
+              </div>
+           </div>
+        )}
+
+        {showQrModal && (
+          <div className="fixed inset-0 z-[300] bg-slate-900/90 backdrop-blur-xl flex items-center justify-center p-6 animate-fadeIn">
+            <div className="bg-white w-full max-sm:max-w-[95%] max-w-sm rounded-[3rem] p-10 text-center shadow-2xl animate-scaleIn">
+               <h3 className="text-xl font-black uppercase italic text-slate-800 mb-6">Mã QR Bàn {showQrModal.id}</h3>
+               <div className="bg-white p-4 rounded-3xl mb-8 flex flex-col items-center gap-4 border-4 border-slate-100 shadow-inner">
+                  <img src={getQrUrl(showQrModal)} alt="Table QR" className="w-64 h-64 rounded-xl" />
+                  <p className="text-[8px] font-bold text-slate-300 break-all p-3 bg-slate-50 rounded-xl w-full">{getTableLink(showQrModal)}</p>
+               </div>
+               <div className="flex flex-col gap-3">
+                 <button onClick={() => { navigator.clipboard.writeText(getTableLink(showQrModal)); alert("Đã copy link!"); }} className="py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] italic">Copy Link Bàn</button>
+                 <button onClick={() => setShowQrModal(null)} className="py-4 bg-slate-100 text-slate-400 rounded-2xl font-black uppercase text-[10px]">Đóng</button>
+               </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'ORDER' && (
+            <div className="flex flex-col h-full p-4">
+                <div className="bg-white p-3 rounded-2xl mb-4 border border-slate-200 flex items-center gap-3">
+                    <Search size={16} className="text-slate-400"/>
+                    <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Tìm món ăn..." className="bg-transparent border-none outline-none font-bold text-xs uppercase w-full"/>
+                </div>
+                <div className="flex-1 overflow-y-auto no-scrollbar grid grid-cols-2 gap-3 mb-24">
+                    {ensureArray<MenuItem>(store.menu).filter(m => m.name.toLowerCase().includes(searchTerm.toLowerCase())).map((item: MenuItem) => (
+                        <div key={item.id} className="bg-white p-3 rounded-2xl border border-slate-200 flex flex-col gap-2">
+                            <img src={item.image} className="w-full h-24 rounded-xl object-cover"/>
+                            <h4 className="text-[10px] font-black uppercase truncate">{item.name}</h4>
+                            <div className="flex justify-between items-center">
+                                <span className="text-[10px] font-black text-orange-600">{item.price.toLocaleString()}đ</span>
+                                <div className="flex items-center gap-2">
+                                    {cart[item.id] && <button onClick={() => updateCartItem(item.id, (cart[item.id].qty - 1))} className="w-6 h-6 bg-slate-100 rounded-md font-black">-</button>}
+                                    {cart[item.id] && <span className="text-[10px] font-black">{cart[item.id].qty}</span>}
+                                    <button onClick={() => updateCartItem(item.id, (cart[item.id]?.qty || 0) + 1)} className="w-6 h-6 bg-slate-900 text-white rounded-md font-black">+</button>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+                <div className="fixed bottom-16 left-4 right-4 bg-slate-900 text-white p-5 rounded-2xl shadow-2xl z-50">
+                    <div className="flex justify-between items-center mb-4">
+                        <select value={selectedTableId ?? ''} onChange={e => setSelectedTableId(parseInt(e.target.value))} className="bg-white/10 border-none outline-none font-black text-[10px] uppercase p-2 rounded-xl">
+                            <option value="">Chọn bàn</option>
+                            {store.tables.filter((t: any) => t.status !== TableStatus.AVAILABLE).map((t: any) => <option key={t.id} value={t.id}>{t.id === 0 ? 'Khách lẻ' : 'Bàn ' + t.id}</option>)}
+                        </select>
+                        <span className="text-xs font-black italic">{(Object.values(cart) as {qty:number}[]).reduce((s,d)=>s+d.qty,0)} món</span>
+                    </div>
+                    <button onClick={handlePlaceStaffOrder} className="w-full py-4 bg-orange-500 rounded-xl font-black uppercase text-[10px] italic shadow-lg active:scale-95 transition-all">Đặt món ngay</button>
+                </div>
+            </div>
+        )}
+
+        {activeTab === 'PAYMENTS' && (
+            <div className="p-4 space-y-4 overflow-y-auto no-scrollbar">
+                {visibleTables.filter(t => t.status !== TableStatus.AVAILABLE && t.status !== TableStatus.CLEANING).map(t => (
+                    <div key={t.id} onClick={() => setShowBillTableId(t.id)} className="bg-white p-4 rounded-2xl border border-slate-200 flex justify-between items-center cursor-pointer">
+                        <div>
+                            <p className="text-[10px] font-black uppercase text-slate-800 italic">Bàn {t.id === 0 ? 'Lẻ' : t.id}</p>
+                            <p className="text-[8px] font-bold text-slate-400 uppercase">{t.status}</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                             <span className="text-[11px] font-black text-slate-900">{ensureArray<OrderItem>(t.currentOrders).filter(o=>o.status!==OrderItemStatus.CANCELLED).reduce((s,o)=>s+(o.price*o.quantity),0).toLocaleString()}đ</span>
+                             <ChevronRight size={16} className="text-slate-300"/>
+                        </div>
+                    </div>
+                ))}
+            </div>
         )}
       </div>
     </div>
