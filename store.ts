@@ -256,8 +256,9 @@ export const useRestaurantStore = () => {
     },
 
     updateOrderItemStatus: async (tid: number, oid: string, s: OrderItemStatus) => {
-      const nt = tables.map(t => t.id === tid ? { ...t, currentOrders: t.currentOrders.map(o => o.id === oid ? { ...o, status: s } : o) } : t);
       const targetTable = tables.find(t => t.id === tid);
+      const nt = tables.map(t => t.id === tid ? { ...t, currentOrders: t.currentOrders.map(o => o.id === oid ? { ...o, status: s } : o) } : t);
+      
       if (s === OrderItemStatus.READY) {
         const item = targetTable?.currentOrders.find(o => o.id === oid);
         const staffNotif: AppNotification = {
@@ -343,7 +344,8 @@ export const useRestaurantStore = () => {
     },
 
     completeBilling: async (tid: number) => {
-      const nt = tables.map(t => t.id === tid ? { ...t, status: TableStatus.AVAILABLE, currentOrders: [], claimedBy: null, sessionToken: null } : t);
+      // Chuyển sang REVIEWING để bắt khách đánh giá, thay vì AVAILABLE ngay lập tức
+      const nt = tables.map(t => t.id === tid ? { ...t, status: TableStatus.REVIEWING } : t);
       await pushToCloud({ tables: nt });
     },
 
@@ -354,6 +356,7 @@ export const useRestaurantStore = () => {
 
     submitReview: async (review: Review) => {
       const nr = [review, ...reviews];
+      // Sau khi đánh giá xong mới dọn bàn thực sự
       const nt = tables.map(t => t.id === review.tableId ? { ...t, status: TableStatus.AVAILABLE, currentOrders: [], claimedBy: null, sessionToken: null } : t);
       await pushToCloud({ reviews: nr, tables: nt });
     },
