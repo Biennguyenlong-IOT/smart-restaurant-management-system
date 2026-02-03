@@ -3,7 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { OrderItem, OrderItemStatus, TableStatus, UserRole, Table, OrderType, MenuItem, AppNotification, User } from '../types.ts';
 import { ConfirmModal } from '../App.tsx';
 import { CATEGORIES } from '../constants';
-import { PlusCircle, Utensils, Search, X, Bell, Trash2, ChevronRight, QrCode, LogOut, CheckCheck } from 'lucide-react';
+import { PlusCircle, Utensils, Search, X, Bell, Trash2, ChevronRight, QrCode, LogOut, CheckCheck, MoveHorizontal, Merge } from 'lucide-react';
 import { ensureArray } from '../store.ts';
 
 interface StaffViewProps { store: any; currentUser: User; }
@@ -16,6 +16,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
   const [showBillTableId, setShowBillTableId] = useState<number | null>(null);
   const [quickActionTable, setQuickActionTable] = useState<Table | null>(null);
   const [showQrModal, setShowQrModal] = useState<Table | null>(null);
+  const [moveRequest, setMoveRequest] = useState<{fromId: number, mode: 'MOVE' | 'MERGE'} | null>(null);
 
   const activeTableCount = useMemo(() => 
     ensureArray<Table>(store.tables).filter((t: Table) => t.claimedBy === currentUser.id && t.id !== 0 && t.status !== TableStatus.AVAILABLE).length
@@ -72,6 +73,11 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
   const getTableLink = (t: Table) => {
     const baseUrl = window.location.origin + window.location.pathname;
     return `${baseUrl}#/table/${t.id}/${t.sessionToken}`;
+  };
+
+  const getQrUrl = (t: Table) => {
+    const link = getTableLink(t);
+    return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(link)}`;
   };
 
   return (
@@ -163,6 +169,12 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
                  <div className="grid grid-cols-1 gap-3">
                     <button onClick={() => { setShowQrModal(quickActionTable); setQuickActionTable(null); }} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-2 italic"><QrCode size={16}/> Xem mã QR</button>
                     <button onClick={() => { setSelectedTableId(quickActionTable.id); setActiveTab('ORDER'); setQuickActionTable(null); }} className="w-full py-4 bg-orange-500 text-white rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-2 italic"><PlusCircle size={16}/> Thêm món mới</button>
+                    
+                    <div className="grid grid-cols-2 gap-3">
+                       <button onClick={() => { setMoveRequest({fromId: quickActionTable.id, mode: 'MOVE'}); setQuickActionTable(null); }} className="py-4 bg-blue-500 text-white rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-2 italic"><MoveHorizontal size={16}/> Chuyển bàn</button>
+                       <button onClick={() => { setMoveRequest({fromId: quickActionTable.id, mode: 'MERGE'}); setQuickActionTable(null); }} className="py-4 bg-purple-500 text-white rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-2 italic"><Merge size={16}/> Gộp bàn</button>
+                    </div>
+
                     {quickActionTable.status === TableStatus.PAYING && (
                        <button onClick={() => { setShowBillTableId(quickActionTable.id); setQuickActionTable(null); }} className="w-full py-4 bg-green-500 text-white rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-2 italic"><CheckCheck size={16}/> Xác nhận tính tiền</button>
                     )}
@@ -172,14 +184,33 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
            </div>
         )}
 
-        {/* Modal xem QR */}
+        {/* Modal chọn bàn Chuyển/Gộp */}
+        {moveRequest && (
+           <div className="fixed inset-0 z-[400] bg-slate-900/80 backdrop-blur-xl flex items-center justify-center p-6 animate-fadeIn">
+              <div className="bg-white w-full max-w-sm rounded-[3rem] p-10 shadow-2xl animate-scaleIn">
+                  <h3 className="text-xl font-black uppercase italic text-slate-800 mb-2 text-center">{moveRequest.mode === 'MOVE' ? 'Chọn bàn trống' : 'Chọn bàn muốn gộp'}</h3>
+                  <p className="text-[10px] text-slate-400 font-bold text-center mb-8 uppercase tracking-widest">Từ bàn {moveRequest.fromId}</p>
+                  <div className="grid grid-cols-3 gap-3 mb-8 max-h-60 overflow-y-auto p-2 no-scrollbar">
+                     {ensureArray<Table>(store.tables).filter(t => {
+                        if(t.id === 0 || t.id === moveRequest.fromId) return false;
+                        return moveRequest.mode === 'MOVE' ? t.status === TableStatus.AVAILABLE : t.status === TableStatus.OCCUPIED;
+                     }).map(t => (
+                        <button key={t.id} onClick={() => { store.requestTableMove(moveRequest.fromId, t.id, currentUser.id); setMoveRequest(null); alert("Đã gửi yêu cầu tới Quản lý!"); }} className="p-4 bg-slate-50 rounded-2xl border-2 border-slate-100 font-black text-xs hover:border-slate-800 transition-all">Bàn {t.id}</button>
+                     ))}
+                  </div>
+                  <button onClick={() => setMoveRequest(null)} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px]">Hủy bỏ</button>
+              </div>
+           </div>
+        )}
+
+        {/* Modal xem QR QUÉT ĐƯỢC */}
         {showQrModal && (
           <div className="fixed inset-0 z-[300] bg-slate-900/90 backdrop-blur-xl flex items-center justify-center p-6 animate-fadeIn">
             <div className="bg-white w-full max-sm:max-w-[95%] max-w-sm rounded-[3rem] p-10 text-center shadow-2xl animate-scaleIn">
                <h3 className="text-xl font-black uppercase italic text-slate-800 mb-6">Mã QR Bàn {showQrModal.id}</h3>
-               <div className="bg-slate-50 p-6 rounded-3xl mb-8 flex flex-col items-center gap-4 border-2 border-dashed border-slate-200">
-                  <QrCode size={140} className="text-slate-800" />
-                  <p className="text-[8px] font-bold text-slate-300 break-all bg-white p-3 rounded-xl border border-slate-100">{getTableLink(showQrModal)}</p>
+               <div className="bg-white p-4 rounded-3xl mb-8 flex flex-col items-center gap-4 border-4 border-slate-100 shadow-inner">
+                  <img src={getQrUrl(showQrModal)} alt="Table QR" className="w-64 h-64 rounded-xl" />
+                  <p className="text-[8px] font-bold text-slate-300 break-all p-3 bg-slate-50 rounded-xl w-full">{getTableLink(showQrModal)}</p>
                </div>
                <div className="flex flex-col gap-3">
                  <button onClick={() => { navigator.clipboard.writeText(getTableLink(showQrModal)); alert("Đã copy link!"); }} className="py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] italic">Copy Link Bàn</button>
