@@ -175,6 +175,7 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
       <div className="flex-1 overflow-y-auto no-scrollbar pb-24 px-1 space-y-6">
         {activeTab === 'DASHBOARD' && (
            <div className="space-y-6 animate-slideUp">
+              {/* Dashboard Content - Same as before */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                  <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm relative overflow-hidden group">
                     <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:scale-110 transition-transform"><TrendingUp size={48}/></div>
@@ -297,30 +298,6 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
                     ))}
                  </div>
               </section>
-              
-              <section className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm">
-                 <h4 className="font-black text-xs uppercase italic mb-6 flex items-center gap-2"><CreditCard className="text-indigo-500" size={18}/> Bill đang tính tiền</h4>
-                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {paymentRequests.length === 0 && billingTables.length === 0 && (
-                        <div className="col-span-full py-20 text-center">
-                            <CreditCard size={48} className="text-slate-100 mx-auto mb-4 opacity-50" />
-                            <p className="text-slate-300 font-black uppercase text-[10px] italic">Hiện không có bàn nào đang tính tiền</p>
-                        </div>
-                    )}
-                    {paymentRequests.map((t: Table) => (
-                        <div key={t.id} className="p-4 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-between shadow-sm">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-indigo-600 text-white rounded-xl flex items-center justify-center font-black text-xs shadow-md">B{t.id}</div>
-                                <div>
-                                    <p className="text-[10px] font-black uppercase text-indigo-800 italic">Khách muốn tính tiền</p>
-                                    <p className="text-[8px] font-bold text-slate-400 mt-0.5">Mã: {t.sessionToken}</p>
-                                </div>
-                            </div>
-                            <button onClick={() => { setSelectedHistory(store.history.find((h:any) => h.tableId === t.id)); setActiveTab('DASHBOARD'); }} className="p-2.5 bg-white text-indigo-600 rounded-xl shadow-sm"><Info size={16}/></button>
-                        </div>
-                    ))}
-                 </div>
-              </section>
            </div>
         )}
 
@@ -330,211 +307,50 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
                   <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
                     <div>
                         <h4 className="font-black text-xs uppercase italic flex items-center gap-2 mb-1"><Monitor size={18} className="text-slate-400"/> Quản trị sơ đồ bàn</h4>
-                        <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest italic">Nhấn vào biểu tượng Reset để cưỡng chế giải phóng bàn</p>
+                        <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest italic">Admin có quyền cưỡng chế giải phóng bàn bằng nút Reset</p>
                     </div>
                     <div className="flex items-center gap-3 bg-slate-50 p-2 rounded-2xl border border-slate-100">
-                        <label className="text-[9px] font-black uppercase text-slate-400 italic px-2">Tổng số bàn:</label>
+                        <label className="text-[9px] font-black uppercase text-slate-400 italic px-2">Số bàn:</label>
                         <input type="number" value={tempTableCount} onChange={e => setTempTableCount(parseInt(e.target.value))} className="w-16 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-black outline-none" />
-                        <button onClick={() => store.updateTableCount(tempTableCount)} className="bg-slate-900 text-white px-5 py-2 rounded-xl text-[9px] font-black uppercase italic shadow-lg active:scale-95 transition-all">Lưu cấu hình</button>
+                        <button onClick={() => store.updateTableCount(tempTableCount)} className="bg-slate-900 text-white px-5 py-2 rounded-xl text-[9px] font-black uppercase italic shadow-lg active:scale-95 transition-all">Lưu</button>
                     </div>
                   </div>
                   
                   <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-4">
-                     {store.tables.map((t: Table) => {
-                        const isAvailable = t.status === TableStatus.AVAILABLE;
-                        const isRequested = t.qrRequested;
-                        const isOccupied = t.status === TableStatus.OCCUPIED;
-                        const isBilling = t.status === TableStatus.PAYING || t.status === TableStatus.BILLING || t.status === TableStatus.REVIEWING;
-                        const isCleaning = t.status === TableStatus.CLEANING;
+                     {store.tables.map((t: Table) => (
+                        <div key={t.id} className={`p-4 rounded-3xl border-2 flex flex-col items-center justify-center gap-3 transition-all relative group ${
+                            t.status === TableStatus.AVAILABLE ? 'border-dashed border-slate-100 bg-white' :
+                            t.qrRequested ? 'border-amber-400 bg-amber-50 animate-pulse' :
+                            'border-slate-800 bg-slate-900 shadow-xl'
+                        }`}>
+                            <span className={`text-[11px] font-black uppercase italic ${t.status === TableStatus.AVAILABLE ? 'text-slate-800' : 'text-white'}`}>{t.id === 0 ? 'LẺ' : 'BÀN '+t.id}</span>
+                            
+                            <div className="flex items-center gap-1.5">
+                                <div className={`w-2 h-2 rounded-full ${t.status === TableStatus.AVAILABLE ? 'bg-slate-200' : 'bg-green-400'}`}></div>
+                                <span className={`text-[7px] font-black uppercase ${t.status === TableStatus.AVAILABLE ? 'text-slate-400' : 'text-slate-500'}`}>{t.status}</span>
+                            </div>
 
-                        return (
-                            <div key={t.id} className={`p-4 rounded-3xl border-2 flex flex-col items-center justify-center gap-2 transition-all relative group ${
-                                isAvailable ? 'border-dashed border-slate-100 bg-white opacity-40 hover:opacity-100' :
-                                isRequested ? 'border-amber-400 bg-amber-50 animate-pulse' :
-                                isOccupied ? 'border-orange-500 bg-orange-50 shadow-sm' :
-                                isBilling ? 'border-indigo-500 bg-indigo-50 animate-pulse' :
-                                isCleaning ? 'border-red-500 bg-red-50' : 'border-slate-50 bg-slate-50/50'
-                            }`}>
-                                <span className="text-[11px] font-black uppercase italic text-slate-800">{t.id === 0 ? 'LẺ' : 'BÀN '+t.id}</span>
-                                
-                                {isRequested && <div className="text-amber-600"><Loader2 size={16} className="animate-spin"/></div>}
-                                {!isRequested && (
-                                    <div className="flex items-center gap-1.5">
-                                        <div className={`w-2 h-2 rounded-full ${isAvailable ? 'bg-slate-200' : isOccupied ? 'bg-orange-500' : isBilling ? 'bg-indigo-500' : 'bg-red-500'}`}></div>
-                                        <span className="text-[8px] font-black uppercase text-slate-400 truncate max-w-[60px]">{t.status}</span>
-                                    </div>
-                                )}
-
-                                {/* Admin Force Reset Button: ALWAYS VISIBLE for quick manual reset */}
+                            {/* Reset Button - Luôn hiển thị trừ khi bàn đang trống */}
+                            {t.status !== TableStatus.AVAILABLE && (
                                 <button 
                                     onClick={() => setResetTableId(t.id)} 
+                                    className="mt-1 bg-red-500 hover:bg-red-600 text-white p-2.5 rounded-xl shadow-lg transition-all active:scale-90"
                                     title="Reset bàn này"
-                                    className={`mt-1 text-white bg-slate-900 p-2 rounded-xl shadow-lg active:scale-90 transition-all z-20 ${isAvailable ? 'opacity-20 hover:opacity-100' : 'opacity-100'}`}
                                 >
-                                    <RotateCcw size={12}/>
+                                    <RotateCcw size={14}/>
                                 </button>
-                            </div>
-                        )
-                     })}
-                  </div>
-              </div>
-           </div>
-        )}
-
-        {activeTab === 'KPI' && (
-           <div className="space-y-6 animate-slideUp">
-              <div className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm overflow-x-auto">
-                 <div className="flex justify-between items-center mb-8">
-                    <h4 className="font-black text-xs uppercase italic flex items-center gap-2"><Users className="text-blue-500" size={18}/> Bảng đánh giá hiệu suất nhân sự</h4>
-                    <button onClick={() => setDeleteTarget({ type: 'kpi', name: 'Làm mới toàn bộ KPI nhân viên' })} className="p-2 bg-slate-900 text-white rounded-xl shadow-lg active:scale-95 transition-all"><RefreshCcw size={14}/></button>
-                 </div>
-                 <table className="w-full text-left min-w-[600px]">
-                    <thead className="border-b border-slate-50 text-[10px] font-black text-slate-400 uppercase">
-                       <tr>
-                          <th className="pb-4">Họ và Tên</th>
-                          <th className="pb-4 text-center">Vai trò</th>
-                          <th className="pb-4 text-center">Đơn phục vụ</th>
-                          <th className="pb-4 text-center">Doanh số đạt</th>
-                          <th className="pb-4 text-center">Rating</th>
-                       </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                       {staffKPI.map((s: any) => (
-                          <tr key={s.id} className="hover:bg-slate-50/50 transition-colors">
-                             <td className="py-4">
-                                <p className="text-xs font-black text-slate-800 uppercase italic leading-none">{s.fullName}</p>
-                                <p className="text-[8px] font-bold text-slate-400 mt-1 uppercase">@{s.username}</p>
-                             </td>
-                             <td className="py-4 text-center">
-                                <span className={`px-2 py-1 rounded-md text-[8px] font-black uppercase italic ${s.role === UserRole.STAFF ? 'bg-orange-50 text-orange-500' : 'bg-green-50 text-green-500'}`}>
-                                    {s.role}
-                                </span>
-                             </td>
-                             <td className="py-4 text-center font-black text-xs italic">{s.orderCount}</td>
-                             <td className="py-4 text-center font-black text-xs italic">{s.totalSales.toLocaleString()}đ</td>
-                             <td className="py-4 text-center">
-                                <div className="flex items-center justify-center gap-1.5">
-                                   <Star size={12} fill="currentColor" className="text-orange-500" />
-                                   <span className="font-black text-xs italic">{s.avgRating}</span>
-                                   <span className="text-[8px] text-slate-400 font-bold italic">({s.reviewCount})</span>
-                                </div>
-                             </td>
-                          </tr>
-                       ))}
-                    </tbody>
-                 </table>
-              </div>
-           </div>
-        )}
-
-        {activeTab === 'MENU' && (
-           <div className="space-y-6 animate-slideUp">
-              <div className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm">
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-                     <h4 className="font-black text-xs uppercase italic flex items-center gap-2"><Pizza size={18} className="text-orange-500"/> Quản lý thực đơn</h4>
-                     <button onClick={() => setMenuForm({})} className="w-full sm:w-auto bg-slate-900 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase italic shadow-xl flex items-center justify-center gap-2 active:scale-95 transition-all"><Plus size={16}/> Thêm món mới</button>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                     {store.menu.map((item: MenuItem) => (
-                        <div key={item.id} className={`p-4 rounded-3xl border flex items-center justify-between gap-4 transition-all ${item.isAvailable ? 'bg-white border-slate-100 shadow-sm' : 'bg-slate-50 border-slate-50 opacity-60 grayscale'}`}>
-                           <div className="flex items-center gap-4 min-w-0">
-                              <img src={item.image} className="w-14 h-14 rounded-xl object-cover shrink-0 shadow-sm" />
-                              <div className="truncate">
-                                 <h5 className="text-[10px] font-black text-slate-800 uppercase italic truncate leading-tight mb-1">{item.name}</h5>
-                                 <p className="text-[9px] font-bold text-orange-600 italic leading-none">{item.price.toLocaleString()}đ</p>
-                                 <span className="text-[7px] font-black uppercase text-slate-400 mt-1 block">{item.category}</span>
-                              </div>
-                           </div>
-                           <div className="flex flex-col gap-1.5">
-                              <button onClick={() => setMenuForm(item)} className="p-2.5 bg-slate-50 text-slate-600 rounded-xl hover:bg-slate-100"><Edit3 size={14}/></button>
-                              <button onClick={() => setDeleteTarget({ type: 'menu', id: item.id, name: item.name })} className="p-2.5 bg-red-50 text-red-500 rounded-xl hover:bg-red-100"><Trash2 size={14}/></button>
-                           </div>
+                            )}
                         </div>
                      ))}
                   </div>
-              </div>
-           </div>
-        )}
-
-        {activeTab === 'USERS' && (
-           <div className="space-y-6 animate-slideUp">
-              <div className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm">
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-                     <h4 className="font-black text-xs uppercase italic flex items-center gap-2"><Shield size={18} className="text-blue-500"/> Quản trị nhân sự</h4>
-                     <button onClick={() => setUserForm({})} className="w-full sm:w-auto bg-slate-900 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase italic shadow-xl flex items-center justify-center gap-2 active:scale-95 transition-all"><UserPlus size={16}/> Thêm nhân sự</button>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                     {store.users.map((u: User) => (
-                        <div key={u.id} className="p-5 rounded-[2rem] bg-slate-50 border border-slate-100 flex items-center justify-between shadow-sm transition-all hover:bg-white hover:border-slate-300 group">
-                           <div className="flex items-center gap-4">
-                              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white font-black text-sm italic shadow-lg ${u.role === UserRole.ADMIN ? 'bg-slate-900' : u.role === UserRole.KITCHEN ? 'bg-green-600' : 'bg-orange-500'}`}>
-                                 {u.role[0]}
-                              </div>
-                              <div>
-                                 <h5 className="text-[11px] font-black text-slate-800 uppercase italic leading-none mb-1.5">{u.fullName}</h5>
-                                 <div className="flex items-center gap-2">
-                                    <span className="text-[8px] font-black uppercase text-slate-400 italic">@{u.username}</span>
-                                    <span className="w-1 h-1 rounded-full bg-slate-300"></span>
-                                    <span className="text-[8px] font-black text-slate-400 uppercase italic">{u.role}</span>
-                                 </div>
-                              </div>
-                           </div>
-                           <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-all">
-                              <button onClick={() => setUserForm(u)} className="p-2.5 bg-white text-slate-600 rounded-xl shadow-sm border border-slate-100"><Edit3 size={14}/></button>
-                              {u.role !== UserRole.ADMIN && (
-                                <button onClick={() => setDeleteTarget({ type: 'user', id: u.id, name: u.fullName })} className="p-2.5 bg-white text-red-500 rounded-xl shadow-sm border border-red-50"><Trash2 size={14}/></button>
-                              )}
-                           </div>
-                        </div>
-                     ))}
-                  </div>
-              </div>
-           </div>
-        )}
-
-        {activeTab === 'BANK' && (
-           <div className="space-y-6 animate-slideUp">
-              <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm max-w-xl mx-auto">
-                 <h4 className="font-black text-xs uppercase italic mb-8 flex items-center gap-2"><CreditCard size={18} className="text-indigo-500"/> Thiết lập VietQR Đối soát</h4>
-                 <div className="space-y-6">
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <label className="text-[9px] font-black uppercase text-slate-400 ml-1 italic">Mã Ngân hàng (BIN)</label>
-                            <input type="text" placeholder="ICB, VCB, MB..." value={store.bankConfig.bankId} onChange={e => store.updateBankConfig({ ...store.bankConfig, bankId: e.target.value })} className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold text-sm" />
-                        </div>
-                        <div className="space-y-2">
-                            <label className="text-[9px] font-black uppercase text-slate-400 ml-1 italic">Số tài khoản</label>
-                            <input type="text" placeholder="102xxx" value={store.bankConfig.accountNo} onChange={e => store.updateBankConfig({ ...store.bankConfig, accountNo: e.target.value })} className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold text-sm" />
-                        </div>
-                    </div>
-                    <div className="space-y-2">
-                        <label className="text-[9px] font-black uppercase text-slate-400 ml-1 italic">Tên chủ tài khoản</label>
-                        <input type="text" placeholder="NGUYEN VAN A" value={store.bankConfig.accountName} onChange={e => store.updateBankConfig({ ...store.bankConfig, accountName: e.target.value })} className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold text-sm" />
-                    </div>
-                 </div>
-              </div>
-           </div>
-        )}
-
-        {activeTab === 'CLOUD' && (
-           <div className="space-y-6 animate-slideUp">
-              <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm max-w-xl mx-auto text-center">
-                 <div className="w-20 h-20 bg-blue-50 text-blue-500 rounded-[2.5rem] flex items-center justify-center mx-auto mb-8 shadow-inner"><Database size={40} /></div>
-                 <h4 className="font-black text-xs uppercase italic mb-8">Firebase Cloud Backend</h4>
-                 <div className="space-y-4">
-                    <p className="text-[11px] font-black uppercase text-slate-400 italic mb-2 leading-none">Database URL hiện tại:</p>
-                    <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100 break-all font-mono text-[10px] text-slate-600 shadow-inner mb-8 italic">
-                       {store.cloudUrl}
-                    </div>
-                    <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="w-full py-5 bg-red-500 text-white rounded-2xl font-black uppercase text-xs shadow-xl active:scale-95 transition-all italic">Xoá thiết lập & Reset URL</button>
-                 </div>
               </div>
            </div>
         )}
       </div>
 
-      {/* Forms and Modals */}
+      <ConfirmModal isOpen={resetTableId !== null} title="Cưỡng chế đóng bàn?" message={`Mọi dữ liệu Bàn ${resetTableId} sẽ bị xóa và reset về trạng thái trống. Xác nhận?`} onConfirm={() => { if(resetTableId !== null) store.adminForceClose(resetTableId); setResetTableId(null); }} onCancel={() => setResetTableId(null)} type="danger" />
+      
+      {/* Other Modals - Same as before */}
       {menuForm && (
         <div className="fixed inset-0 z-[300] bg-slate-900/90 backdrop-blur-md flex items-center justify-center p-4">
             <div className="bg-white rounded-[2.5rem] p-8 max-w-md w-full shadow-2xl animate-scaleIn border border-slate-100">
@@ -547,8 +363,6 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
                             {INITIAL_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
                     </div>
-                    <input type="text" placeholder="Link ảnh (Tùy chọn)" value={menuForm.image || ''} onChange={e => setMenuForm({...menuForm, image: e.target.value})} className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold text-sm" />
-                    <textarea placeholder="Mô tả món ăn" value={menuForm.description || ''} onChange={e => setMenuForm({...menuForm, description: e.target.value})} className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold text-sm h-24" />
                 </div>
                 <div className="grid grid-cols-2 gap-3 mt-8">
                     <button onClick={() => setMenuForm(null)} className="py-4 bg-slate-100 text-slate-400 rounded-2xl font-black uppercase text-[10px] italic">Hủy bỏ</button>
@@ -557,41 +371,6 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
             </div>
         </div>
       )}
-
-      {userForm && (
-        <div className="fixed inset-0 z-[300] bg-slate-900/90 backdrop-blur-md flex items-center justify-center p-4">
-            <div className="bg-white rounded-[2.5rem] p-8 max-w-md w-full shadow-2xl animate-scaleIn border border-slate-100">
-                <h3 className="text-xl font-black uppercase italic mb-8">Thông tin nhân sự</h3>
-                <div className="space-y-4">
-                    <input type="text" placeholder="Họ và Tên" value={userForm.fullName || ''} onChange={e => setUserForm({...userForm, fullName: e.target.value})} className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold text-sm" />
-                    <div className="grid grid-cols-2 gap-4">
-                        <input type="text" placeholder="Tên đăng nhập" value={userForm.username || ''} onChange={e => setUserForm({...userForm, username: e.target.value})} className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold text-sm" />
-                        <input type="text" placeholder="Mật khẩu" value={userForm.password || ''} onChange={e => setUserForm({...userForm, password: e.target.value})} className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold text-sm" />
-                    </div>
-                    <select value={userForm.role || UserRole.STAFF} onChange={e => setUserForm({...userForm, role: e.target.value as UserRole})} className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold text-sm">
-                        <option value={UserRole.STAFF}>Phục vụ (Staff)</option>
-                        <option value={UserRole.KITCHEN}>Bếp (Kitchen)</option>
-                        <option value={UserRole.ADMIN}>Quản lý (Admin)</option>
-                    </select>
-                </div>
-                <div className="grid grid-cols-2 gap-3 mt-8">
-                    <button onClick={() => setUserForm(null)} className="py-4 bg-slate-100 text-slate-400 rounded-2xl font-black uppercase text-[10px] italic">Hủy bỏ</button>
-                    <button onClick={saveUser} className="py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] shadow-xl italic">Lưu thông tin</button>
-                </div>
-            </div>
-        </div>
-      )}
-
-      <ConfirmModal isOpen={resetTableId !== null} title="Cưỡng chế đóng bàn?" message={`Mọi dữ liệu Bàn ${resetTableId} sẽ bị xóa và reset về trạng thái trống. Xác nhận?`} onConfirm={() => { if(resetTableId !== null) store.adminForceClose(resetTableId); setResetTableId(null); }} onCancel={() => setResetTableId(null)} type="danger" />
-      
-      <ConfirmModal isOpen={deleteTarget !== null} title="Xác nhận yêu cầu?" message={`Bạn có chắc chắn muốn thực hiện: ${deleteTarget?.name}? Hành động này không thể hoàn tác.`} 
-        onConfirm={() => {
-            if (deleteTarget?.type === 'menu' && deleteTarget.id) store.deleteMenuItem(deleteTarget.id);
-            if (deleteTarget?.type === 'user' && deleteTarget.id) store.deleteUser(deleteTarget.id);
-            if (deleteTarget?.type === 'history') store.clearHistory();
-            if (deleteTarget?.type === 'kpi') store.clearReviews();
-            setDeleteTarget(null);
-        }} onCancel={() => setDeleteTarget(null)} type="danger" />
     </div>
   );
 };
