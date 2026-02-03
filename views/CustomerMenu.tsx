@@ -6,7 +6,7 @@ const { useParams, Link, useNavigate, useSearchParams, useLocation } = ReactRout
 import { CATEGORIES } from '../constants';
 import { OrderItem, OrderItemStatus, MenuItem, TableStatus, UserRole, Table, OrderType, Review } from '../types';
 import { ConfirmModal } from '../App';
-import { ShoppingCart, History, ChefHat, Loader2, FileText, CreditCard, Star, AlertTriangle, PlusCircle, QrCode } from 'lucide-react';
+import { ShoppingCart, History, ChefHat, Loader2, FileText, CreditCard, Star, AlertTriangle, PlusCircle, Bell, MessageCircle } from 'lucide-react';
 
 const MenuCard = memo(({ item, quantity, onAdd, onRemove }: { item: MenuItem, quantity: number, onAdd: () => void, onRemove: () => void }) => {
     const isOut = !item.isAvailable;
@@ -92,6 +92,13 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
     });
   }, []);
 
+  const updateCartNote = (id: string, note: string) => {
+    setCart(prev => ({
+        ...prev,
+        [id]: { ...prev[id], note }
+    }));
+  };
+
   const activeOrders = useMemo(() => (table?.currentOrders || []).filter((i: OrderItem) => i.status !== OrderItemStatus.CANCELLED), [table?.currentOrders]);
   const totalCurrentOrder = useMemo((): number => activeOrders.reduce((sum: number, item: OrderItem) => sum + (item.price * item.quantity), 0), [activeOrders]);
   const allServed = useMemo(() => activeOrders.length > 0 && activeOrders.every((item: OrderItem) => item.status === OrderItemStatus.SERVED || item.status === OrderItemStatus.CANCELLED), [activeOrders]);
@@ -117,6 +124,15 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
     } catch (e) { alert("Lỗi gửi đơn!"); } finally { setIsOrdering(false); }
   };
 
+  const handleCallStaff = async () => {
+    try {
+        await store.callStaff(idNum);
+        alert("Đã gọi nhân viên. Vui lòng chờ trong giây lát!");
+    } catch (e) {
+        alert("Không thể gọi nhân viên lúc này.");
+    }
+  };
+
   const submitReview = () => {
     const review: Review = {
       id: `R-${Date.now()}`,
@@ -132,36 +148,27 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
     navigate('/', { replace: true });
   };
 
-  // Trang chủ vãng lai - Giao diện chào mừng thay vì thực đơn
   if (isPublicView) {
     return (
       <div className="flex flex-col items-center justify-center h-full px-6 text-center animate-fadeIn max-w-2xl mx-auto w-full pb-20">
         <div className="w-24 h-24 bg-orange-500 text-white rounded-[2.5rem] flex items-center justify-center mb-8 text-4xl font-black italic shadow-2xl animate-bounce">S</div>
         <h1 className="text-4xl font-black text-slate-800 uppercase italic mb-4 tracking-tighter">Smart Resto</h1>
-        <p className="text-slate-400 font-bold uppercase text-[10px] tracking-[0.4em] mb-12">Nâng tầm trải nghiệm ẩm thực</p>
+        <p className="text-slate-400 font-bold uppercase text-[10px] tracking-[0.4em] mb-12">Hệ thống quản lý nhà hàng thông minh</p>
         
         <div className="bg-white p-10 rounded-[3rem] shadow-xl border border-slate-100 w-full mb-10">
-           <div className="w-16 h-16 bg-blue-50 text-blue-500 rounded-2xl flex items-center justify-center mx-auto mb-6"><QrCode size={32} /></div>
-           <h2 className="text-xl font-black text-slate-800 uppercase italic mb-3">Vui lòng quét QR tại bàn</h2>
-           <p className="text-slate-400 text-sm leading-relaxed mb-8">Để bắt đầu xem thực đơn và gọi món, quý khách vui lòng sử dụng camera điện thoại quét mã QR được dán tại bàn.</p>
-           <div className="flex flex-col gap-3">
-             <div className="flex items-center gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-100 text-left">
-                <span className="w-8 h-8 bg-slate-900 text-white rounded-full flex items-center justify-center text-xs font-black italic">1</span>
-                <p className="text-[10px] font-black uppercase text-slate-600">Quét mã QR tại bàn</p>
-             </div>
-             <div className="flex items-center gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-100 text-left">
-                <span className="w-8 h-8 bg-slate-900 text-white rounded-full flex items-center justify-center text-xs font-black italic">2</span>
-                <p className="text-[10px] font-black uppercase text-slate-600">Chọn món ngon bạn yêu thích</p>
-             </div>
-             <div className="flex items-center gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-100 text-left">
-                <span className="w-8 h-8 bg-slate-900 text-white rounded-full flex items-center justify-center text-xs font-black italic">3</span>
-                <p className="text-[10px] font-black uppercase text-slate-600">Xác nhận và thưởng thức</p>
-             </div>
+           <h2 className="text-xl font-black text-slate-800 uppercase italic mb-4">Xin chào!</h2>
+           <p className="text-slate-500 text-sm leading-relaxed mb-6">Vui lòng liên hệ nhân viên phục vụ để được hỗ trợ mở bàn và nhận thực đơn.</p>
+           <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 flex items-center gap-4 text-left">
+              <Bell className="text-orange-500 shrink-0" size={24} />
+              <div>
+                 <p className="font-black text-slate-800 text-xs uppercase">Hỗ trợ khách hàng</p>
+                 <p className="text-slate-400 text-[10px] font-bold uppercase italic">Nhân viên sẽ có mặt ngay khi bạn cần</p>
+              </div>
            </div>
         </div>
         
-        <div className="flex gap-4">
-           <Link to="/login" className="bg-slate-900 text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase shadow-2xl flex items-center gap-2 active:scale-95 transition-all">
+        <div className="flex flex-col gap-4 w-full max-w-xs">
+           <Link to="/login" className="bg-slate-900 text-white px-8 py-5 rounded-2xl font-black text-[10px] uppercase shadow-2xl flex items-center justify-center gap-2 active:scale-95 transition-all">
              Đăng nhập Hệ thống
            </Link>
         </div>
@@ -169,7 +176,6 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
     );
   }
 
-  // Giao diện cho bàn đã ngồi hoặc khách đang chờ xử lý
   if (table?.status === TableStatus.REVIEWING) {
     return (
       <div className="flex flex-col items-center justify-center h-full px-6 text-center animate-fadeIn max-w-md mx-auto">
@@ -231,7 +237,6 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
                   <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100">
                     <img src={qrUrl} alt="VietQR" className="w-56 h-56 mx-auto rounded-3xl shadow-lg border-4 border-white" />
                   </div>
-                  <p className="text-[9px] font-black text-slate-400 uppercase italic">Vui lòng kiểm tra kỹ số tiền khi chuyển khoản</p>
                 </div>
               )}
            </div>
@@ -267,6 +272,7 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
         <div className="flex gap-2 p-1.5 bg-slate-100 rounded-[1.2rem]">
             <button onClick={() => setView('MENU')} className={`p-3 rounded-xl transition-all shadow-sm ${view === 'MENU' ? 'bg-white text-orange-500' : 'text-slate-400'}`}><ShoppingCart size={18}/></button>
             <button onClick={() => setView('HISTORY')} className={`p-3 rounded-xl transition-all shadow-sm ${view === 'HISTORY' ? 'bg-white text-orange-500' : 'text-slate-400'}`}><History size={18}/></button>
+            <button onClick={handleCallStaff} className="p-3 rounded-xl bg-orange-50 text-orange-600 shadow-sm active:scale-90 transition-all" title="Gọi nhân viên"><Bell size={18}/></button>
         </div>
       </div>
 
@@ -289,7 +295,7 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
         {view === 'CART' && (
             <div className="animate-fadeIn space-y-4 pb-20 px-2">
                 <div className="bg-white rounded-[2.5rem] p-8 shadow-2xl border border-slate-100">
-                    <h3 className="font-black text-slate-800 text-xl italic uppercase mb-8 flex items-center gap-3"><ShoppingCart size={22} className="text-orange-500"/> Giỏ hàng của bạn</h3>
+                    <h3 className="font-black text-slate-800 text-xl italic uppercase mb-8 flex items-center gap-3"><ShoppingCart size={22} className="text-orange-500"/> Giỏ hàng</h3>
                     
                     <div className="space-y-6">
                         {Object.keys(cart).length === 0 ? (
@@ -315,6 +321,16 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
                                                 <button onClick={() => handleAddToCart(itemId)} className="w-8 h-8 rounded-lg font-black text-sm shadow-md bg-orange-500 text-white">+</button>
                                             </div>
                                         </div>
+                                        <div className="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-xl border border-slate-100">
+                                            <MessageCircle size={14} className="text-slate-300" />
+                                            <input 
+                                                type="text" 
+                                                placeholder="Ghi chú (vị, ít cay...)" 
+                                                value={data.note} 
+                                                onChange={(e) => updateCartNote(itemId, e.target.value)}
+                                                className="bg-transparent text-[10px] font-bold w-full outline-none" 
+                                            />
+                                        </div>
                                     </div>
                                 )
                             })
@@ -322,6 +338,13 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
                     </div>
                     {Object.keys(cart).length > 0 && (
                         <div className="mt-10 pt-8 border-t border-slate-100 space-y-6">
+                            <div className="flex justify-between items-center mb-4">
+                               <p className="text-[10px] font-black uppercase text-slate-400 italic">Chọn hình thức:</p>
+                               <div className="flex bg-slate-50 p-1 rounded-xl border border-slate-100">
+                                  <button onClick={() => setOrderType(OrderType.DINE_IN)} className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${orderType === OrderType.DINE_IN ? 'bg-slate-900 text-white shadow-md' : 'text-slate-400'}`}>Tại chỗ</button>
+                                  <button onClick={() => setOrderType(OrderType.TAKEAWAY)} className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${orderType === OrderType.TAKEAWAY ? 'bg-slate-900 text-white shadow-md' : 'text-slate-400'}`}>Mang về</button>
+                               </div>
+                            </div>
                             <div className="flex justify-between items-center bg-slate-50 p-5 rounded-2xl">
                                <span className="text-[11px] font-black text-slate-400 uppercase italic">Thành tiền:</span>
                                <span className="text-2xl font-black text-slate-900 italic">{cartTotal.toLocaleString()}đ</span>
@@ -346,6 +369,7 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
                                     <h4 className="font-black text-slate-800 text-xs uppercase truncate max-w-[180px]">{item.name} <span className="text-orange-500 ml-1.5 italic">x{item.quantity}</span></h4>
                                     <span className="font-black text-slate-900 text-xs">{(item.price * item.quantity).toLocaleString()}đ</span>
                                 </div>
+                                {item.note && <p className="text-[9px] font-bold text-red-400 italic mb-2">📝 {item.note}</p>}
                                 <div className="flex justify-between items-center mt-3">
                                    <div className="flex items-center gap-2">
                                       <div className={`w-2 h-2 rounded-full ${item.status === OrderItemStatus.SERVED ? 'bg-green-500' : item.status === OrderItemStatus.CANCELLED ? 'bg-red-300' : 'bg-orange-400 animate-pulse'}`}></div>
@@ -361,7 +385,7 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
                     {totalCurrentOrder > 0 && (
                         <div className="mt-10 pt-8 border-t border-slate-100">
                             <div className="bg-slate-900 rounded-[2rem] p-8 text-white text-center shadow-2xl">
-                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block italic">Tổng tiền hóa đơn</span>
+                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block italic">Tổng cộng</span>
                                 <h3 className="text-3xl font-black mb-10 italic tracking-tighter">{totalCurrentOrder.toLocaleString()}đ</h3>
                                 <button disabled={!allServed} onClick={() => setShowPaymentConfirm(true)} className={`w-full py-5 rounded-2xl font-black uppercase text-xs shadow-xl ${allServed ? 'bg-orange-500 text-white' : 'bg-white/5 text-slate-600 cursor-not-allowed border border-white/5'}`}>
                                     {allServed ? 'Gửi yêu cầu thanh toán' : 'Chờ phục vụ hết món...'}
