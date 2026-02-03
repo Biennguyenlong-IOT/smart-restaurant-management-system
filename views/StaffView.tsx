@@ -154,7 +154,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
             <div className="grid grid-cols-3 gap-3">
                 {visibleTables.map((t: Table) => (
                     <div key={t.id} onClick={() => { 
-                        if (t.status === TableStatus.AVAILABLE) store.requestTableQr(t.id, currentUser.id);
+                        if (t.status === TableStatus.AVAILABLE) store.requestTableQr(t.id, currentUser.id).catch(() => alert("Bạn đã phục vụ tối đa 3 bàn!"));
                         else setQuickActionTable(t);
                     }} className={`p-4 rounded-3xl border-2 flex flex-col items-center justify-center gap-2 transition-all relative h-28 ${t.status === TableStatus.AVAILABLE ? 'border-dashed border-slate-200 bg-white' : 'border-slate-800 bg-slate-900 text-white shadow-md'}`}>
                         <span className="text-[10px] font-black uppercase italic">{t.id === 0 ? 'LẺ' : 'BÀN '+t.id}</span>
@@ -170,7 +170,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
             </div>
             {visibleTables.length <= 1 && (
                <div className="text-center py-10">
-                 <p className="text-[10px] font-black text-slate-300 uppercase italic">Tất cả các bàn khác đã có nhân viên phụ trách</p>
+                 <p className="text-[10px] font-black text-slate-300 uppercase italic">Các bàn khác hiện đang được phục vụ</p>
                </div>
             )}
           </div>
@@ -208,9 +208,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
                   <div className="grid grid-cols-3 gap-3 mb-8 max-h-60 overflow-y-auto p-2 no-scrollbar">
                      {ensureArray<Table>(store.tables).filter(t => {
                         if(t.id === 0 || t.id === moveRequest.fromId) return false;
-                        // Chuyển bàn: Chỉ chọn bàn trống
                         if(moveRequest.mode === 'MOVE') return t.status === TableStatus.AVAILABLE;
-                        // Gộp bàn: Chỉ chọn bàn đang có khách
                         return t.status === TableStatus.OCCUPIED || t.status === TableStatus.PAYING;
                      }).map(t => (
                         <button key={t.id} onClick={() => { store.requestTableMove(moveRequest.fromId, t.id, currentUser.id); setMoveRequest(null); alert("Đã gửi yêu cầu tới Quản lý!"); }} className="p-4 bg-slate-50 rounded-2xl border-2 border-slate-100 font-black text-xs hover:border-slate-800 transition-all">Bàn {t.id}</button>
