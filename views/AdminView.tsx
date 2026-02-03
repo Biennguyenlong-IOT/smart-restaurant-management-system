@@ -308,7 +308,8 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
                   <h3 className="font-black text-2xl italic text-slate-800 mb-2">{t.id === 0 ? 'Lẻ' : 'B'+t.id}</h3>
                   <div className={`text-[8px] font-black px-3 py-1 rounded-full uppercase inline-block ${
                     t.status === TableStatus.AVAILABLE ? 'bg-slate-50 text-slate-400' : 
-                    t.status === TableStatus.OCCUPIED ? 'bg-orange-50 text-orange-600' : 'bg-indigo-50 text-indigo-600'
+                    t.status === TableStatus.OCCUPIED ? 'bg-orange-50 text-orange-600' : 
+                    t.status === TableStatus.REVIEWING ? 'bg-blue-50 text-blue-600' : 'bg-indigo-50 text-indigo-600'
                   }`}>{t.status}</div>
                 </div>
                 <button onClick={() => setResetTableId(t.id)} className="w-full py-2.5 bg-slate-900 text-white rounded-xl font-black text-[9px] uppercase italic shadow-lg active:scale-95 transition-all">Reset bàn</button>
