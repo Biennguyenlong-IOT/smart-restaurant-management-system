@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { MenuItem, TableStatus, Table, UserRole, AppNotification, User, HistoryEntry, BankConfig, OrderItemStatus, Review, OrderType, OrderItem } from '../types';
 import { CATEGORIES as INITIAL_CATEGORIES } from '../constants';
@@ -7,7 +6,7 @@ import {
   Monitor, Settings, Plus, UserPlus, Pizza, Shield, 
   Trash2, X, Edit3, LayoutDashboard, CreditCard, Star, Award, TrendingUp,
   Database, CheckCircle, RotateCcw, DollarSign, Search, FileText, 
-  ArrowUpRight, ArrowDownRight, UserCheck, AlertTriangle, QrCode
+  ArrowUpRight, ArrowDownRight, UserCheck, AlertTriangle, QrCode, MoveHorizontal, Merge, Sparkles, ChevronRight
 } from 'lucide-react';
 import { ensureArray } from '../store.ts';
 
@@ -55,7 +54,6 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
     });
     const topItems = Object.values(itemMap).sort((a, b) => b.qty - a.qty).slice(0, 5);
 
-    // Enhanced Staff KPI calculation
     const staffKPI = ensureArray<User>(store.users).filter(u => u.role === UserRole.STAFF).map(u => {
        const userBills = history.filter(h => h.staffId === u.id);
        const revenue = userBills.reduce((s, h) => s + h.total, 0);
@@ -90,6 +88,8 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
 
   return (
     <div className="h-full flex flex-col animate-fadeIn overflow-hidden relative pb-16 md:pb-0">
+      <ConfirmModal isOpen={resetTableId !== null} type="danger" title="Reset bàn?" message={`Xác nhận xóa dữ liệu và giải phóng bàn ${resetTableId}?`} onConfirm={() => { if(resetTableId !== null) store.adminForceClose(resetTableId); setResetTableId(null); }} onCancel={() => setResetTableId(null)} />
+      
       <div className="flex bg-white p-1.5 rounded-2xl mb-6 w-full overflow-x-auto no-scrollbar border border-slate-200 shadow-sm sticky top-0 z-30 shrink-0">
         {[
           { id: 'DASHBOARD', label: 'Báo cáo', icon: <LayoutDashboard size={16}/> },
@@ -99,7 +99,7 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
           { id: 'MENU', label: 'Món ăn', icon: <Pizza size={16}/> },
           { id: 'USERS', label: 'Nhân sự', icon: <Shield size={16}/> },
           { id: 'BANK', label: 'Bank', icon: <CreditCard size={16}/> },
-          { id: 'CLOUD', label: 'Cloud', icon: <Settings size={16}/> }
+          { id: 'CLOUD', label: 'Cấu hình', icon: <Settings size={16}/> }
         ].map((tab: any) => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`px-4 py-3.5 rounded-xl text-[10px] font-black transition-all flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === tab.id ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}>
             {tab.icon} <span className="hidden sm:inline">{tab.label}</span> 
@@ -123,7 +123,7 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
                     <h3 className="text-2xl font-black text-rose-600 italic">{stats.totalLoss.toLocaleString()}đ</h3>
                  </div>
                  <div className="bg-slate-900 p-6 rounded-[2.5rem] shadow-xl relative overflow-hidden text-white">
-                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 italic">Tổng đơn</p>
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 italic">Tổng đơn (Hệ thống)</p>
                     <h3 className="text-2xl font-black italic">{stats.totalBills.toLocaleString()} đơn</h3>
                  </div>
                  <div className="bg-orange-500 p-6 rounded-[2.5rem] shadow-xl relative overflow-hidden text-white">
@@ -154,7 +154,7 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
                                  <span className="text-[11px] font-black text-blue-600 italic">{u.revenue.toLocaleString()}đ</span>
                               </div>
                               <div className="flex justify-between items-center text-[9px] font-bold text-slate-400 uppercase tracking-tighter">
-                                 <span>Đơn: {u.billCount} | Rank: #{idx+1}</span>
+                                 <span>Đơn: {u.billCount}</span>
                                  <span className="flex items-center gap-1"><Star size={10} fill="currentColor"/> {u.avgRating}</span>
                               </div>
                            </div>
@@ -176,13 +176,13 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
                     </div>
                  </div>
                  <div className="space-y-4 overflow-x-auto no-scrollbar">
-                    <table className="w-full text-left">
+                    <table className="w-full text-left min-w-[500px]">
                        <thead className="text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50">
-                          <tr><th className="pb-4 pl-4">Hóa Đơn</th><th className="pb-4">Bàn</th><th className="pb-4">Nhân viên</th><th className="pb-4 text-right pr-4">Tổng tiền</th></tr>
+                          <tr><th className="pb-4 pl-4">Hóa Đơn</th><th className="pb-4">Bàn</th><th className="pb-4">Phục vụ</th><th className="pb-4 text-right pr-4">Tổng tiền</th></tr>
                        </thead>
                        <tbody className="divide-y divide-slate-50">
                           {filteredHistory.map((h: HistoryEntry) => (
-                             <tr key={h.id} onClick={() => setSelectedHistory(h)} className="hover:bg-slate-50/50 cursor-pointer transition-colors">
+                             <tr key={h.id} className="hover:bg-slate-50/50 cursor-pointer transition-colors">
                                 <td className="py-4 pl-4 font-black text-[10px] uppercase italic">#{h.id.slice(-6)}</td>
                                 <td className="py-4 font-black text-[10px]">{h.tableId === 0 ? 'Lẻ' : h.tableId}</td>
                                 <td className="py-4 text-[10px] uppercase font-bold text-slate-400">{ensureArray<User>(store.users).find(u=>u.id===h.staffId)?.fullName || 'System'}</td>
@@ -195,11 +195,236 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
               </div>
            </div>
         )}
-        
-        {/* Tab content logic continues for monitor, menu, etc. as in previous version */}
+
+        {activeTab === 'REQUESTS' && (
+           <div className="space-y-8 animate-slideUp px-1 pb-10">
+              <section>
+                 <h4 className="font-black text-[10px] uppercase italic tracking-widest text-slate-400 mb-4 flex items-center gap-2"><QrCode size={14}/> Yêu cầu mở bàn ({qrRequests.length})</h4>
+                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {qrRequests.map(n => (
+                       <div key={n.id} className="bg-white p-5 rounded-3xl border-2 border-slate-100 shadow-sm flex flex-col gap-4">
+                          <div className="flex justify-between items-start">
+                             <div className="w-12 h-12 bg-orange-500 text-white rounded-2xl flex items-center justify-center font-black text-xl italic shadow-lg">B{n.payload.tableId}</div>
+                             <div className="text-right">
+                                <p className="text-[10px] font-black uppercase text-slate-800">Nhân viên:</p>
+                                <p className="text-[9px] font-bold text-slate-400">{ensureArray<User>(store.users).find(u=>u.id===n.payload.staffId)?.fullName}</p>
+                             </div>
+                          </div>
+                          <button onClick={() => store.approveTableQr(n.id)} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] shadow-lg italic">Cấp mã QR</button>
+                       </div>
+                    ))}
+                    {qrRequests.length === 0 && <p className="text-[10px] font-black uppercase italic text-slate-300 py-6">Không có yêu cầu mở bàn</p>}
+                 </div>
+              </section>
+
+              <section>
+                 <h4 className="font-black text-[10px] uppercase italic tracking-widest text-slate-400 mb-4 flex items-center gap-2"><MoveHorizontal size={14}/> Chuyển/Gộp bàn ({moveRequests.length})</h4>
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {moveRequests.map(n => (
+                       <div key={n.id} className="bg-white p-5 rounded-3xl border-2 border-slate-100 shadow-sm flex flex-col gap-4">
+                          <div className="flex items-center gap-4">
+                             <div className="flex-1 p-3 bg-slate-50 rounded-xl text-center">
+                                <span className="text-[8px] font-black uppercase text-slate-400">Từ</span>
+                                <p className="text-sm font-black text-slate-800">Bàn {n.payload.fromId}</p>
+                             </div>
+                             <ChevronRight className="text-slate-300"/>
+                             <div className="flex-1 p-3 bg-slate-900 rounded-xl text-center text-white">
+                                <span className="text-[8px] font-black uppercase text-white/40">Tới</span>
+                                <p className="text-sm font-black">Bàn {n.payload.toId}</p>
+                             </div>
+                          </div>
+                          <button onClick={() => store.approveTableMove(n.id)} className="w-full py-4 bg-orange-500 text-white rounded-2xl font-black uppercase text-[10px] shadow-lg italic">Xác nhận chuyển/gộp</button>
+                       </div>
+                    ))}
+                    {moveRequests.length === 0 && <p className="text-[10px] font-black uppercase italic text-slate-300 py-6">Không có yêu cầu chuyển bàn</p>}
+                 </div>
+              </section>
+
+              <section>
+                 <h4 className="font-black text-[10px] uppercase italic tracking-widest text-slate-400 mb-4 flex items-center gap-2"><DollarSign size={14}/> Chờ thu tiền ({paymentRequests.length})</h4>
+                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {paymentRequests.map(t => (
+                       <div key={t.id} className="bg-white p-5 rounded-3xl border-2 border-emerald-100 bg-emerald-50/20 flex flex-col gap-4">
+                          <div className="flex justify-between items-center">
+                             <p className="text-sm font-black text-slate-800 italic uppercase">Bàn {t.id}</p>
+                             <p className="text-sm font-black text-emerald-600">{ensureArray<OrderItem>(t.currentOrders).reduce((s,o)=>s+(o.price*o.quantity),0).toLocaleString()}đ</p>
+                          </div>
+                          <button onClick={() => store.confirmPayment(t.id)} className="w-full py-4 bg-emerald-500 text-white rounded-2xl font-black uppercase text-[10px] shadow-lg italic">Đã nhận đủ tiền</button>
+                       </div>
+                    ))}
+                    {paymentRequests.length === 0 && <p className="text-[10px] font-black uppercase italic text-slate-300 py-6">Không có yêu cầu thanh toán</p>}
+                 </div>
+              </section>
+           </div>
+        )}
+
+        {activeTab === 'MONITOR' && (
+           <div className="space-y-6 animate-slideUp px-1 pb-10">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                 {store.tables.map((t: Table) => (
+                    <div key={t.id} className={`p-4 rounded-3xl border-2 flex flex-col items-center justify-center gap-1 transition-all relative min-h-[100px] ${
+                      t.status === TableStatus.AVAILABLE ? 'border-dashed border-slate-200 bg-white opacity-50' : 
+                      t.status === TableStatus.PAYING ? 'border-emerald-500 bg-emerald-50 text-emerald-600 animate-pulse' :
+                      t.status === TableStatus.CLEANING ? 'border-amber-400 bg-amber-50 text-amber-600' :
+                      'border-slate-800 bg-slate-900 text-white shadow-md'
+                    }`}>
+                        <span className="text-[10px] font-black uppercase italic">{t.id === 0 ? 'Lẻ' : 'Bàn '+t.id}</span>
+                        {t.status === TableStatus.AVAILABLE ? <RotateCcw size={16} className="text-slate-300"/> : <CheckCircle size={16} className="text-orange-500"/>}
+                        <p className="text-[8px] font-bold uppercase opacity-60 truncate max-w-full">{ensureArray<User>(store.users).find(u=>u.id===t.claimedBy)?.fullName || (t.status === TableStatus.AVAILABLE ? '' : '...')}</p>
+                        
+                        {! (t.status === TableStatus.AVAILABLE) && (
+                           <button onClick={(e) => { e.stopPropagation(); setResetTableId(t.id); }} className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center shadow-lg"><X size={12}/></button>
+                        )}
+                    </div>
+                 ))}
+              </div>
+           </div>
+        )}
+
+        {activeTab === 'MENU' && (
+           <div className="space-y-6 animate-slideUp px-1 pb-10">
+              <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm">
+                 <div className="flex justify-between items-center mb-8">
+                    <h4 className="font-black text-[11px] uppercase italic tracking-widest text-slate-800">Quản lý thực đơn</h4>
+                    <button onClick={() => setMenuForm({})} className="flex items-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase shadow-lg"><Plus size={16}/> Thêm món</button>
+                 </div>
+
+                 {menuForm && (
+                    <div className="bg-slate-50 p-6 rounded-3xl mb-8 space-y-4 border border-slate-200">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <input type="text" placeholder="Tên món" value={menuForm.name || ''} onChange={e => setMenuForm({...menuForm, name: e.target.value})} className="px-6 py-4 bg-white border border-slate-100 rounded-2xl outline-none font-bold text-xs" />
+                            <input type="number" placeholder="Giá tiền" value={menuForm.price || ''} onChange={e => setMenuForm({...menuForm, price: parseInt(e.target.value)})} className="px-6 py-4 bg-white border border-slate-100 rounded-2xl outline-none font-bold text-xs" />
+                        </div>
+                        <select value={menuForm.category || 'Tất cả'} onChange={e => setMenuForm({...menuForm, category: e.target.value})} className="w-full px-6 py-4 bg-white border border-slate-100 rounded-2xl outline-none font-bold text-xs uppercase">
+                            {INITIAL_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                        <div className="flex gap-3">
+                            <button onClick={saveMenuItem} className="flex-1 py-4 bg-orange-500 text-white rounded-2xl font-black uppercase text-[10px]">Lưu món</button>
+                            <button onClick={() => setMenuForm(null)} className="px-8 py-4 bg-slate-200 text-slate-500 rounded-2xl font-black uppercase text-[10px]">Hủy</button>
+                        </div>
+                    </div>
+                 )}
+
+                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {store.menu.map((m: MenuItem) => (
+                       <div key={m.id} className="p-4 bg-white rounded-3xl border border-slate-100 flex items-center justify-between shadow-sm">
+                          <div className="flex items-center gap-3">
+                             <img src={m.image} className="w-12 h-12 rounded-xl object-cover" />
+                             <div>
+                                <h5 className="text-[11px] font-black uppercase text-slate-800">{m.name}</h5>
+                                <p className="text-[9px] font-bold text-orange-600 italic">{m.price.toLocaleString()}đ</p>
+                             </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                             <button onClick={() => setMenuForm(m)} className="p-2 text-blue-500 bg-blue-50 rounded-xl"><Edit3 size={14}/></button>
+                             <button onClick={() => store.deleteMenuItem(m.id)} className="p-2 text-red-500 bg-red-50 rounded-xl"><Trash2 size={14}/></button>
+                          </div>
+                       </div>
+                    ))}
+                 </div>
+              </div>
+           </div>
+        )}
+
+        {activeTab === 'USERS' && (
+           <div className="space-y-6 animate-slideUp px-1 pb-10">
+              <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm">
+                 <div className="flex justify-between items-center mb-8">
+                    <h4 className="font-black text-[11px] uppercase italic tracking-widest text-slate-800">Quản lý nhân sự</h4>
+                    <button onClick={() => setUserForm({})} className="flex items-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase shadow-lg"><UserPlus size={16}/> Thêm NV</button>
+                 </div>
+
+                 {userForm && (
+                    <div className="bg-slate-50 p-6 rounded-3xl mb-8 space-y-4 border border-slate-200">
+                        <input type="text" placeholder="Họ và tên" value={userForm.fullName || ''} onChange={e => setUserForm({...userForm, fullName: e.target.value})} className="w-full px-6 py-4 bg-white border border-slate-100 rounded-2xl outline-none font-bold text-xs" />
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <input type="text" placeholder="Username" value={userForm.username || ''} onChange={e => setUserForm({...userForm, username: e.target.value})} className="px-6 py-4 bg-white border border-slate-100 rounded-2xl outline-none font-bold text-xs" />
+                            <input type="password" placeholder="Password" value={userForm.password || ''} onChange={e => setUserForm({...userForm, password: e.target.value})} className="px-6 py-4 bg-white border border-slate-100 rounded-2xl outline-none font-bold text-xs" />
+                        </div>
+                        <select value={userForm.role || UserRole.STAFF} onChange={e => setUserForm({...userForm, role: e.target.value as UserRole})} className="w-full px-6 py-4 bg-white border border-slate-100 rounded-2xl outline-none font-bold text-xs uppercase">
+                            <option value={UserRole.STAFF}>Phục vụ</option>
+                            <option value={UserRole.KITCHEN}>Bếp</option>
+                            <option value={UserRole.ADMIN}>Quản lý</option>
+                        </select>
+                        <div className="flex gap-3">
+                            <button onClick={saveUser} className="flex-1 py-4 bg-blue-500 text-white rounded-2xl font-black uppercase text-[10px]">Tạo tài khoản</button>
+                            <button onClick={() => setUserForm(null)} className="px-8 py-4 bg-slate-200 text-slate-500 rounded-2xl font-black uppercase text-[10px]">Hủy</button>
+                        </div>
+                    </div>
+                 )}
+
+                 <div className="space-y-4">
+                    {store.users.map((u: User) => (
+                       <div key={u.id} className="p-5 bg-white rounded-3xl border border-slate-100 flex items-center justify-between shadow-sm">
+                          <div className="flex items-center gap-4">
+                             <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-400 font-black">#</div>
+                             <div>
+                                <h5 className="text-[11px] font-black uppercase text-slate-800">{u.fullName}</h5>
+                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{u.role} - ID: {u.username}</p>
+                             </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                             <button onClick={() => setUserForm(u)} className="p-2 text-blue-500 bg-blue-50 rounded-xl"><Edit3 size={14}/></button>
+                             <button onClick={() => store.deleteUser(u.id)} className="p-2 text-red-500 bg-red-50 rounded-xl"><Trash2 size={14}/></button>
+                          </div>
+                       </div>
+                    ))}
+                 </div>
+              </div>
+           </div>
+        )}
+
+        {activeTab === 'BANK' && (
+           <div className="space-y-6 animate-slideUp px-1 pb-10">
+              <div className="bg-white rounded-[2.5rem] p-10 border border-slate-100 shadow-sm max-w-xl">
+                 <h4 className="font-black text-[11px] uppercase italic tracking-widest text-slate-800 mb-8">Cấu hình VietQR</h4>
+                 <div className="space-y-6">
+                    <div>
+                        <label className="text-[9px] font-black uppercase text-slate-400 italic mb-2 block">Tên ngân hàng (VietQR ID)</label>
+                        <input type="text" value={store.bankConfig.bankId} onChange={e => store.updateBankConfig({...store.bankConfig, bankId: e.target.value})} placeholder="VD: ICB, VCB..." className="w-full px-6 py-5 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold text-sm uppercase" />
+                    </div>
+                    <div>
+                        <label className="text-[9px] font-black uppercase text-slate-400 italic mb-2 block">Số tài khoản</label>
+                        <input type="text" value={store.bankConfig.accountNo} onChange={e => store.updateBankConfig({...store.bankConfig, accountNo: e.target.value})} className="w-full px-6 py-5 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold text-sm" />
+                    </div>
+                    <div>
+                        <label className="text-[9px] font-black uppercase text-slate-400 italic mb-2 block">Tên chủ tài khoản</label>
+                        <input type="text" value={store.bankConfig.accountName} onChange={e => store.updateBankConfig({...store.bankConfig, accountName: e.target.value})} className="w-full px-6 py-5 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold text-sm uppercase" />
+                    </div>
+                    <div className="p-6 bg-blue-50 rounded-2xl flex items-start gap-4">
+                        <CreditCard className="text-blue-500 shrink-0" size={24}/>
+                        <p className="text-[10px] text-blue-800 font-bold leading-relaxed uppercase italic">Mã QR thanh toán sẽ được tạo tự động cho khách hàng dựa trên hóa đơn hiện tại của họ.</p>
+                    </div>
+                 </div>
+              </div>
+           </div>
+        )}
+
+        {activeTab === 'CLOUD' && (
+           <div className="space-y-6 animate-slideUp px-1 pb-10">
+              <div className="bg-white rounded-[2.5rem] p-10 border border-slate-100 shadow-sm max-w-xl">
+                 <h4 className="font-black text-[11px] uppercase italic tracking-widest text-slate-800 mb-8">Cấu hình hệ thống</h4>
+                 <div className="space-y-8">
+                    <div>
+                        <label className="text-[9px] font-black uppercase text-slate-400 italic mb-4 block">Số lượng bàn ({tempTableCount})</label>
+                        <div className="flex items-center gap-4">
+                            <input type="range" min="1" max="50" value={tempTableCount} onChange={e => setTempTableCount(parseInt(e.target.value))} className="flex-1 accent-slate-900" />
+                            <button onClick={() => store.updateTableCount(tempTableCount)} className="px-6 py-3 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase">Áp dụng</button>
+                        </div>
+                    </div>
+                    <div>
+                        <label className="text-[9px] font-black uppercase text-slate-400 italic mb-2 block">Database URL (Firebase)</label>
+                        <input type="text" value={store.cloudUrl} onChange={e => store.updateCloudUrl(e.target.value)} className="w-full px-6 py-5 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold text-[10px] text-blue-600 italic" />
+                    </div>
+                    <div className="pt-8 border-t border-slate-100 flex gap-4">
+                        <button onClick={() => store.clearHistory()} className="flex-1 py-4 bg-red-50 text-red-500 rounded-2xl font-black uppercase text-[10px] italic border border-red-100">Xóa sạch History</button>
+                        <button onClick={() => store.clearReviews()} className="flex-1 py-4 bg-slate-50 text-slate-400 rounded-2xl font-black uppercase text-[10px] italic border border-slate-100">Xóa sạch Review</button>
+                    </div>
+                 </div>
+              </div>
+           </div>
+        )}
       </div>
-      
-      {/* Modals and forms omitted for brevity, logic remains identical to restore from previous stable version */}
     </div>
   );
 };
