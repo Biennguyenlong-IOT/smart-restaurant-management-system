@@ -6,7 +6,7 @@ const { useParams, Link, useNavigate, useSearchParams, useLocation } = ReactRout
 import { CATEGORIES } from '../constants';
 import { OrderItem, OrderItemStatus, MenuItem, TableStatus, UserRole, Table, OrderType, Review } from '../types';
 import { ConfirmModal } from '../App';
-import { ShoppingCart, History, ChefHat, Loader2, FileText, CreditCard, Star, AlertTriangle, PlusCircle, Bell, MessageCircle, Heart, CheckCircle } from 'lucide-react';
+import { ShoppingCart, History, ChefHat, Loader2, FileText, CreditCard, Star, AlertTriangle, PlusCircle, Bell, MessageCircle, Heart, CheckCircle, Send } from 'lucide-react';
 
 const MenuCard = memo(({ item, quantity, onAdd, onRemove }: { item: MenuItem, quantity: number, onAdd: () => void, onRemove: () => void }) => {
     const isOut = !item.isAvailable;
@@ -99,8 +99,12 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
   };
 
   const activeOrders = useMemo(() => (table?.currentOrders || []).filter((i: OrderItem) => i.status !== OrderItemStatus.CANCELLED), [table?.currentOrders]);
-  const totalCurrentOrder = useMemo((): number => activeOrders.reduce((sum: number, item: OrderItem) => sum + (item.price * item.quantity), 0), [activeOrders]);
-  const allServed = useMemo(() => activeOrders.length > 0 && activeOrders.every((item: OrderItem) => item.status === OrderItemStatus.SERVED || item.status === OrderItemStatus.CANCELLED), [activeOrders]);
+  const totalAmount = useMemo(() => activeOrders.reduce((sum, item) => sum + (item.price * item.quantity), 0), [activeOrders]);
+  const allServed = useMemo(() => activeOrders.length > 0 && activeOrders.every((item: OrderItem) => item.status === OrderItemStatus.SERVED), [activeOrders]);
+
+  const getVietQrUrl = (amount: number) => {
+    return `https://img.vietqr.io/image/${store.bankConfig.bankId}-${store.bankConfig.accountNo}-compact.png?amount=${amount}&addInfo=Thanh+Toan+Ban+${idNum}&accountName=${encodeURIComponent(store.bankConfig.accountName)}`;
+  };
 
   if (isPublicView) {
     return (
@@ -116,17 +120,103 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
     );
   }
 
-  // Same Review/Cleaning screens logic with scaled text sizes...
+  // MÀN HÌNH HOÀN TẤT / DỌN BÀN
   if (table?.status === TableStatus.CLEANING) {
     return (
       <div className="flex flex-col items-center justify-center h-full px-4 text-center animate-fadeIn max-w-md mx-auto">
         <div className="bg-white p-8 md:p-12 rounded-[2.5rem] md:rounded-[3.5rem] shadow-2xl border border-slate-50 w-full">
            <div className="w-20 h-20 md:w-24 md:h-24 bg-green-50 text-green-500 rounded-full flex items-center justify-center mx-auto mb-8 shadow-inner"><Heart size={40} fill="currentColor" /></div>
            <h2 className="text-xl md:text-3xl font-black text-slate-800 uppercase italic mb-4">Hẹn gặp lại!</h2>
-           <p className="text-slate-500 text-[11px] md:text-sm font-bold mb-10">Cảm ơn bạn đã sử dụng dịch vụ của chúng tôi.</p>
-           <Link to="/" className="inline-block px-10 py-4 bg-slate-900 text-white rounded-xl font-black text-[10px] uppercase shadow-xl active:scale-95 transition-all">Về trang chủ</Link>
+           <p className="text-slate-500 text-[11px] md:text-sm font-bold mb-10 uppercase tracking-widest">Cảm ơn bạn đã tin dùng Smart Resto</p>
+           <Link to="/" className="inline-block px-10 py-4 bg-slate-900 text-white rounded-xl font-black text-[10px] uppercase shadow-xl active:scale-95 transition-all italic">Về trang chủ</Link>
         </div>
       </div>
+    );
+  }
+
+  // MÀN HÌNH ĐÁNH GIÁ (REVIEWING)
+  if (table?.status === TableStatus.REVIEWING) {
+    return (
+        <div className="flex flex-col h-full animate-fadeIn max-w-md mx-auto w-full p-4 overflow-y-auto no-scrollbar">
+            <div className="bg-white rounded-[2.5rem] p-8 shadow-2xl border border-slate-100 flex flex-col items-center text-center">
+                <div className="w-16 h-16 bg-orange-100 text-orange-500 rounded-2xl flex items-center justify-center mb-6 shadow-sm"><Star size={32} fill="currentColor" /></div>
+                <h2 className="text-xl font-black text-slate-800 uppercase italic mb-2">Đánh giá dịch vụ</h2>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-8">Ý kiến của bạn là động lực cho chúng tôi</p>
+                
+                <div className="w-full space-y-8">
+                    <div>
+                        <p className="text-[9px] font-black uppercase text-slate-500 mb-3 italic">Chất lượng món ăn</p>
+                        <div className="flex justify-center gap-3">
+                            {[1,2,3,4,5].map(s => (
+                                <button key={s} onClick={() => setReviewForm({...reviewForm, ratingFood: s})} className={`transition-all ${reviewForm.ratingFood >= s ? 'text-orange-500 scale-110' : 'text-slate-200'}`}><Star size={28} fill={reviewForm.ratingFood >= s ? "currentColor" : "none"} /></button>
+                            ))}
+                        </div>
+                    </div>
+                    <div>
+                        <p className="text-[9px] font-black uppercase text-slate-500 mb-3 italic">Chất lượng phục vụ</p>
+                        <div className="flex justify-center gap-3">
+                            {[1,2,3,4,5].map(s => (
+                                <button key={s} onClick={() => setReviewForm({...reviewForm, ratingService: s})} className={`transition-all ${reviewForm.ratingService >= s ? 'text-orange-500 scale-110' : 'text-slate-200'}`}><Star size={28} fill={reviewForm.ratingService >= s ? "currentColor" : "none"} /></button>
+                            ))}
+                        </div>
+                    </div>
+                    <textarea value={reviewForm.comment} onChange={e => setReviewForm({...reviewForm, comment: e.target.value})} placeholder="Bạn có góp ý gì thêm không?..." className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 text-xs font-bold min-h-[100px] outline-none focus:ring-2 ring-orange-100 transition-all"></textarea>
+                    <button onClick={() => store.submitReview({ ...reviewForm, id: `REV-${Date.now()}`, tableId: idNum, staffId: table.claimedBy || '', timestamp: Date.now() })} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] shadow-xl flex items-center justify-center gap-2 italic">Gửi đánh giá <Send size={14}/></button>
+                </div>
+            </div>
+        </div>
+    );
+  }
+
+  // MÀN HÌNH HÓA ĐƠN & QR (BILLING)
+  if (table?.status === TableStatus.BILLING || table?.status === TableStatus.PAYING) {
+    const isPaying = table.status === TableStatus.PAYING;
+    return (
+        <div className="flex flex-col h-full animate-fadeIn max-w-md mx-auto w-full p-4">
+            <div className="bg-white rounded-[2.5rem] p-6 shadow-2xl border border-slate-100 flex-1 flex flex-col overflow-hidden">
+                <div className="text-center mb-6 shrink-0">
+                    <div className="w-12 h-12 bg-slate-900 text-white rounded-xl flex items-center justify-center mx-auto mb-3 font-black text-lg italic shadow-lg">B{idNum}</div>
+                    <h2 className="text-xl font-black text-slate-800 uppercase italic leading-none mb-1">Hóa đơn bàn {idNum}</h2>
+                    <span className="text-[8px] font-black text-orange-500 uppercase tracking-[0.3em]">{isPaying ? 'Chờ phục vụ xác nhận' : 'Vui lòng thanh toán'}</span>
+                </div>
+
+                <div className="flex-1 overflow-y-auto no-scrollbar border-y border-slate-50 py-4 space-y-3">
+                    {activeOrders.map(o => (
+                        <div key={o.id} className="flex justify-between items-center animate-slideUp">
+                            <div className="min-w-0 pr-4">
+                                <p className="text-[10px] font-black text-slate-800 uppercase truncate">{o.name}</p>
+                                <p className="text-[8px] font-bold text-slate-400">x{o.quantity}</p>
+                            </div>
+                            <span className="text-[10px] font-black text-slate-900 shrink-0">{(o.price * o.quantity).toLocaleString()}đ</span>
+                        </div>
+                    ))}
+                </div>
+
+                <div className="pt-6 shrink-0 space-y-6">
+                    <div className="flex justify-between items-center bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                        <span className="text-[10px] font-black text-slate-400 uppercase italic">Tổng cộng:</span>
+                        <span className="text-xl font-black text-slate-900 italic">{totalAmount.toLocaleString()}đ</span>
+                    </div>
+
+                    {!isPaying && (
+                        <div className="text-center space-y-4">
+                            <p className="text-[9px] font-black text-slate-400 uppercase italic">Quét mã để thanh toán nhanh</p>
+                            <div className="bg-white p-3 rounded-3xl border-2 border-slate-50 shadow-inner inline-block">
+                                <img src={getVietQrUrl(totalAmount)} className="w-40 h-40 object-contain mx-auto" alt="VietQR" />
+                            </div>
+                            <button onClick={() => store.requestPayment(idNum)} className="w-full py-4 bg-orange-500 text-white rounded-2xl font-black uppercase text-[10px] shadow-xl italic flex items-center justify-center gap-2">Tôi đã chuyển khoản <CheckCircle size={14}/></button>
+                        </div>
+                    )}
+                    
+                    {isPaying && (
+                        <div className="py-10 text-center space-y-4">
+                            <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                            <p className="text-[11px] font-black text-slate-800 uppercase italic">Đang chờ phục vụ kiểm tra...</p>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
     );
   }
 
@@ -135,7 +225,7 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
     <div className="flex flex-col items-center justify-center h-full px-6 text-center animate-fadeIn">
         <div className="w-20 h-20 bg-red-50 text-red-500 rounded-[2rem] flex items-center justify-center mb-8 text-4xl">⚠️</div>
         <h2 className="text-lg md:text-2xl font-black text-slate-800 mb-6 uppercase italic">Hết phiên làm việc</h2>
-        <Link to="/" className="px-10 py-4 bg-slate-900 text-white rounded-xl font-black text-[10px] uppercase shadow-2xl">Quay lại</Link>
+        <Link to="/" className="px-10 py-4 bg-slate-900 text-white rounded-xl font-black text-[10px] uppercase shadow-2xl italic">Quay lại</Link>
     </div>
   );
 
@@ -148,7 +238,7 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
           <div className="w-8 h-8 md:w-10 md:h-10 bg-orange-500 text-white rounded-lg md:rounded-xl flex items-center justify-center font-black text-sm md:text-lg italic shadow-md">B{idNum}</div>
           <div>
             <h2 className="text-slate-800 font-black text-[10px] md:text-xs uppercase leading-none">Bàn số {idNum}</h2>
-            <span className="text-[7px] md:text-[8px] font-black text-slate-400 uppercase tracking-widest">Sẵn sàng</span>
+            <span className="text-[7px] md:text-[8px] font-black text-slate-400 uppercase tracking-widest">Đang hoạt động</span>
           </div>
         </div>
         <div className="flex gap-1.5 p-1 bg-slate-100 rounded-xl">
@@ -209,7 +299,7 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
                                <span className="text-[10px] font-black text-slate-400 uppercase italic">Thành tiền:</span>
                                <span className="text-xl font-black text-slate-900 italic">{cartTotal.toLocaleString()}đ</span>
                             </div>
-                            <button onClick={handlePlaceOrder} disabled={isOrdering} className="w-full py-4 bg-slate-900 text-white rounded-xl font-black uppercase text-[10px] flex items-center justify-center gap-2 shadow-xl">
+                            <button onClick={handlePlaceOrder} disabled={isOrdering} className="w-full py-4 bg-slate-900 text-white rounded-xl font-black uppercase text-[10px] flex items-center justify-center gap-2 shadow-xl italic">
                                 {isOrdering ? <Loader2 size={16} className="animate-spin" /> : <>Xác nhận đặt món <PlusCircle size={16} /></>}
                             </button>
                         </div>
@@ -241,13 +331,13 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
                             </div>
                         ))}
                     </div>
-                    {totalCurrentOrder > 0 && (
+                    {totalAmount > 0 && (
                         <div className="mt-8 pt-6 border-t border-slate-100">
                             <div className="bg-slate-900 rounded-2xl p-6 text-white text-center shadow-2xl">
-                                <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1 block">Tổng cộng</span>
-                                <h3 className="text-2xl font-black mb-6 italic">{totalCurrentOrder.toLocaleString()}đ</h3>
-                                <button disabled={!allServed} onClick={() => setShowPaymentConfirm(true)} className={`w-full py-4 rounded-xl font-black uppercase text-[10px] shadow-xl ${allServed ? 'bg-orange-500 text-white' : 'bg-white/5 text-slate-600'}`}>
-                                    {allServed ? 'Thanh toán' : 'Chờ bưng món...'}
+                                <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1 block">Tạm tính</span>
+                                <h3 className="text-2xl font-black mb-6 italic">{totalAmount.toLocaleString()}đ</h3>
+                                <button disabled={!allServed} onClick={() => setShowPaymentConfirm(true)} className={`w-full py-4 rounded-xl font-black uppercase text-[10px] shadow-xl italic transition-all active:scale-95 ${allServed ? 'bg-orange-500 text-white' : 'bg-white/5 text-slate-600'}`}>
+                                    {allServed ? 'Yêu cầu thanh toán' : 'Chờ phục vụ bưng món...'}
                                 </button>
                             </div>
                         </div>
