@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ref, onValue, set, Database } from 'firebase/database';
 import { getRemoteDatabase } from './firebase';
@@ -133,7 +134,6 @@ export const useRestaurantStore = () => {
     try {
       const dataRef = ref(dbRef.current, 'restaurant_data');
       const cleanUpdates = sanitizeForFirebase(updates);
-      // Sử dụng cấu trúc dữ liệu mới nhất từ state kết hợp với cập nhật
       await set(dataRef, {
         tables, menu, history, notifications, users, bankConfig, reviews, 
         ...cleanUpdates,
@@ -201,8 +201,6 @@ export const useRestaurantStore = () => {
       const orders = ensureArray<OrderItem>(targetTable.currentOrders);
       const pendingItems = orders.filter(o => o.status === OrderItemStatus.PENDING);
       
-      if (pendingItems.length === 0 && !nid) return;
-
       const updatedTables = tables.map(t => t.id === tid ? { 
         ...t, 
         currentOrders: orders.map(o => o.status === OrderItemStatus.PENDING ? { ...o, status: OrderItemStatus.CONFIRMED } : o) 
@@ -253,6 +251,15 @@ export const useRestaurantStore = () => {
       await pushToCloud({ tables: updatedTables, notifications: newNotifs });
     },
 
+    serveOrderItem: async (tid: number, oid: string, nid: string) => {
+      const nt = tables.map(t => t.id === tid ? { 
+        ...t, 
+        currentOrders: ensureArray<OrderItem>(t.currentOrders).map(o => o.id === oid ? { ...o, status: OrderItemStatus.SERVED } : o) 
+      } : t);
+      const nn = notifications.filter(n => n.id !== nid);
+      await pushToCloud({ tables: nt, notifications: nn });
+    },
+
     updateOrderItemStatus: async (tid: number, oid: string, s: OrderItemStatus) => {
       const targetTable = tables.find(t => t.id === tid);
       const orders = ensureArray<OrderItem>(targetTable?.currentOrders);
@@ -267,42 +274,6 @@ export const useRestaurantStore = () => {
       await pushToCloud({ tables: nt });
     },
 
-    requestPayment: async (tid: number) => {
-      const targetTable = tables.find(t => t.id === tid);
-      const nt = tables.map(t => t.id === tid ? { ...t, status: TableStatus.PAYING } : t);
-      const nnotif: AppNotification = { id: `PAY-${Date.now()}`, targetRole: UserRole.STAFF, title: 'Yêu cầu tính tiền', message: `${tid === 0 ? 'Khách lẻ' : 'Bàn ' + tid} muốn tính tiền.`, timestamp: Date.now(), read: false, type: 'payment', payload: { tableId: tid, claimedBy: targetTable?.claimedBy } };
-      await pushToCloud({ tables: nt, notifications: [nnotif, ...notifications] });
-    },
-
-    confirmPayment: async (tid: number) => {
-      const table = tables.find(t => t.id === tid);
-      if (!table || table.status === TableStatus.AVAILABLE) return;
-      
-      const orders = ensureArray<OrderItem>(table.currentOrders);
-      const paidItems = orders.filter(o => o.status !== OrderItemStatus.CANCELLED);
-      const total = paidItems.reduce((s, o) => s + (o.price * o.quantity), 0);
-      const transactionId = `BILL-${table.sessionToken || 'CASH'}-${Date.now()}`;
-      
-      const h: HistoryEntry = { 
-        id: transactionId, 
-        tableId: tid, 
-        staffId: table.claimedBy || 'direct',
-        total, 
-        items: orders, 
-        date: new Date().toISOString(), 
-        orderType: table.orderType
-      };
-      
-      if (tid === 0) {
-        const nt = tables.map(t => t.id === 0 ? { ...t, status: TableStatus.AVAILABLE, currentOrders: [], claimedBy: null, sessionToken: null, qrRequested: false } : t);
-        await pushToCloud({ tables: nt, history: [h, ...history] });
-      } else {
-        const nt = tables.map(t => t.id === tid ? { ...t, status: TableStatus.REVIEWING } : t);
-        await pushToCloud({ tables: nt, history: [h, ...history] });
-      }
-    },
-
-    // Fix: Removed duplicate updateCloudUrl definition from this location to resolve property name conflict
     requestTableMove: async (fromId: number, toId: number, sid: string) => {
         const nnotif: AppNotification = {
             id: `MOVE-${Date.now()}`, targetRole: UserRole.ADMIN, title: 'Yêu cầu chuyển/gộp bàn',
@@ -398,6 +369,28 @@ export const useRestaurantStore = () => {
     },
     clearHistory: async () => { await pushToCloud({ history: [] }); },
     clearReviews: async () => { await pushToCloud({ reviews: [] }); },
+    requestPayment: async (tid: number) => {
+      const targetTable = tables.find(t => t.id === tid);
+      const nt = tables.map(t => t.id === tid ? { ...t, status: TableStatus.PAYING } : t);
+      const nnotif: AppNotification = { id: `PAY-${Date.now()}`, targetRole: UserRole.STAFF, title: 'Yêu cầu tính tiền', message: `${tid === 0 ? 'Khách lẻ' : 'Bàn ' + tid} muốn tính tiền.`, timestamp: Date.now(), read: false, type: 'payment', payload: { tableId: tid, claimedBy: targetTable?.claimedBy } };
+      await pushToCloud({ tables: nt, notifications: [nnotif, ...notifications] });
+    },
+    confirmPayment: async (tid: number) => {
+      const table = tables.find(t => t.id === tid);
+      if (!table || table.status === TableStatus.AVAILABLE) return;
+      const orders = ensureArray<OrderItem>(table.currentOrders);
+      const paidItems = orders.filter(o => o.status !== OrderItemStatus.CANCELLED);
+      const total = paidItems.reduce((s, o) => s + (o.price * o.quantity), 0);
+      const transactionId = `BILL-${table.sessionToken || 'CASH'}-${Date.now()}`;
+      const h: HistoryEntry = { id: transactionId, tableId: tid, staffId: table.claimedBy || 'direct', total, items: orders, date: new Date().toISOString(), orderType: table.orderType };
+      if (tid === 0) {
+        const nt = tables.map(t => t.id === 0 ? { ...t, status: TableStatus.AVAILABLE, currentOrders: [], claimedBy: null, sessionToken: null, qrRequested: false } : t);
+        await pushToCloud({ tables: nt, history: [h, ...history] });
+      } else {
+        const nt = tables.map(t => t.id === tid ? { ...t, status: TableStatus.REVIEWING } : t);
+        await pushToCloud({ tables: nt, history: [h, ...history] });
+      }
+    },
     completeBilling: async (tid: number) => {
       const nt = tables.map(t => t.id === tid ? { ...t, status: TableStatus.REVIEWING } : t);
       await pushToCloud({ tables: nt });
