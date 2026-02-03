@@ -77,7 +77,6 @@ export const useRestaurantStore = () => {
       const unsubscribe = onValue(dataRef, (snapshot) => {
         const data = snapshot.val();
         if (data) {
-          // Luôn đảm bảo có Bàn 0 cho khách lẻ mang đi
           const rawTables = data.tables || [];
           if (!rawTables.find((t:any) => t.id === 0)) {
             rawTables.unshift({ id: 0, status: TableStatus.AVAILABLE, currentOrders: [], orderType: OrderType.TAKEAWAY });
@@ -168,7 +167,6 @@ export const useRestaurantStore = () => {
       } else {
         newTables = newTables.slice(0, count);
       }
-      // Re-add table 0
       newTables.unshift({ id: 0, status: TableStatus.AVAILABLE, currentOrders: [], orderType: OrderType.TAKEAWAY });
       await pushToCloud({ tables: newTables });
     },
@@ -210,6 +208,20 @@ export const useRestaurantStore = () => {
       await pushToCloud({ tables: updatedTables, notifications: [nnotif, kitchenNotif, ...notifications] });
     },
 
+    callStaff: async (tid: number) => {
+      const nnotif: AppNotification = {
+        id: `CALL-${Date.now()}`,
+        targetRole: UserRole.STAFF,
+        title: '🔔 Gọi nhân viên',
+        message: `Bàn ${tid} đang gọi phục vụ.`,
+        timestamp: Date.now(),
+        read: false,
+        type: 'call_staff',
+        payload: { tableId: tid }
+      };
+      await pushToCloud({ notifications: [nnotif, ...notifications] });
+    },
+
     updateOrderItemStatus: async (tid: number, oid: string, s: OrderItemStatus) => {
       const nt = tables.map(t => t.id === tid ? { ...t, currentOrders: t.currentOrders.map(o => o.id === oid ? { ...o, status: s } : o) } : t);
       if (s === OrderItemStatus.READY) {
@@ -226,7 +238,7 @@ export const useRestaurantStore = () => {
         await pushToCloud({ tables: nt, notifications: [staffNotif, ...notifications] });
         return;
       }
-      await pushToCloud({ tables: nt }); // Sửa lỗi: Cập nhật tables thay vì nt
+      await pushToCloud({ tables: nt });
     },
 
     cancelOrderItem: async (tid: number, oid: string) => {
@@ -254,7 +266,7 @@ export const useRestaurantStore = () => {
     },
 
     requestTableQr: async (tid: number, sid: string) => {
-      if (tid === 0) return; // Bàn 0 không cần quét QR
+      if (tid === 0) return;
       const nt = tables.map(t => t.id === tid ? { ...t, qrRequested: true, claimedBy: sid } : t);
       const nnotif: AppNotification = { 
         id: `QR-REQ-${Date.now()}`, 
