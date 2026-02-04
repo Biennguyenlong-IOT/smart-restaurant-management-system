@@ -7,7 +7,7 @@ import {
   Monitor, Settings, Plus, UserPlus, Pizza, Shield, 
   Trash2, X, Edit3, LayoutDashboard, CreditCard, Star, Award, TrendingUp,
   Database, CheckCircle, RotateCcw, DollarSign, Search, FileText, 
-  ArrowUpRight, ArrowDownRight, UserCheck, AlertTriangle, QrCode, MoveHorizontal, Merge, Sparkles, ChevronRight, MessageSquare, Target, ChefHat, Printer, Clock
+  ArrowUpRight, ArrowDownRight, UserCheck, AlertTriangle, QrCode, MoveHorizontal, Merge, Sparkles, ChevronRight, MessageSquare, Target, ChefHat, Printer, Clock, ImageIcon
 } from 'lucide-react';
 import { ensureArray } from '../store.ts';
 
@@ -478,14 +478,42 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
                  {menuForm && (
                     <div className="bg-slate-50 p-6 rounded-3xl mb-8 space-y-4 border border-slate-200">
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <input type="text" placeholder="Tên món" value={menuForm.name || ''} onChange={e => setMenuForm({...menuForm, name: e.target.value})} className="px-6 py-4 bg-white border border-slate-100 rounded-2xl outline-none font-bold text-xs" />
-                            <input type="number" placeholder="Giá tiền" value={menuForm.price || ''} onChange={e => setMenuForm({...menuForm, price: parseInt(e.target.value)})} className="px-6 py-4 bg-white border border-slate-100 rounded-2xl outline-none font-bold text-xs" />
+                            <div>
+                                <label className="text-[9px] font-black uppercase text-slate-400 italic mb-2 block">Tên món ăn</label>
+                                <input type="text" placeholder="Tên món" value={menuForm.name || ''} onChange={e => setMenuForm({...menuForm, name: e.target.value})} className="w-full px-6 py-4 bg-white border border-slate-100 rounded-2xl outline-none font-bold text-xs" />
+                            </div>
+                            <div>
+                                <label className="text-[9px] font-black uppercase text-slate-400 italic mb-2 block">Giá bán</label>
+                                <input type="number" placeholder="Giá tiền" value={menuForm.price || ''} onChange={e => setMenuForm({...menuForm, price: parseInt(e.target.value)})} className="w-full px-6 py-4 bg-white border border-slate-100 rounded-2xl outline-none font-bold text-xs" />
+                            </div>
                         </div>
-                        <select value={menuForm.category || 'Tất cả'} onChange={e => setMenuForm({...menuForm, category: e.target.value})} className="w-full px-6 py-4 bg-white border border-slate-100 rounded-2xl outline-none font-bold text-xs uppercase">
-                            {INITIAL_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                        <div className="flex gap-3">
-                            <button onClick={saveMenuItem} className="flex-1 py-4 bg-orange-500 text-white rounded-2xl font-black uppercase text-[10px]">Lưu món</button>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label className="text-[9px] font-black uppercase text-slate-400 italic mb-2 block">Danh mục</label>
+                                <select value={menuForm.category || 'Tất cả'} onChange={e => setMenuForm({...menuForm, category: e.target.value})} className="w-full px-6 py-4 bg-white border border-slate-100 rounded-2xl outline-none font-bold text-xs uppercase appearance-none">
+                                    {INITIAL_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="text-[9px] font-black uppercase text-slate-400 italic mb-2 block">URL Hình ảnh</label>
+                                <div className="relative">
+                                    <ImageIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={16} />
+                                    <input type="text" placeholder="https://..." value={menuForm.image || ''} onChange={e => setMenuForm({...menuForm, image: e.target.value})} className="w-full pl-12 pr-6 py-4 bg-white border border-slate-100 rounded-2xl outline-none font-bold text-xs" />
+                                </div>
+                            </div>
+                        </div>
+                        
+                        {menuForm.image && (
+                            <div className="mt-2">
+                                <label className="text-[9px] font-black uppercase text-slate-400 italic mb-2 block">Xem trước ảnh</label>
+                                <div className="w-24 h-24 rounded-2xl overflow-hidden border-2 border-white shadow-md">
+                                    <img src={menuForm.image} alt="Preview" className="w-full h-full object-cover" onError={(e) => (e.currentTarget.src = 'https://picsum.photos/seed/food/400/300')} />
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="flex gap-3 pt-4">
+                            <button onClick={saveMenuItem} className="flex-1 py-4 bg-orange-500 text-white rounded-2xl font-black uppercase text-[10px] shadow-lg">Lưu món</button>
                             <button onClick={() => setMenuForm(null)} className="px-8 py-4 bg-slate-200 text-slate-500 rounded-2xl font-black uppercase text-[10px]">Hủy</button>
                         </div>
                     </div>

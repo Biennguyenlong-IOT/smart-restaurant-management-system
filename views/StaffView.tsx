@@ -3,7 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { OrderItem, OrderItemStatus, TableStatus, UserRole, Table, OrderType, MenuItem, AppNotification, User } from '../types.ts';
 import { ConfirmModal } from '../App.tsx';
 import { CATEGORIES } from '../constants';
-import { PlusCircle, Utensils, Search, X, Bell, Trash2, ChevronRight, QrCode, LogOut, CheckCheck, MoveHorizontal, Merge, Sparkles, Eraser, Loader2, AlertCircle, ShoppingBag, User as UserIcon, Check, ShoppingCart, Filter, StickyNote, Clock, Link as LinkIcon } from 'lucide-react';
+import { PlusCircle, Utensils, Search, X, Bell, Trash2, ChevronRight, QrCode, LogOut, CheckCheck, MoveHorizontal, Merge, Sparkles, Eraser, Loader2, AlertCircle, ShoppingBag, User as UserIcon, Check, ShoppingCart, Filter, StickyNote, Clock, Link as LinkIcon, CheckCircle2 } from 'lucide-react';
 import { ensureArray } from '../store.ts';
 
 interface StaffViewProps { store: any; currentUser: User; }
@@ -23,8 +23,8 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
     const allTables = ensureArray<Table>(store.tables);
     return allTables.filter((t: Table) => {
       if (t.id === 0) {
-          // Chỉ hiện Bill lẻ của chính mình nếu nó đang có đơn hàng hoặc chờ thu tiền
-          return t.claimedBy === currentUser.id && (ensureArray(t.currentOrders).length > 0 || t.status === TableStatus.BILLING);
+          // Chỉ hiện Bill lẻ của chính mình nếu nó đang phục vụ, chờ duyệt hoặc chờ đánh giá
+          return t.claimedBy === currentUser.id && (ensureArray(t.currentOrders).length > 0 || t.status === TableStatus.BILLING || t.status === TableStatus.REVIEWING);
       }
       if (t.status === TableStatus.AVAILABLE || t.qrRequested || t.status === TableStatus.CLEANING) return true;
       if (t.parentTableId) {
@@ -143,7 +143,9 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
         if (limitReached && t.id !== 0) return;
         store.requestTableQr(t.id, currentUser.id).catch((e: Error) => alert(e.message === 'LIMIT_REACHED' ? "Bạn đã phục vụ tối đa 3 bàn!" : "Lỗi hệ thống"));
     }
-    else if (t.status === TableStatus.CLEANING) store.setTableEmpty(t.id);
+    else if (t.status === TableStatus.CLEANING || t.status === TableStatus.REVIEWING) {
+        store.setTableEmpty(t.id);
+    }
     else {
         if (t.parentTableId) {
             const parent = store.tables.find((p: Table) => p.id === t.parentTableId);
@@ -233,6 +235,8 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
                       ? `border-dashed border-slate-200 bg-white ${limitReached && t.id !== 0 ? 'opacity-30' : 'hover:border-slate-400'}` 
                       : t.status === TableStatus.CLEANING 
                       ? 'border-emerald-500 bg-emerald-50 text-emerald-600' 
+                      : t.status === TableStatus.REVIEWING
+                      ? 'border-blue-500 bg-blue-50 text-blue-600'
                       : isChild 
                       ? 'border-indigo-400 bg-indigo-50 text-indigo-700' 
                       : (t.status === TableStatus.BILLING ? 'border-orange-500 bg-slate-900 text-white animate-pulse' : 'border-slate-800 bg-slate-900 text-white shadow-md')
@@ -240,12 +244,13 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
                         <span className="text-[10px] font-black uppercase italic">{t.id === 0 ? 'Lẻ' : 'Bàn '+t.id}</span>
                         {t.qrRequested ? <Loader2 size={18} className="animate-spin" /> :
                          t.status === TableStatus.AVAILABLE ? <PlusCircle size={18} className="text-slate-300"/> : 
-                         t.status === TableStatus.CLEANING ? <Sparkles size={18}/> :
+                         (t.status === TableStatus.CLEANING || t.status === TableStatus.REVIEWING) ? <CheckCircle2 size={18}/> :
                          isChild ? <LinkIcon size={18} className="animate-pulse" /> : <Utensils size={18} className="text-orange-500"/>}
                         
                         <span className="text-[7px] font-black uppercase tracking-tighter mt-1 opacity-60 text-center leading-tight">
                             {t.qrRequested ? 'Đợi duyệt' : 
                              t.status === TableStatus.CLEANING ? 'Bấm để dọn' : 
+                             t.status === TableStatus.REVIEWING ? 'Đã xong - Đóng' :
                              t.status === TableStatus.BILLING ? 'Đợi Admin duyệt' :
                              isChild ? `Ghép vào Bàn ${t.parentTableId}` : ''}
                         </span>
@@ -371,7 +376,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
                                 <div className="relative">
                                     <select value={selectedTableId ?? ''} onChange={e => setSelectedTableId(e.target.value === '' ? null : parseInt(e.target.value))} className="bg-slate-50 border border-slate-200 outline-none font-black text-[10px] uppercase pl-3 pr-8 py-2.5 rounded-xl appearance-none text-slate-800 min-w-[100px]">
                                         <option value="">CHỌN BÀN</option>
-                                        {store.tables.filter((t: any) => t.id !== 0 && t.status !== TableStatus.AVAILABLE && t.claimedBy === currentUser.id && !t.parentTableId && t.status !== TableStatus.BILLING).map((t: any) => (
+                                        {store.tables.filter((t: any) => t.id !== 0 && t.status !== TableStatus.AVAILABLE && t.claimedBy === currentUser.id && !t.parentTableId && t.status !== TableStatus.BILLING && t.status !== TableStatus.REVIEWING).map((t: any) => (
                                             <option key={t.id} value={t.id}>BÀN {t.id}</option>
                                         ))}
                                     </select>
@@ -403,10 +408,10 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
                     </div>
                     <span className="text-[8px] font-bold text-slate-400 uppercase bg-slate-100 px-2 py-1 rounded">Chỉ hiện bill bạn phục vụ</span>
                 </div>
-                {visibleTables.filter(t => !t.parentTableId && (t.status === TableStatus.PAYING || t.status === TableStatus.OCCUPIED || t.status === TableStatus.BILLING || (t.id === 0 && ensureArray(t.currentOrders).length > 0))).length === 0 ? (
+                {visibleTables.filter(t => !t.parentTableId && (t.status === TableStatus.PAYING || t.status === TableStatus.OCCUPIED || t.status === TableStatus.BILLING)).length === 0 ? (
                     <div className="py-20 text-center text-slate-300 font-black uppercase text-[10px] italic">Không có hóa đơn chờ</div>
                 ) : (
-                    visibleTables.filter(t => !t.parentTableId && (t.status === TableStatus.PAYING || t.status === TableStatus.OCCUPIED || t.status === TableStatus.BILLING || (t.id === 0 && ensureArray(t.currentOrders).length > 0))).map(t => {
+                    visibleTables.filter(t => !t.parentTableId && (t.status === TableStatus.PAYING || t.status === TableStatus.OCCUPIED || t.status === TableStatus.BILLING)).map(t => {
                         const amount = ensureArray<OrderItem>(t.currentOrders).filter(o=>o.status!==OrderItemStatus.CANCELLED).reduce((s,o)=>s+(o.price*o.quantity),0);
                         if (amount === 0 && t.id === 0 && t.status !== TableStatus.BILLING) return null;
                         
@@ -477,7 +482,7 @@ const StaffView: React.FC<StaffViewProps> = ({ store, currentUser }) => {
 
         {moveRequest && (
            <div className="fixed inset-0 z-[400] bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-6 animate-fadeIn">
-              <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl animate-scaleIn">
+              <div className="bg-white w-full max-sm:max-w-[90%] max-w-sm rounded-[2.5rem] p-8 shadow-2xl animate-scaleIn">
                   <div className="flex justify-between items-center mb-6">
                     <h3 className="text-lg font-black uppercase italic text-slate-800">{moveRequest.mode === 'MOVE' ? 'Chọn bàn trống để chuyển' : 'Chọn bàn đích để gộp'}</h3>
                     <button onClick={() => setMoveRequest(null)} className="p-2 bg-slate-50 rounded-xl text-slate-400"><X size={20}/></button>
