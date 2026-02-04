@@ -140,15 +140,19 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
     </div>
   );
 
-  if (table.status === TableStatus.PAYING) {
+  // Quan trọng: PAYING (Khách yêu cầu tính tiền) và BILLING (Nhân viên đã gửi lên Admin) 
+  // đều phải hiển thị màn hình chờ thanh toán.
+  if (table.status === TableStatus.PAYING || table.status === TableStatus.BILLING) {
     return (
-        <div className="flex flex-col h-full max-w-md mx-auto w-full p-4 animate-fadeIn overflow-y-auto pb-24">
+        <div className="flex flex-col h-full max-w-md mx-auto w-full p-4 animate-fadeIn overflow-y-auto pb-24 no-scrollbar">
             <div className="bg-white rounded-[2.5rem] p-8 shadow-2xl border border-slate-100 relative text-center">
-                <div className="absolute top-0 left-0 w-full h-2 bg-emerald-500 rounded-t-[2.5rem]"></div>
-                <div className="w-16 h-16 bg-emerald-50 text-emerald-500 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                <div className={`absolute top-0 left-0 w-full h-2 rounded-t-[2.5rem] ${table.status === TableStatus.BILLING ? 'bg-orange-500 animate-pulse' : 'bg-emerald-500'}`}></div>
+                <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6 ${table.status === TableStatus.BILLING ? 'bg-orange-50 text-orange-500' : 'bg-emerald-50 text-emerald-500'}`}>
                     <Loader2 size={32} className="animate-spin" />
                 </div>
-                <h2 className="text-xl font-black text-slate-800 uppercase italic mb-6">Đang chờ thanh toán</h2>
+                <h2 className="text-xl font-black text-slate-800 uppercase italic mb-6">
+                    {table.status === TableStatus.BILLING ? 'Admin đang kiểm tra bill' : 'Đang chờ thanh toán'}
+                </h2>
                 
                 <div className="bg-slate-50 rounded-2xl p-6 mb-8 text-left space-y-3 border border-slate-100">
                     {activeOrders.map((item, idx) => (
@@ -163,7 +167,7 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
                     </div>
                 </div>
 
-                {bankQrUrl && (
+                {bankQrUrl && table.status !== TableStatus.BILLING && (
                     <div className="space-y-4 animate-slideUp">
                         <div className="p-3 bg-white rounded-2xl border-2 border-slate-50 inline-block shadow-sm">
                             <img src={bankQrUrl} alt="Bank QR" className="w-56 h-56 rounded-lg mx-auto" />
@@ -178,8 +182,14 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
                         </div>
                     </div>
                 )}
+
+                {table.status === TableStatus.BILLING && (
+                    <div className="p-6 bg-orange-50 rounded-2xl border border-orange-100 animate-slideUp">
+                        <p className="text-[10px] font-black text-orange-600 uppercase italic mb-2">Thông báo</p>
+                        <p className="text-[11px] font-bold text-slate-700">Yêu cầu của bạn đã được gửi tới quản lý. Vui lòng đợi trong giây lát, hệ thống sẽ tự động chuyển sang trang đánh giá khi hoàn tất.</p>
+                    </div>
+                )}
             </div>
-            {/* Thêm khoảng trống ở cuối để đảm bảo cuộn hết mã QR */}
             <div className="h-10 shrink-0"></div>
         </div>
     );

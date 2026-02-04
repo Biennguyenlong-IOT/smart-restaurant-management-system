@@ -296,14 +296,17 @@ export const useRestaurantStore = () => {
       await pushToCloud({ tables: nt });
     },
 
+    setTableEmpty: async (tid: number) => {
+      const nt = resetTableAndLinkedOnes(tid, tables);
+      await pushToCloud({ tables: nt });
+    },
+
     staffConfirmPayment: async (tid: number) => {
-      // Chuyển sang trạng thái BILLING để Admin thu tiền
       const nt = tables.map(t => t.id === tid ? { ...t, status: TableStatus.BILLING } : t);
       await pushToCloud({ tables: nt });
     },
 
     confirmPayment: async (tid: number) => {
-      // Admin chốt bill cuối cùng và đưa vào lịch sử
       const table = tables.find(t => t.id === tid);
       if (!table || table.status === TableStatus.AVAILABLE) return;
       const orders = ensureArray<OrderItem>(table.currentOrders);
@@ -312,17 +315,13 @@ export const useRestaurantStore = () => {
       const transactionId = `BILL-${table.sessionToken || 'CASH'}-${Date.now()}`;
       const h: HistoryEntry = { id: transactionId, tableId: tid, staffId: table.claimedBy || 'direct', total, items: orders, date: new Date().toISOString(), orderType: table.orderType };
       
-      if (tid === 0) {
-        const nt = tables.map(t => t.id === 0 ? { ...t, status: TableStatus.AVAILABLE, currentOrders: [], claimedBy: null, sessionToken: null, qrRequested: false } : t);
-        await pushToCloud({ tables: nt, history: [h, ...history] });
-      } else {
-        const nt = tables.map(t => {
-            if (t.id === tid) return { ...t, status: TableStatus.REVIEWING };
-            if (t.parentTableId === tid) return { ...t, status: TableStatus.AVAILABLE, currentOrders: [], claimedBy: null, sessionToken: null, qrRequested: false, parentTableId: null };
-            return t;
-        });
-        await pushToCloud({ tables: nt, history: [h, ...history] });
-      }
+      // Cho cả bàn thường và bàn lẻ sang REVIEWING để khách xem được màn hình đánh giá
+      const nt = tables.map(t => {
+          if (t.id === tid) return { ...t, status: TableStatus.REVIEWING };
+          if (t.parentTableId === tid) return { ...t, status: TableStatus.AVAILABLE, currentOrders: [], claimedBy: null, sessionToken: null, qrRequested: false, parentTableId: null };
+          return t;
+      });
+      await pushToCloud({ tables: nt, history: [h, ...history] });
     },
 
     requestTableMove: async (fromId: number, toId: number, sid: string) => {
@@ -387,10 +386,11 @@ export const useRestaurantStore = () => {
 
     updateBankConfig: async (config: BankConfig) => { await pushToCloud({ bankConfig: config }); },
 
+    // Chỉnh sửa: Sử dụng biến 'tables' thay vì 'nt' không xác định khi đẩy lên cloud
     callStaff: async (tid: number) => {
       const targetTable = tables.find(t => t.id === tid);
       const nnotif: AppNotification = { id: `CALL-${Date.now()}`, targetRole: UserRole.STAFF, title: '🔔 Gọi nhân viên', message: `Bàn ${tid} đang gọi phục vụ.`, timestamp: Date.now(), read: false, type: 'call_staff', payload: { tableId: tid, claimedBy: targetTable?.claimedBy } };
-      await pushToCloud({ notifications: [nnotif, ...notifications] });
+      await pushToCloud({ tables, notifications: [nnotif, ...notifications] });
     },
 
     requestTableQr: async (tid: number, sid: string) => {
