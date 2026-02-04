@@ -1,3 +1,4 @@
+
 export enum UserRole {
   CUSTOMER = 'CUSTOMER',
   STAFF = 'STAFF',
@@ -59,6 +60,7 @@ export interface Table {
   sessionToken?: string | null;
   qrRequested?: boolean;
   claimedBy?: string | null;
+  parentTableId?: number | null; // Để quản lý gộp bàn
 }
 
 export interface Review {

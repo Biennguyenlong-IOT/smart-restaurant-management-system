@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import * as ReactRouterDOM from 'react-router-dom';
 const { HashRouter, Routes, Route, Navigate, Link, useLocation, useNavigate, useSearchParams } = ReactRouterDOM;
@@ -105,7 +106,9 @@ const AppContent: React.FC = () => {
       
       if (currentUser.role === UserRole.STAFF) {
         if (n.targetRole !== UserRole.STAFF) return false;
-        return !n.payload || n.payload.claimedBy === currentUser.id || n.payload.tableId === 0;
+        // Chỉnh sửa: Chỉ nhận thông báo nếu nhân viên này đang phụ trách bàn đó
+        // n.payload.claimedBy phải trùng với ID của nhân viên hiện tại
+        return n.payload?.claimedBy === currentUser.id;
       }
       return false;
     });

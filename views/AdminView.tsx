@@ -1,17 +1,89 @@
 
-import React, { useState, useMemo } from 'react'; 
-import { MenuItem, TableStatus, Table, UserRole, AppNotification, User, HistoryEntry, BankConfig, OrderItemStatus, Review, OrderType, OrderItem } from '../types';
+import React, { useState, useMemo } from 'react';
+import { MenuItem, TableStatus, Table, UserRole, AppNotification, User, HistoryEntry, OrderItemStatus, Review, OrderType, OrderItem } from '../types';
 import { CATEGORIES as INITIAL_CATEGORIES } from '../constants';
 import { ConfirmModal } from '../App';
 import { 
   Monitor, Settings, Plus, UserPlus, Pizza, Shield, 
   Trash2, X, Edit3, LayoutDashboard, CreditCard, Star, Award, TrendingUp,
   Database, CheckCircle, RotateCcw, DollarSign, Search, FileText, 
-  ArrowUpRight, ArrowDownRight, UserCheck, AlertTriangle, QrCode, MoveHorizontal, Merge, Sparkles, ChevronRight, MessageSquare, Target, ChefHat
+  ArrowUpRight, ArrowDownRight, UserCheck, AlertTriangle, QrCode, MoveHorizontal, Merge, Sparkles, ChevronRight, MessageSquare, Target, ChefHat, Printer, Clock
 } from 'lucide-react';
 import { ensureArray } from '../store.ts';
 
 interface AdminViewProps { store: any; }
+
+const BillDetailModal: React.FC<{ bill: HistoryEntry | null, onClose: () => void, users: User[] }> = ({ bill, onClose, users }) => {
+  if (!bill) return null;
+  const staff = users.find(u => u.id === bill.staffId);
+  
+  return (
+    <div className="fixed inset-0 z-[400] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn">
+      <div className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl animate-scaleIn overflow-hidden border border-slate-100 flex flex-col max-h-[90vh]">
+        <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+          <div>
+            <h3 className="text-xl font-black text-slate-800 uppercase italic leading-none">Chi tiết hóa đơn</h3>
+            <p className="text-[10px] font-bold text-slate-400 uppercase mt-2 tracking-widest">#{bill.id}</p>
+          </div>
+          <button onClick={onClose} className="p-3 bg-white hover:bg-red-50 hover:text-red-500 rounded-2xl transition-all shadow-sm border border-slate-100">
+            <X size={20} />
+          </button>
+        </div>
+        
+        <div className="flex-1 overflow-y-auto p-8 space-y-8 no-scrollbar">
+          <div className="grid grid-cols-2 gap-6">
+            <div className="space-y-1">
+              <p className="text-[9px] font-black text-slate-400 uppercase italic">Bàn phục vụ</p>
+              <p className="text-sm font-black text-slate-800 uppercase">Bàn {bill.tableId === 0 ? 'Lẻ' : bill.tableId}</p>
+            </div>
+            <div className="space-y-1 text-right">
+              <p className="text-[9px] font-black text-slate-400 uppercase italic">Nhân viên</p>
+              <p className="text-sm font-black text-slate-800 uppercase">{staff?.fullName || 'Hệ thống'}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-[9px] font-black text-slate-400 uppercase italic">Ngày giờ</p>
+              <div className="flex items-center gap-1.5 text-slate-600">
+                <Clock size={12}/>
+                <p className="text-[11px] font-bold">{new Date(bill.date).toLocaleString('vi-VN')}</p>
+              </div>
+            </div>
+            <div className="space-y-1 text-right">
+              <p className="text-[9px] font-black text-slate-400 uppercase italic">Hình thức</p>
+              <span className={`text-[9px] font-black px-2 py-1 rounded-md uppercase ${bill.orderType === OrderType.TAKEAWAY ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
+                {bill.orderType === OrderType.TAKEAWAY ? 'Mang về' : 'Tại chỗ'}
+              </span>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <p className="text-[10px] font-black text-slate-800 uppercase italic tracking-widest border-b border-slate-100 pb-2">Danh sách món ăn</p>
+            <div className="space-y-3">
+              {ensureArray<OrderItem>(bill.items).filter(i => i.status !== OrderItemStatus.CANCELLED).map((item, idx) => (
+                <div key={idx} className="flex justify-between items-center bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                  <div className="flex-1 pr-4">
+                    <p className="text-[11px] font-black text-slate-800 uppercase">{item.name}</p>
+                    <p className="text-[9px] font-bold text-slate-400">{item.price.toLocaleString()}đ x {item.quantity}</p>
+                  </div>
+                  <p className="text-[12px] font-black text-slate-900 italic">{(item.price * item.quantity).toLocaleString()}đ</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="p-8 bg-slate-900 text-white flex justify-between items-center">
+          <div>
+            <p className="text-[10px] font-black text-slate-500 uppercase italic">Tổng cộng thanh toán</p>
+            <h3 className="text-3xl font-black italic">{bill.total.toLocaleString()}đ</h3>
+          </div>
+          <button className="px-6 py-4 bg-orange-500 hover:bg-orange-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-xl flex items-center gap-2 transition-all active:scale-95">
+            <Printer size={16}/> In lại hóa đơn
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const AdminView: React.FC<AdminViewProps> = ({ store }) => {
   const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'BILLING' | 'REQUESTS' | 'MONITOR' | 'MENU' | 'USERS' | 'BANK' | 'CLOUD' | 'KPI'>('DASHBOARD');
@@ -20,10 +92,13 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
   const [menuForm, setMenuForm] = useState<Partial<MenuItem> | null>(null);
   const [userForm, setUserForm] = useState<Partial<User> | null>(null);
   const [historySearch, setHistorySearch] = useState('');
+  const [selectedBill, setSelectedBill] = useState<HistoryEntry | null>(null);
 
   const qrRequests = useMemo(() => ensureArray<AppNotification>(store.notifications).filter((n: AppNotification) => n.type === 'qr_request'), [store.notifications]);
   const moveRequests = useMemo(() => ensureArray<AppNotification>(store.notifications).filter((n: AppNotification) => n.type === 'move_request'), [store.notifications]);
-  const paymentRequests = useMemo(() => (store.tables || []).filter((t: Table) => t.status === TableStatus.PAYING), [store.tables]);
+  
+  // Admin chỉ thu tiền những bàn đã được nhân viên chốt (BILLING)
+  const paymentRequests = useMemo(() => (store.tables || []).filter((t: Table) => t.status === TableStatus.BILLING), [store.tables]);
 
   const stats = useMemo(() => {
     const history = ensureArray<HistoryEntry>(store.history);
@@ -98,6 +173,8 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
     <div className="h-full flex flex-col animate-fadeIn overflow-hidden relative pb-16 md:pb-0">
       <ConfirmModal isOpen={resetTableId !== null} type="danger" title="Reset bàn?" message={`Xác nhận xóa dữ liệu và giải phóng bàn ${resetTableId}?`} onConfirm={() => { if(resetTableId !== null) store.adminForceClose(resetTableId); setResetTableId(null); }} onCancel={() => setResetTableId(null)} />
       
+      <BillDetailModal bill={selectedBill} onClose={() => setSelectedBill(null)} users={ensureArray<User>(store.users)} />
+
       <div className="flex bg-white p-1.5 rounded-2xl mb-6 w-full overflow-x-auto no-scrollbar border border-slate-200 shadow-sm sticky top-0 z-30 shrink-0">
         {[
           { id: 'DASHBOARD', label: 'Báo cáo', icon: <LayoutDashboard size={16}/> },
@@ -226,12 +303,12 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
               </section>
 
               <section className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm">
-                 <h4 className="font-black text-[11px] uppercase italic mb-8 flex items-center gap-2 tracking-widest text-slate-800"><MessageSquare className="text-orange-500" size={18}/> Phản hồi chi tiết từ khách hàng</h4>
+                 <h4 className="font-black text-[11px] uppercase italic mb-8 flex items-center gap-2 tracking-widest text-slate-800"><MessageSquare className="text-orange-500" size={18}/> Phản hồi từ khách hàng</h4>
                  <div className="space-y-4">
                     {ensureArray<Review>(store.reviews).length === 0 ? (
                        <div className="py-20 text-center">
                           <MessageSquare className="mx-auto text-slate-100 mb-4" size={48}/>
-                          <p className="text-[10px] font-black uppercase text-slate-300 italic">Chưa có đánh giá nào từ khách hàng</p>
+                          <p className="text-[10px] font-black uppercase text-slate-300 italic">Chưa có đánh giá nào</p>
                        </div>
                     ) : (
                        ensureArray<Review>(store.reviews).map((r: Review) => (
@@ -243,10 +320,6 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
                                       <p className="text-[10px] font-black uppercase text-slate-800 italic">Bàn số {r.tableId}</p>
                                       <p className="text-[8px] font-bold text-slate-400">{new Date(r.timestamp).toLocaleString()}</p>
                                    </div>
-                                </div>
-                                <div className="text-right">
-                                   <p className="text-[9px] font-black uppercase text-slate-400 mb-1">Nhân viên phục vụ</p>
-                                   <p className="text-[10px] font-black text-slate-800 uppercase italic">{ensureArray<User>(store.users).find(u=>u.id===r.staffId)?.fullName || 'Hệ thống'}</p>
                                 </div>
                              </div>
                              <div className="grid grid-cols-2 gap-4">
@@ -293,7 +366,7 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
                        </thead>
                        <tbody className="divide-y divide-slate-50">
                           {filteredHistory.map((h: HistoryEntry) => (
-                             <tr key={h.id} className="hover:bg-slate-50/50 cursor-pointer transition-colors">
+                             <tr key={h.id} onClick={() => setSelectedBill(h)} className="hover:bg-slate-50/50 cursor-pointer transition-colors active:scale-[0.99] origin-center">
                                 <td className="py-4 pl-4 font-black text-[10px] uppercase italic">#{h.id.slice(-6)}</td>
                                 <td className="py-4 font-black text-[10px]">{h.tableId === 0 ? 'Lẻ' : h.tableId}</td>
                                 <td className="py-4 text-[10px] uppercase font-bold text-slate-400">{ensureArray<User>(store.users).find(u=>u.id===h.staffId)?.fullName || 'System'}</td>
@@ -324,7 +397,6 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
                           <button onClick={() => store.approveTableQr(n.id)} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] shadow-lg italic">Cấp mã QR</button>
                        </div>
                     ))}
-                    {qrRequests.length === 0 && <p className="text-[10px] font-black uppercase italic text-slate-300 py-6">Không có yêu cầu mở bàn</p>}
                  </div>
               </section>
 
@@ -347,23 +419,25 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
                           <button onClick={() => store.approveTableMove(n.id)} className="w-full py-4 bg-orange-500 text-white rounded-2xl font-black uppercase text-[10px] shadow-lg italic">Xác nhận chuyển/gộp</button>
                        </div>
                     ))}
-                    {moveRequests.length === 0 && <p className="text-[10px] font-black uppercase italic text-slate-300 py-6">Không có yêu cầu chuyển bàn</p>}
                  </div>
               </section>
 
               <section>
-                 <h4 className="font-black text-[10px] uppercase italic tracking-widest text-slate-400 mb-4 flex items-center gap-2"><DollarSign size={14}/> Chờ thu tiền ({paymentRequests.length})</h4>
+                 <h4 className="font-black text-[10px] uppercase italic tracking-widest text-slate-400 mb-4 flex items-center gap-2"><DollarSign size={14}/> Chờ thu tiền (Nhân viên đã chốt) ({paymentRequests.length})</h4>
                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {paymentRequests.map(t => (
                        <div key={t.id} className="bg-white p-5 rounded-3xl border-2 border-emerald-100 bg-emerald-50/20 flex flex-col gap-4">
                           <div className="flex justify-between items-center">
-                             <p className="text-sm font-black text-slate-800 italic uppercase">Bàn {t.id}</p>
+                             <div>
+                                <p className="text-xs font-black text-slate-800 italic uppercase">Bàn {t.id === 0 ? 'Khách lẻ' : t.id}</p>
+                                <p className="text-[8px] font-bold text-slate-400 uppercase">Phục vụ: {ensureArray<User>(store.users).find(u=>u.id===t.claimedBy)?.fullName}</p>
+                             </div>
                              <p className="text-sm font-black text-emerald-600">{ensureArray<OrderItem>(t.currentOrders).reduce((s,o)=>s+(o.price*o.quantity),0).toLocaleString()}đ</p>
                           </div>
-                          <button onClick={() => store.confirmPayment(t.id)} className="w-full py-4 bg-emerald-500 text-white rounded-2xl font-black uppercase text-[10px] shadow-lg italic">Đã nhận đủ tiền</button>
+                          <button onClick={() => store.confirmPayment(t.id)} className="w-full py-4 bg-emerald-500 text-white rounded-2xl font-black uppercase text-[10px] shadow-lg italic">Đã nhận đủ tiền (Kết thúc)</button>
                        </div>
                     ))}
-                    {paymentRequests.length === 0 && <p className="text-[10px] font-black uppercase italic text-slate-300 py-6">Không có yêu cầu thanh toán</p>}
+                    {paymentRequests.length === 0 && <p className="text-[10px] font-black uppercase italic text-slate-300 py-6 text-center w-full">Đang đợi nhân viên gửi bill...</p>}
                  </div>
               </section>
            </div>
@@ -375,7 +449,8 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
                  {store.tables.map((t: Table) => (
                     <div key={t.id} className={`p-4 rounded-3xl border-2 flex flex-col items-center justify-center gap-1 transition-all relative min-h-[100px] ${
                       t.status === TableStatus.AVAILABLE ? 'border-dashed border-slate-200 bg-white opacity-50' : 
-                      t.status === TableStatus.PAYING ? 'border-emerald-500 bg-emerald-50 text-emerald-600 animate-pulse' :
+                      t.status === TableStatus.BILLING ? 'border-emerald-500 bg-emerald-50 text-emerald-600 animate-pulse' :
+                      t.status === TableStatus.PAYING ? 'border-orange-500 bg-orange-50 text-orange-600' :
                       t.status === TableStatus.CLEANING ? 'border-amber-400 bg-amber-50 text-amber-600' :
                       'border-slate-800 bg-slate-900 text-white shadow-md'
                     }`}>
@@ -501,10 +576,6 @@ const AdminView: React.FC<AdminViewProps> = ({ store }) => {
                     <div>
                         <label className="text-[9px] font-black uppercase text-slate-400 italic mb-2 block">Tên chủ tài khoản</label>
                         <input type="text" value={store.bankConfig.accountName} onChange={e => store.updateBankConfig({...store.bankConfig, accountName: e.target.value})} className="w-full px-6 py-5 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold text-sm uppercase" />
-                    </div>
-                    <div className="p-6 bg-blue-50 rounded-2xl flex items-start gap-4">
-                        <CreditCard className="text-blue-500 shrink-0" size={24}/>
-                        <p className="text-[10px] text-blue-800 font-bold leading-relaxed uppercase italic">Mã QR thanh toán sẽ được tạo tự động cho khách hàng dựa trên hóa đơn hiện tại của họ.</p>
                     </div>
                  </div>
               </div>

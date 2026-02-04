@@ -1,3 +1,4 @@
+
 import React, { memo, useState, useMemo, useCallback, useEffect } from 'react';
 import * as ReactRouterDOM from 'react-router-dom';
 const { useParams, Link, useNavigate, useSearchParams, useLocation } = ReactRouterDOM;
@@ -6,7 +7,7 @@ import { CATEGORIES } from '../constants';
 import { OrderItem, OrderItemStatus, MenuItem, TableStatus, UserRole, Table, OrderType, Review, User } from '../types';
 import { ensureArray } from '../store.ts';
 import { ConfirmModal } from '../App';
-import { ShoppingCart, History, ChefHat, Loader2, CreditCard, Bell, X, Trash2, Send, ChevronRight, Star, MessageSquare, CheckCircle2, Clock } from 'lucide-react';
+import { ShoppingCart, History, ChefHat, Loader2, CreditCard, Bell, X, Trash2, Send, ChevronRight, Star, MessageSquare, CheckCircle2, Clock, StickyNote } from 'lucide-react';
 
 const MenuCard = memo(({ item, quantity, onAdd, onRemove }: { item: MenuItem, quantity: number, onAdd: () => void, onRemove: () => void }) => {
     const isOut = !item.isAvailable;
@@ -83,6 +84,10 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
     });
   }, []);
 
+  const handleUpdateNote = (id: string, note: string) => {
+    setCart(prev => ({ ...prev, [id]: { ...prev[id], note } }));
+  };
+
   const handlePlaceOrder = async () => {
     if (Object.keys(cart).length === 0 || isOrdering) return;
     setIsOrdering(true);
@@ -137,32 +142,45 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
 
   if (table.status === TableStatus.PAYING) {
     return (
-        <div className="flex flex-col h-full max-w-md mx-auto w-full p-4 animate-fadeIn overflow-y-auto no-scrollbar pb-10">
-            <div className="bg-white rounded-[2.5rem] p-8 shadow-2xl border border-slate-100 relative overflow-hidden text-center">
-                <div className="absolute top-0 left-0 w-full h-2 bg-emerald-500"></div>
+        <div className="flex flex-col h-full max-w-md mx-auto w-full p-4 animate-fadeIn overflow-y-auto pb-24">
+            <div className="bg-white rounded-[2.5rem] p-8 shadow-2xl border border-slate-100 relative text-center">
+                <div className="absolute top-0 left-0 w-full h-2 bg-emerald-500 rounded-t-[2.5rem]"></div>
                 <div className="w-16 h-16 bg-emerald-50 text-emerald-500 rounded-2xl flex items-center justify-center mx-auto mb-6">
                     <Loader2 size={32} className="animate-spin" />
                 </div>
-                <h2 className="text-xl font-black text-slate-800 uppercase italic mb-2">Đang chờ thanh toán</h2>
-                <div className="bg-slate-50 rounded-2xl p-6 mb-8 text-left space-y-3">
+                <h2 className="text-xl font-black text-slate-800 uppercase italic mb-6">Đang chờ thanh toán</h2>
+                
+                <div className="bg-slate-50 rounded-2xl p-6 mb-8 text-left space-y-3 border border-slate-100">
                     {activeOrders.map((item, idx) => (
-                        <div key={idx} className="flex justify-between items-center text-[11px]">
-                            <span className="font-black text-slate-700 uppercase italic truncate pr-2">{item.name} x{item.quantity}</span>
+                        <div key={idx} className="flex justify-between items-start text-[11px] gap-2">
+                            <span className="font-black text-slate-700 uppercase italic leading-tight">{item.name} <span className="text-slate-400 not-italic ml-1">x{item.quantity}</span></span>
                             <span className="font-black text-slate-900 shrink-0">{(item.price * item.quantity).toLocaleString()}đ</span>
                         </div>
                     ))}
-                    <div className="pt-4 border-t border-slate-200 flex justify-between items-center">
+                    <div className="pt-4 mt-2 border-t border-slate-200 flex justify-between items-center">
                         <span className="text-xs font-black uppercase text-slate-800 italic">Tổng cộng:</span>
                         <span className="text-xl font-black text-emerald-600 italic">{totalAmount.toLocaleString()}đ</span>
                     </div>
                 </div>
+
                 {bankQrUrl && (
-                    <div className="space-y-4">
-                        <img src={bankQrUrl} alt="Bank QR" className="w-48 h-48 rounded-lg mx-auto border-2 border-slate-50 p-2" />
-                        <p className="text-[9px] font-black text-slate-500 uppercase italic">{store.bankConfig.accountName} - {store.bankConfig.accountNo}</p>
+                    <div className="space-y-4 animate-slideUp">
+                        <div className="p-3 bg-white rounded-2xl border-2 border-slate-50 inline-block shadow-sm">
+                            <img src={bankQrUrl} alt="Bank QR" className="w-56 h-56 rounded-lg mx-auto" />
+                        </div>
+                        <div className="space-y-1">
+                            <p className="text-[10px] font-black text-slate-800 uppercase italic tracking-wider">{store.bankConfig.accountName}</p>
+                            <p className="text-[9px] font-bold text-slate-400">{store.bankConfig.bankId} - {store.bankConfig.accountNo}</p>
+                        </div>
+                        <div className="flex items-center justify-center gap-2 text-emerald-500 bg-emerald-50 py-2 px-4 rounded-xl mx-auto w-fit border border-emerald-100">
+                            <CheckCircle2 size={14}/>
+                            <span className="text-[9px] font-black uppercase">Quét mã để trả tiền nhanh</span>
+                        </div>
                     </div>
                 )}
             </div>
+            {/* Thêm khoảng trống ở cuối để đảm bảo cuộn hết mã QR */}
+            <div className="h-10 shrink-0"></div>
         </div>
     );
   }
@@ -253,7 +271,7 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
             <div className="animate-fadeIn space-y-4 px-1">
                 <div className="bg-white rounded-[2rem] p-6 shadow-xl border border-slate-100 min-h-[300px] flex flex-col">
                     <h3 className="font-black text-slate-800 text-lg mb-6 flex items-center gap-2 italic uppercase tracking-tighter"><ShoppingCart size={18} className="text-orange-500"/> Giỏ hàng</h3>
-                    <div className="flex-1 space-y-3">
+                    <div className="flex-1 space-y-4">
                         {Object.keys(cart).length === 0 ? (
                             <div className="flex flex-col items-center justify-center py-20 text-slate-300">
                                 <ShoppingCart size={48} className="opacity-20 mb-4"/>
@@ -263,15 +281,27 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
                             (Object.entries(cart) as [string, { qty: number, note: string }][]).map(([id, data]) => {
                                 const item = store.menu.find((m: MenuItem) => m.id === id);
                                 return (
-                                    <div key={id} className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-100">
-                                        <div className="flex items-center gap-3 min-w-0">
-                                            <img src={item?.image} className="w-10 h-10 rounded-lg object-cover shadow-sm"/>
-                                            <div className="truncate">
-                                                <p className="text-[10px] font-black uppercase text-slate-800 truncate">{item?.name}</p>
-                                                <p className="text-[9px] font-bold text-orange-600">{item?.price.toLocaleString()}đ x{data.qty}</p>
+                                    <div key={id} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-3">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-3 min-w-0">
+                                                <img src={item?.image} className="w-12 h-12 rounded-xl object-cover shadow-sm"/>
+                                                <div className="truncate">
+                                                    <p className="text-[11px] font-black uppercase text-slate-800 truncate">{item?.name}</p>
+                                                    <p className="text-[10px] font-bold text-orange-600">{item?.price.toLocaleString()}đ x{data.qty}</p>
+                                                </div>
                                             </div>
+                                            <button onClick={() => handleRemoveFromCart(id)} className="p-2.5 text-red-500 bg-white rounded-xl shadow-sm"><Trash2 size={16}/></button>
                                         </div>
-                                        <button onClick={() => handleRemoveFromCart(id)} className="p-2 text-red-500 bg-white rounded-xl shadow-sm"><Trash2 size={14}/></button>
+                                        <div className="relative">
+                                            <StickyNote size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
+                                            <input 
+                                                type="text" 
+                                                placeholder="Thêm ghi chú..." 
+                                                value={data.note}
+                                                onChange={(e) => handleUpdateNote(id, e.target.value)}
+                                                className="w-full pl-9 pr-4 py-2.5 bg-white rounded-xl text-[10px] font-bold border border-slate-100 outline-none focus:border-orange-500 transition-all"
+                                            />
+                                        </div>
                                     </div>
                                 );
                             })
@@ -299,21 +329,27 @@ const CustomerMenu: React.FC<CustomerMenuProps> = ({ store, currentRole }) => {
                     <div className="space-y-3">
                         {table?.currentOrders.length === 0 && <p className="text-center py-12 text-slate-300 font-black uppercase text-[10px] italic">Chưa có món</p>}
                         {table?.currentOrders.map((item: OrderItem) => (
-                            <div key={item.id} className={`p-4 rounded-xl border-2 flex items-center justify-between ${item.status === OrderItemStatus.CANCELLED ? 'bg-slate-50 border-slate-100 opacity-40' : 'bg-white border-slate-50'}`}>
-                                <div className="min-w-0 pr-4">
-                                    <h4 className="font-black text-slate-800 text-[10px] uppercase truncate italic">{item.name} x{item.quantity}</h4>
-                                    <div className="flex items-center gap-2">
-                                       <span className="text-[8px] font-black uppercase italic text-slate-400">{item.status}</span>
-                                       {item.status === OrderItemStatus.CONFIRMED && <Clock size={10} className="text-orange-400 animate-pulse"/>}
+                            <div key={item.id} className={`p-4 rounded-xl border-2 flex flex-col gap-2 ${item.status === OrderItemStatus.CANCELLED ? 'bg-slate-50 border-slate-100 opacity-40' : 'bg-white border-slate-50'}`}>
+                                <div className="flex items-center justify-between">
+                                    <div className="min-w-0 pr-4">
+                                        <h4 className="font-black text-slate-800 text-[10px] uppercase truncate italic">{item.name} x{item.quantity}</h4>
+                                        <div className="flex items-center gap-2">
+                                           <span className="text-[8px] font-black uppercase italic text-slate-400">{item.status}</span>
+                                           {item.status === OrderItemStatus.CONFIRMED && <Clock size={10} className="text-orange-400 animate-pulse"/>}
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                       <span className="font-black text-slate-900 text-[10px]">{(item.price * item.quantity).toLocaleString()}đ</span>
+                                       {(item.status === OrderItemStatus.PENDING || item.status === OrderItemStatus.CONFIRMED) && (
+                                         <button onClick={() => setCancelTarget({ id: item.id, name: item.name })} className="px-3 py-2 bg-red-50 text-red-500 rounded-lg transition-all hover:bg-red-500 hover:text-white font-black text-[9px] uppercase italic">Huỷ</button>
+                                       )}
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-3">
-                                   <span className="font-black text-slate-900 text-[10px]">{(item.price * item.quantity).toLocaleString()}đ</span>
-                                   {/* Refined cancellation logic: Customer can cancel if Pending or Confirmed (but not yet cooking) */}
-                                   {(item.status === OrderItemStatus.PENDING || item.status === OrderItemStatus.CONFIRMED) && (
-                                     <button onClick={() => setCancelTarget({ id: item.id, name: item.name })} className="px-3 py-2 bg-red-50 text-red-500 rounded-lg transition-all hover:bg-red-500 hover:text-white font-black text-[9px] uppercase italic">Huỷ</button>
-                                   )}
-                                </div>
+                                {item.note && (
+                                    <div className="px-3 py-1.5 bg-orange-50 border border-orange-100 rounded-lg">
+                                        <p className="text-[9px] font-bold text-orange-600 italic">Ghi chú: {item.note}</p>
+                                    </div>
+                                )}
                             </div>
                         ))}
                     </div>
